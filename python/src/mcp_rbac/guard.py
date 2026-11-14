@@ -439,7 +439,7 @@ class Guard(Generic[R]):
         if not self.audit_enabled:
             return
         e: dict[str, Any] = {"ts": _iso(self.clock()), "ref": d.ref, "agent": identity.agent if identity else "-",
-                             "user": identity.id if identity else "-", "tool": d.tool, "kind": "tool",
+                             "user": identity.id if identity else "-", "tool": d.tool, "kind": "call",
                              "decision": "allow" if d.allow else "deny", "reason": d.reason, "chain": [], "args": _redact_args(args)}
         if d.rule:
             e["rule"] = d.rule

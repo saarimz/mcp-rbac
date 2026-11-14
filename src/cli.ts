@@ -188,7 +188,7 @@ export async function main(argv = process.argv.slice(2)) {
     case "audit": {
       const s = new SqliteStore(str(flags.db) ?? defaultDbPath());
       const d = str(flags.decision);
-      const rows = s.queryAudit({ agent: str(flags.agent), tool: str(flags.tool), decision: d === "allow" || d === "deny" ? d : undefined, limit: Number(flags.limit ?? 50) });
+      const rows = s.queryAudit({ agent: str(flags.agent), user: str(flags.user), tool: str(flags.tool), decision: d === "allow" || d === "deny" ? d : undefined, limit: Number(flags.limit ?? 50) });
       for (const e of rows.reverse()) process.stdout.write(`${e.ts}  ${e.decision.padEnd(5)}  ${e.agent.padEnd(16)} ${e.tool.padEnd(28)} ${e.reason}${e.chain.length ? "  chain=" + e.chain.join(">") : ""}\n`);
       return;
     }

@@ -9,6 +9,20 @@
 
 It's also a TypeScript library for servers you do write. That adds RBAC with typed resource scopes, argument limits, agent→sub-agent delegation that can only narrow, revocation, approver-fatigue guards, a shared SQLite store, Streamable HTTP with OAuth/JWT, and pluggable decision engines (Cerbos, Casbin, Permit.io).
 
+**0.3 adds what multi-tenant SaaS vendors need** (reference: a Klaviyo-style marketing platform, [examples/klaviyo-style](examples/klaviyo-style), mock data):
+
+- **API scopes**: a hierarchy, list filtering, and a 403 `insufficient_scope` step-up. **Toolsets** too.
+- **Tenants**: org roles (all accounts / group / specific accounts), custom roles from permission sets, per-tenant budgets.
+- **MCP 2026-07-28**: stateless HTTP with `server/discover`, cache hints, and MRTR approvals with sealed single-use state; legacy clients are still served.
+- **Delegation**: RFC 8693 `act`/`may_act` and a token exchange that can only narrow.
+- **Output controls**: PII field redaction by role, data labels, `export+pii` rules, UGC labels.
+- **Shared state**: Redis and Postgres stores for many instances, tested on real servers.
+- **Observability**: OTel spans with traceparent; hash-chained, exportable audit with retention.
+- **Engines**: an AuthZEN 1.0 PDP and client, OpenFGA, and Cedar.
+- **[Python package](docs/python.md)** for the official Python SDK, with the same formats.
+
+Trust docs: [SECURITY.md](SECURITY.md), [threat model](docs/THREAT-MODEL.md), [data flow / GDPR](docs/DATA-FLOW.md), [support policy](docs/SUPPORT.md), [self security review](docs/SECURITY-REVIEW.md), [spec conformance](docs/CONFORMANCE.md).
+
 > Working name `mcp-rbac`. **`mcp-guard` on npm is an unrelated package** (see [Name](#name)). Not yet published; run from this folder.
 
 ![prompt-injection before/after](docs/demo.png)
@@ -232,11 +246,25 @@ Full API and how a call is decided: [docs/library.md](docs/library.md). Upstream
 | **remote proxy vs direct HTTP, local mock (loopback, OAuth bearer, SQLite audit)** | **+0.42 ms p50** `tools/call` (0.83 → 1.25 ms); +0.47 ms `tools/list` |
 | remote proxy vs direct, over the internet (25 interleaved calls each) | Cloudflare docs `tools/list` 12.9 → 14.3 ms; Context7 `tools/list` 9.7 → 11.5 ms; DeepWiki `read_wiki_structure` 176 → 160 ms (network noise exceeds the proxy's cost) |
 
+**0.3 stores, HTTP and engines** (`npm run bench:stores`; Redis 7 / Postgres 16 local, single = one client, xN = N concurrent clients):
+
+| | |
+|---|---|
+| memory `consumeMany` | 1.07M ops/s |
+| SQLite `consumeMany` / chained audit append | 73k / 20.7k ops/s |
+| Redis `consumeMany` single / x32 | 25.5k / 103k ops/s |
+| Redis chained audit append single / x8 | 15.6k / 16.8k ops/s |
+| Postgres `consumeMany` single / x16; chained append | 2.7k / 10.4k; 3.7k ops/s |
+| HTTP modern stateless `tools/call` single / x16; legacy session | 1,676 / 3,222; 1,169 calls/s |
+| AuthZEN PDP over HTTP; Cedar (wasm) | 5,157 evals/s; 6,331 decisions/s |
+| Python guard allow / deny / +budget+chain (`python/bench.py`) | 40k / 63k / 15k checks/s |
+| Python MCPServer in-process unguarded / guarded | 2,675 / 1,797 calls/s |
+
 An LLM tool call takes 100s of ms to seconds, so proxy overhead is noise. Reproduce with `npm run bench`, `npm run bench:proxy` and `npm run bench:remote`.
 
 ## Tests
 
-267 tests across 22 files (`npm test`), plus 9 opt-in network tests against real hosted servers (`MCP_RBAC_NETWORK=1`). They cover unit, end-to-end through a real SDK client, raw JSON-RPC over stdio, 3-process SQLite revocation, HTTP + JWT with locally minted keys, the engines, presets on the four real stdio servers and five hosted ones, the remote proxy with OAuth against a local mock, the CLI, and the injection demos. See [docs/library.md#tests](docs/library.md#tests).
+TS: 326 passed + 9 skipped across 28 files (`npm test`), including 9 opt-in network tests against real hosted servers (`MCP_RBAC_NETWORK=1`). Python: 48 passed (`npm run test:py`), including real Redis/Postgres, TS↔Python cross-language checks, and mypy strict. Spec coverage: [docs/CONFORMANCE.md](docs/CONFORMANCE.md). They cover unit, end-to-end through a real SDK client, raw JSON-RPC over stdio, 3-process SQLite revocation, HTTP + JWT with locally minted keys, the engines, presets on the four real stdio servers and five hosted ones, the remote proxy with OAuth against a local mock, the CLI, and the injection demos. See [docs/library.md#tests](docs/library.md#tests).
 
 ## Name
 
@@ -253,7 +281,16 @@ Free when checked on 2026-11-13: `mcp-rbac` (chosen), `mcp-grants`, `mcp-permit`
 - **Upstream→client features.** Tasks, plus sampling and elicitation requests from the wrapped server, aren't forwarded yet. Task-augmented calls are denied.
 - **Async stores.** A Redis-style async store would reintroduce an await between the liveness check and the call. Only the sync stores give the strict guarantee.
 - **Register before wrap.** With in-process `wrap()`, register every capability kind before wrapping (an SDK constraint).
-- **External engines.** Cerbos was tested against a mock HTTP server, and Permit only with a fake.
+- **External engines.** Cerbos was tested against a mock HTTP server, and Permit only with a fake. OpenFGA (real binary), Cedar (real wasm), and AuthZEN (our own PDP) are tested for real.
+- **0.3 limits** (details in [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md#known-bypass-limits-what-the-guard-cannot-stop)):
+  - Toolsets aren't a boundary.
+  - Approval via elicitation/MRTR trusts the client app.
+  - Redaction is field-based: PII inside free text isn't detected, and non-JSON text is withheld when a rule applies.
+  - Multi-instance deployments need a shared store and a shared `requestStateKey` (TS) / `RequestStateSecurity(keys=...)` (Python).
+  - No RateLimit headers on legacy SSE.
+  - The Python package has no token-exchange endpoint (use the TS one).
+  - Python list filtering isn't audited.
+  - The Klaviyo role matrix in the example is an approximation, with mock data.
 - **Remote proxy.**
   - Downstream is stdio only; there's no local HTTP endpoint yet.
   - Tokens live in a 0600 file, not the OS keychain.

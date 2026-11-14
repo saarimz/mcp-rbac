@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0 (unreleased, local only)
+
+Enterprise-readiness release (a Klaviyo-style multi-account SaaS was the reference).
+
+- **Python package** `mcp-rbac` (`python/`, import `mcp_rbac`): guard, MCPServer middleware, JWT verifier, stores,
+  AuthZEN client/engine/PDP, CLI; mypy strict; it shares the policy, audit-chain, Redis and Postgres formats with TS.
+- **Scopes**: per-tool `requiredScopes`, hierarchy (write implies read), list filtering, 403 `insufficient_scope`
+  step-up (RFC 6750/9470); **toolsets** (narrowing, not a boundary).
+- **MCP 2026-07-28**: stateless HTTP (`server/discover`, header validation, cache hints), MRTR approvals with
+  sealed, single-use `requestState`; legacy session clients still served on the same endpoint.
+- **Delegation**: RFC 8693 `act` / `may_act`, actor ceilings, and a token-exchange endpoint that only narrows.
+- **Tenants**: tenant pinning, org roles (all / group / specific accounts), custom roles from permission sets, per-tenant budgets.
+- **Output controls**: field redaction by role, data labels, `export+pii` label rules, UGC labels.
+- **Distributed state**: `RedisStore` (Lua) and `PostgresStore` (row locks + advisory locks), tested against real servers across processes and languages.
+- **Observability**: OTel spans with W3C traceparent, hash-chained audit, JSONL/OTLP export, retention, `audit-verify`.
+- **Engines**: AuthZEN 1.0 client, engine and PDP (`mcp-rbac pdp`); OpenFGA and Cedar engines.
+- **Trust docs**: SECURITY.md, docs/THREAT-MODEL.md, DATA-FLOW.md, SUPPORT.md, SECURITY-REVIEW.md, CONFORMANCE.md, python.md.
+- **Example**: `examples/klaviyo-style` in TS and Python (mock data).
+- Fixes: Redis chained-audit contention under concurrency; Python `local_identity` no longer applies to HTTP; `mcp-rbac audit --user`.
+
 ## 0.2.0 (unreleased): mcp-rbac
 
 ### Roles example and fixes

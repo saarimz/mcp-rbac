@@ -212,10 +212,12 @@ class RBAC(Generic[R]):
         server.middleware.append(self.middleware)
 
     # -- identity ----------------------------------------------------------------------------------------------
-    def current_identity(self) -> Identity[R] | None:
+    def current_identity(self, ctx: ServerRequestContext[Any, Any] | None = None) -> Identity[R] | None:
+        """Identity from the SDK-verified access token. ``local_identity`` (stdio / in-process) is NEVER used for
+        an HTTP request: an HTTP request without a verified token is unauthenticated."""
         tok = get_access_token()
         if tok is None:
-            return self.local_identity
+            return None if (ctx is not None and ctx.request is not None) else self.local_identity
         try:
             return self.resolve(tok)
         except Exception:
@@ -245,7 +247,7 @@ class RBAC(Generic[R]):
 
     async def _list(self, ctx: ServerRequestContext[Any, Any], call_next: CallNext) -> HandlerResult:
         result = await call_next(ctx)
-        ident = self.current_identity()
+        ident = self.current_identity(ctx)
         sets = self._toolsets(ctx)
         d = _dump(result)
         tools = [t for t in d.get("tools", []) if await self.guard.visible(ident, t.get("name", ""), sets)]
@@ -296,7 +298,7 @@ class RBAC(Generic[R]):
             return _model("CallToolResult", _denied("invalid", "invalid request", None))
         caps = ctx.session.client_capabilities
         cc = _CallCtx(ctx, ctx.protocol_version >= MODERN, bool(caps and caps.elicitation))
-        ident = self.current_identity()
+        ident = self.current_identity(ctx)
         d = await self.guard.authorize(ident, name, args, toolsets=self._toolsets(ctx), approver=self._approver(cc, params))
         if d.reason == "input_required":
             return _input_required(self.approval_message(ApprovalRequest(d.ref, name, args, ident, d.tenant)) if ident else "Approve?")

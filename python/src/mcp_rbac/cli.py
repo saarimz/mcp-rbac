@@ -50,5 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.token_env and not token:
         print(f"--token-env {a.token_env}: variable is empty", file=sys.stderr)
         return 1
+    if a.host not in ("127.0.0.1", "localhost", "::1") and not token:
+        print("[mcp_rbac] warning: PDP listening beyond localhost without --token-env", file=sys.stderr)
     uvicorn.run(pdp_app(policy=policy, directory=directory, token=token), host=a.host, port=a.port, log_level="warning")
     return 0

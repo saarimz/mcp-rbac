@@ -247,3 +247,13 @@ async def test_otel_spans_carry_decisions_and_trace_context() -> None:
     assert format(parent.context.trace_id, "032x") == trace_id  # traceparent from params._meta
     deny = by["mcp-rbac authorize send_campaign"]
     assert deny.attributes["mcp_rbac.decision"] == "deny" and deny.attributes["mcp_rbac.reason"] == "no_matching_permission"
+
+
+async def test_local_identity_never_applies_to_http_without_token() -> None:
+    """Security review finding: local_identity is for stdio/in-process only; HTTP without a token stays anonymous."""
+    server, rbac, sent = build(local_identity=Identity.of("root", ["owner"]))
+    with serve_asgi(server.streamable_http_app()) as base:  # no auth configured at all
+        async with http_client(base, None, elicitation_callback=elicit_yes) as c:
+            assert (await c.list_tools()).tools == []
+            assert (await c.call_tool("send_campaign", {"campaign_id": "x"})).is_error
+    assert sent == []

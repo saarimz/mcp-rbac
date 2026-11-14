@@ -1,0 +1,133 @@
+{
+  "name": "mcp-rbac",
+  "version": "0.3.0",
+  "description": "Authorization for any MCP server: roles, OAuth scopes, tenants, delegation (RFC 8693), approvals (incl. MCP 2026-07-28 MRTR), PII redaction, budgets, tamper-evident audit, OpenTelemetry. TypeScript library, stdio/HTTP proxy, AuthZEN PDP, Python package.",
+  "license": "MIT",
+  "author": "Saarim Zaman",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "authorization",
+    "rbac",
+    "ai-agents",
+    "security",
+    "prompt-injection",
+    "proxy",
+    "oauth"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "bin": {
+    "mcp-rbac": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "default": "./dist/http.js"
+    },
+    "./jwt": {
+      "types": "./dist/jwt.d.ts",
+      "default": "./dist/jwt.js"
+    },
+    "./sqlite": {
+      "types": "./dist/store-sqlite.d.ts",
+      "default": "./dist/store-sqlite.js"
+    },
+    "./dashboard": {
+      "types": "./dist/dashboard.d.ts",
+      "default": "./dist/dashboard.js"
+    },
+    "./proxy": {
+      "types": "./dist/run-proxy.d.ts",
+      "default": "./dist/run-proxy.js"
+    },
+    "./init": {
+      "types": "./dist/init.d.ts",
+      "default": "./dist/init.js"
+    },
+    "./redis": {
+      "types": "./dist/store-redis.d.ts",
+      "default": "./dist/store-redis.js"
+    },
+    "./postgres": {
+      "types": "./dist/store-postgres.d.ts",
+      "default": "./dist/store-postgres.js"
+    },
+    "./pdp": {
+      "types": "./dist/pdp.d.ts",
+      "default": "./dist/pdp.js"
+    },
+    "./cedar": {
+      "types": "./dist/engines/cedar.d.ts",
+      "default": "./dist/engines/cedar.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "docs/*.md"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/cli.js",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bench": "tsx bench/bench.ts",
+    "bench:proxy": "tsx bench/proxy-bench.ts",
+    "bench:remote": "tsx bench/remote-bench.ts",
+    "demo": "tsx examples/demo-injection.ts",
+    "demo:stdio": "tsx examples/stdio-server.ts",
+    "test:py": "cd python && .venv/bin/python -m pytest -q",
+    "bench:stores": "tsx bench/stores-bench.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@opentelemetry/api": ">=1.3.0 <1.10.0",
+    "zod": "^4.6.7"
+  },
+  "peerDependencies": {
+    "jose": "^6",
+    "ioredis": "^5",
+    "pg": "^8",
+    "@cedar-policy/cedar-wasm": "^4"
+  },
+  "peerDependenciesMeta": {
+    "jose": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "@cedar-policy/cedar-wasm": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@cedar-policy/cedar-wasm": "^4.14.0",
+    "@opentelemetry/sdk-trace-base": "^2.12.1",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "casbin": "^5.51.1",
+    "ioredis": "^5.11.1",
+    "jose": "^6.2.17",
+    "pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "typescript5": "npm:typescript@^5.9.3",
+    "vitest": "^5.1.0"
+  }
+}

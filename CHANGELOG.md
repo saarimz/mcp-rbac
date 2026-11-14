@@ -1,0 +1,80 @@
+# Changelog
+
+## 0.2.0 (unreleased): mcp-rbac
+
+### Roles example and fixes
+- `examples/roles-venue.ts`: owner / project_manager / door_staff, shared role arrays, per-venue roles via `scope.lookup`, refund limits + approval, `delete_event` with approval, agent tokens. Tests: `test/roles-venue.e2e.test.ts`.
+- New `narrowIdentity(identity, { roles?, scope? })` (also typed on `rbac()`): turns a user's identity into an agent's. It can only remove roles or pin them to a scope, never add.
+- Fix: `allow: { role: { arg: {...} } }` used to *replace* the tool's `limits` for the same argument (e.g. `limits: { amount: { min: 0.01 } }` was dropped next to `allow: { owner: { amount: { max: 500 } } }`). The two are now intersected, and contradictions throw at startup.
+- Fix: a limit on an argument the zod input marks `.optional()` no longer requires the argument; it applies when present.
+
+### Remote servers: `mcp-rbac proxy --url`
+- Guard hosted MCP servers with the same presets, `--allow`/`--deny`, `--repos`, approvals, budgets and audit. Streamable HTTP upstream with legacy SSE fallback (`--transport auto|http|sse`); stdio to the client.
+- Auth:
+  - `--header 'K: V'` is repeatable, with `$VAR`/`${VAR}` env expansion. Values are never logged; a static `Authorization` header disables OAuth.
+  - MCP OAuth client: RFC 9728 discovery, PKCE S256, dynamic client registration, a loopback redirect (`--oauth-port`, `--no-browser`), refresh with rotation, and `--oauth-client-id/--oauth-client-secret` for servers without registration.
+  - Credentials are stored 0600 under `<state dir>/oauth/` and covered by self-protection.
+  - New commands: `mcp-rbac login | logout | auth-info --url`.
+- Secret scrubbing: header values and tokens are redacted from every message sent to the client, even if the upstream echoes them.
+- Protocol:
+  - Notifications are forwarded.
+  - `tools/list_changed` re-plans the preset before notifying the client (also for stdio servers). New `Guard.updatePolicy()`, and a `wrapServer({ onToolListChanged })` hook.
+  - Expired sessions reconnect, and the rejected request is retried once.
+  - Dropped connections reconnect with backoff.
+  - New `--timeout` and `--connect-timeout` flags.
+- `--repos` also scopes a single `owner/repo` argument (`repoName`, `repository`, `full_name`, or a lone `repo`). Other values fail closed.
+- Tests:
+  - `test/mock-hosted.ts` is a local OAuth authorization server plus MCP server that mints its own tokens.
+  - `test/remote.e2e.test.ts` has 16 tests.
+  - `test/hosted-real.e2e.test.ts` has 9 opt-in network tests: DeepWiki, GitMCP, Context7, Cloudflare docs and Hugging Face (read-only calls), plus discovery/401 for Linear, Notion, Sentry and GitHub.
+- Added `npm run bench:remote`.
+
+Renamed from the `mcp-guard` prototype, because that name is taken on npm by an unrelated package.
+
+### Progressive, colocated API (see docs/API-DESIGN.md)
+- `protect(server)` is a one-liner (local preset). `protect(server, { identity })` handles multi-user servers.
+- `tool(server, name, { input, allow, limits, scope, approve, effect, budget }, handler)`:
+  - rules sit next to the tool;
+  - limits are typed per argument from the zod input;
+  - handlers get `ctx.identity` / `ctx.scope`.
+- Safe scope by default: `"identity"` or `{ lookup }`. `unsafeTrustArg()` is loud (startup warning, `@deprecated` strikethrough). Dev mode detects lookups that echo an agent argument.
+- `errors: "dev" | "prod"`: teaching denial messages (rule, why, fix) vs terse refs. The core Guard gained `formatDenial`.
+- `definePolicy()` for per-session servers with a shared store. `rbac<{ roles; scope; identity }>()` for typed role names. `protectTool()` to add rules to existing `registerTool` calls.
+- New examples: `examples/partner-mcp.ts` and `examples/itm-colocated.ts`. Migration guide: `docs/MIGRATION.md`. The old API is unchanged.
+- Core: `resolveUser(credential, extra)`, `CallContext.user`, and the caller's `attr` passed to handlers.
+
+### Proxy and presets: any server, any language, no code changes
+- `mcp-rbac proxy [--preset read-only|no-destructive|approve-writes|approve-destructive] [--paths] [--repos] [--allow] [--deny] -- <cmd>`.
+- Risk is inferred from `readOnlyHint` / `destructiveHint` and tool names. A misleading `readOnlyHint` on a destructive-named tool is ignored.
+- `withinPaths` constraint: `..`, symlinks of the existing prefix, arrays, relative paths and `~` are all denied. `notWithinPaths` keeps agents out of the proxy's own state.
+- Approvals:
+  - `--approval auto` asks via MCP elicitation when the client supports it, otherwise uses the terminal queue (`mcp-rbac pending [--watch]`, `approve <id>`, `deny <id>`); times out to deny.
+  - `elicit`, `queue`, `deny` and `allow` are also accepted.
+- `--paths` also covers `uri` args (file:// checked, other schemes pass) and `target`/`location`-style args whose description says path/file/directory. Relative paths resolve against the tool's root arg (`relativeTo`, e.g. git `files` vs `repo_path`). Remote-repo tools are exempt, which fixes `git_add` / GitHub `path` being wrongly blocked under `--paths`.
+- Verified against the real `server-filesystem`, `server-memory`, `server-github` (no annotations) and Python `mcp-server-git`.
+
+### CLI
+- `init` (introspect a stdio command or a module, then write a starter TS or JSON policy), `proxy`, `dashboard` (zero-dependency, local, CSP), `audit`, `revoke`, `pending`, `approve`, `deny`.
+
+### Library
+- `wrap()` is now async. It uses public SDK APIs only (the outer Server proxies to the inner server over an in-memory transport) and accepts an `McpServer`, a `Server` or a `Client`.
+- Resources (including templates) and prompts: filtered lists plus call-time checks. `role().resources()` and `role().prompts()`.
+- `GuardStore` interface with `MemoryStore` and `SqliteStore` (node:sqlite, WAL), shared across processes: revocation, budgets, audit.
+- Streamable HTTP with OAuth bearer auth (`mcp-rbac/http`): protected-resource metadata and identity-bound sessions. `jwtVerifier` via JWKS lives in `mcp-rbac/jwt`.
+- Approval hardening:
+  - `describeEffect` / `defaultEffect`;
+  - `limits` (count or `sumArg` budgets, per delegation tree, user or global);
+  - `fatigue` (`require-reason` / `cooldown`);
+  - approvers can return `{ decision, reason, approver }`.
+- `DecisionEngine` interface: built-in, `CerbosEngine`, `CasbinEngine`, `PermitEngine` (stub).
+- JSON policy files (`loadPolicy`) and the `pattern` constraint.
+- Classification: `merge`, `overwrite`, `unlink`, `rmdir`, `uninstall` and `force` count as destructive.
+
+### Fixes
+- Errors thrown by a tool during execution are no longer reported as authorization denials.
+- The proxy exits, and stops the upstream server, when the client closes stdin or sends a signal. Found while smoke-testing the packed tarball through `npx`: the proxy kept running and left orphaned processes.
+- Read-named tools that take free-form `sql` / `command` / `script` / `code` arguments are classified as write, unless annotated `readOnlyHint`.
+
+## 0.1.0: prototype
+- RBAC with typed scopes, argument constraints, delegation grants (narrow-only, chained), revocation, expiry, consent text, approvals, audit.
+- Fixed during battle testing: revocation TOCTOU, fail-open on an undefined scope value, unknown grant keys ignored, audit O(n) trimming, pattern caching, `Intl` consent crash.

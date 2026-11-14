@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.db
+*.db-*
+.venv/
+__pycache__/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+test/fixtures/.py-eval-*

@@ -1,0 +1,2 @@
+{ "maria": { "assignments": [{ "role": "manager", "scope": { "tenant": "acme" } }] },
+  "ana": { "assignments": [{ "role": "analyst" }] } }

@@ -1,0 +1,11 @@
+p, manager, elsewhere, tickets.*, tool
+p, manager, elsewhere, checkin, tool
+p, manager, elsewhere, refund, tool
+p, manager, echo, tickets.*, tool
+p, manager, echo, refund, tool
+p, door, elsewhere, checkin, tool
+p, door, elsewhere, guestlist.read, tool
+p, manager, elsewhere, event.summary, resource
+g, maya, manager, elsewhere
+g, dev, door, elsewhere
+g, kim, manager, echo

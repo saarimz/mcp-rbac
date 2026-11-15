@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // DenialMetaKey is the _meta key carrying {decision, reason} on denied tool calls (same in every binding).
@@ -18,6 +20,8 @@ type Decision struct {
 	Reason   string            `json:"reason"`
 	Redact   []json.RawMessage `json:"redact"` // redaction rules ({fields, replacement}); applied by the core
 	Labels   []json.RawMessage `json:"labels"`
+	Rule     string            `json:"rule"` // empty when no rule matched (JSON null)
+	Limits   []LimitUse        `json:"limits"`
 }
 
 // DecisionEvent is passed to GuardOptions.OnDecision for every tools/call.
@@ -41,6 +45,8 @@ type GuardOptions struct {
 	Now func() float64
 	// OnDecision observes every tools/call decision (metrics, audit).
 	OnDecision func(DecisionEvent)
+	// Telemetry enables OpenTelemetry (docs/otel.md). Nil = off.
+	Telemetry *Telemetry
 }
 
 func (o *GuardOptions) base(ctx context.Context, req mcp.Request) map[string]any {
@@ -70,13 +76,35 @@ func (o *GuardOptions) now() float64 {
 func (e *Engine) Middleware(opts GuardOptions) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
-			switch method {
-			case "tools/list":
-				return e.guardList(ctx, method, req, next, &opts)
-			case "tools/call":
-				return e.guardCall(ctx, method, req, next, &opts)
+			if method != "tools/list" && method != "tools/call" {
+				return next(ctx, method, req)
 			}
-			return next(ctx, method, req)
+			handle := func(ctx context.Context, server trace.Span) (mcp.Result, error) {
+				if method == "tools/list" {
+					return e.guardList(ctx, method, req, next, &opts)
+				}
+				return e.guardCall(ctx, method, req, next, &opts, server)
+			}
+			if opts.Telemetry == nil {
+				return handle(ctx, nil)
+			}
+			info := serverSpanInfo{method: method}
+			if p := req.GetParams(); p != nil {
+				info.meta = p.GetMeta()
+			}
+			if cr, ok := req.(*mcp.CallToolRequest); ok && cr.Params != nil {
+				info.tool, info.hasTool = cr.Params.Name, true
+			}
+			if s, ok := req.GetSession().(*mcp.ServerSession); ok && s != nil {
+				info.sessionID = s.ID()
+			}
+			res, err := opts.Telemetry.serverSpan(ctx, info, func(ctx context.Context, span trace.Span) (any, bool, error) {
+				r, err := handle(ctx, span)
+				ctr, _ := r.(*mcp.CallToolResult)
+				return r, ctr != nil && ctr.IsError, err
+			})
+			out, _ := res.(mcp.Result)
+			return out, err
 		}
 	}
 }
@@ -141,7 +169,7 @@ func denial(tool string, d Decision) *mcp.CallToolResult {
 	}
 }
 
-func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, next mcp.MethodHandler, o *GuardOptions) (mcp.Result, error) {
+func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, next mcp.MethodHandler, o *GuardOptions, server trace.Span) (mcp.Result, error) {
 	t0 := time.Now()
 	cr, ok := req.(*mcp.CallToolRequest)
 	if !ok || cr.Params == nil {
@@ -159,8 +187,17 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	if err != nil {
 		return nil, fmt.Errorf("mcp-rbac: request: %w", err)
 	}
+	var az authzSpan
+	if o.Telemetry != nil {
+		az = o.Telemetry.startAuthorize(ctx, tool)
+	}
+	e0 := time.Now()
 	raw, err := e.Authorize(ctx, string(in), o.now())
+	engine := time.Since(e0)
 	if err != nil {
+		if az.span != nil {
+			az.span.End()
+		}
 		return nil, err
 	}
 	var d Decision
@@ -168,15 +205,33 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 		return nil, fmt.Errorf("mcp-rbac: decision: %w (%s)", err, raw)
 	}
 	approved := false
-	if d.Decision == "needs_approval" && o.Approve != nil && o.Approve(ctx, tool, args, d) {
-		if raw, err = e.AuthorizeApproved(ctx, string(in), o.now()); err != nil {
-			return nil, err
+	approval := "none"
+	if d.Decision == "needs_approval" {
+		switch {
+		case o.Approve == nil:
+			approval = "unavailable"
+		case o.Approve(ctx, tool, args, d):
+			approval = "granted"
+			e0 = time.Now()
+			raw, err = e.AuthorizeApproved(ctx, string(in), o.now())
+			engine += time.Since(e0)
+			if err != nil {
+				if az.span != nil {
+					az.span.End()
+				}
+				return nil, err
+			}
+			d = Decision{}
+			if err := json.Unmarshal([]byte(raw), &d); err != nil {
+				return nil, fmt.Errorf("mcp-rbac: decision: %w (%s)", err, raw)
+			}
+			approved = d.Decision == "allow"
+		default:
+			approval = "rejected"
 		}
-		d = Decision{}
-		if err := json.Unmarshal([]byte(raw), &d); err != nil {
-			return nil, fmt.Errorf("mcp-rbac: decision: %w (%s)", err, raw)
-		}
-		approved = d.Decision == "allow"
+	}
+	if o.Telemetry != nil && server != nil {
+		o.Telemetry.endAuthorize(az, server, tool, d, approval, engine)
 	}
 	if o.OnDecision != nil {
 		o.OnDecision(DecisionEvent{Tool: tool, Decision: d, Raw: raw, Duration: time.Since(t0), Approved: approved})
@@ -191,6 +246,9 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	resJSON, err := json.Marshal(res)
 	if err != nil {
 		return nil, fmt.Errorf("mcp-rbac: result: %w", err)
+	}
+	if server != nil && len(d.Redact) > 0 {
+		server.SetAttributes(attribute.Bool("mcp_rbac.redacted", true))
 	}
 	red, err := e.Redact(ctx, string(resJSON), raw)
 	if err != nil {

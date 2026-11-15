@@ -304,10 +304,14 @@ mod tests {
         assert!(m("(?:ab)+", "abab") && m(".", "é") && !m(".", "\n") && !m(".", "\u{2028}"));
         assert!(!m("\\d", "٣")); // ASCII digits only
         assert!(m("[^\\d]", "x") && m("x{0,}", ""));
+        // a literal '-' is allowed first or last in a class (DX-LOG #4)
+        assert!(m("[a-]", "-") && m("[-a]", "-") && !m("[a-]", "b"));
+        // a quantified group containing a quantifier is allowed when the outer max is <= 1
+        assert!(m("(a+)?", "") && m("(a+)?", "aaa"));
     }
     #[test]
     fn rejects() {
-        for p in ["(a+)+", "(a*)*b", "^a", "a$", "\\s", "\\b", "(?=a)", "(?<n>a)", "a**", "[]", "[a-]", "[z-a]", "a{1001}", "a{2,1}", "]", "(", ")", "\\1", "\\p{L}", "[[]", "{1}", "(?i)a"] {
+        for p in ["(a+)+", "(a*)*b", "^a", "a$", "\\s", "\\b", "(?=a)", "(?<n>a)", "a**", "[]", "[a-b-c]", "[z-a]", "a{1001}", "a{2,1}", "]", "(", ")", "\\1", "\\p{L}", "[[]", "{1}", "(?i)a"] {
             assert!(Portable::compile(p).is_err(), "{p} should be rejected");
         }
     }

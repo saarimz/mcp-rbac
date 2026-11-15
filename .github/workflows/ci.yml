@@ -55,9 +55,10 @@ jobs:
           go vet ./...
       - name: Python mypy (strict)
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e "python[dev]" maturin
+          python -m pip install --upgrade pip maturin
+          # the PyO3 core first: python/ pins mcp-rbac-core==<version>, built here rather than fetched from PyPI
           (cd core/mcp-rbac-py && maturin build --release -o ../../dist-py && python -m pip install ../../dist-py/*.whl)
+          python -m pip install -e "python[dev]"
           (cd python && mypy src)
       - name: actionlint
         run: |
@@ -93,8 +94,9 @@ jobs:
       - name: Python venv for the cross-language tests
         run: |
           python -m venv python/.venv
-          python/.venv/bin/pip install -e "python[dev]" maturin
-          (cd core/mcp-rbac-py && ../../python/.venv/bin/maturin develop --release)
+          python/.venv/bin/pip install maturin
+          (cd core/mcp-rbac-py && VIRTUAL_ENV="$GITHUB_WORKSPACE/python/.venv" ../../python/.venv/bin/maturin develop --release)
+          python/.venv/bin/pip install -e "python[dev]"
       - name: vitest (SDK v1 1.32 and SDK v2 2.4 are both exercised; mode=hop runs v1 servers through the 0.4 hop)
         env:
           MCP_RBAC_TEST_HOP: ${{ matrix.mode == 'hop' && '1' || '' }}
@@ -119,8 +121,9 @@ jobs:
       - name: Install the package and the PyO3 core
         run: |
           python -m venv python/.venv
-          python/.venv/bin/pip install -e "python[dev]" maturin
-          cd core/mcp-rbac-py && ../../python/.venv/bin/maturin develop --release
+          python/.venv/bin/pip install maturin
+          (cd core/mcp-rbac-py && VIRTUAL_ENV="$GITHUB_WORKSPACE/python/.venv" ../../python/.venv/bin/maturin develop --release)
+          python/.venv/bin/pip install -e "python[dev]"
       - name: pytest
         working-directory: python
         run: .venv/bin/python -m pytest -q -rs

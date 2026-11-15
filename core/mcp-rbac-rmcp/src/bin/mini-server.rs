@@ -97,7 +97,7 @@ mod otlp {
     pub fn setup() -> Option<(Arc<Telemetry>, Shutdown)> {
         std::env::var_os("OTEL_EXPORTER_OTLP_ENDPOINT")?;
         let resource = Resource::builder().with_service_name("mini-venue-rust")
-            .with_attribute(opentelemetry::KeyValue::new("service.version", "0.4.0")).build();
+            .with_attribute(opentelemetry::KeyValue::new("service.version", "0.5.0")).build();
         let tp = SdkTracerProvider::builder().with_resource(resource.clone())
             .with_batch_exporter(SpanExporter::builder().with_http().build().expect("otlp spans")).build();
         let mp = SdkMeterProvider::builder().with_resource(resource.clone())

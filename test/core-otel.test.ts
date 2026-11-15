@@ -30,7 +30,7 @@ const logExporter = new InMemoryLogRecordExporter();
 const loggerProvider = new LoggerProvider({ processors: [new SimpleLogRecordProcessor({ exporter: logExporter })] });
 
 function innerServer() {
-  const s = new McpServer({ name: "mini-venue-ts", version: "0.4.0" });
+  const s = new McpServer({ name: "mini-venue-ts", version: "0.5.0" });
   const out = (v: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(v) }], structuredContent: v as Record<string, unknown> });
   s.registerTool("list_events", { inputSchema: {} }, async () => out({ events: [] }));
   s.registerTool("checkin", { inputSchema: { ticketId: z.string(), note: z.string().optional() } }, async ({ ticketId }) => out({ checkedIn: ticketId }));

@@ -50,7 +50,7 @@ func main() {
 		}
 	}
 
-	s := mcp.NewServer(&mcp.Implementation{Name: "mini-venue-go", Version: "0.4.0"}, nil)
+	s := mcp.NewServer(&mcp.Implementation{Name: "mini-venue-go", Version: "0.5.0"}, nil)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_events", Description: "List events"},
 		func(ctx context.Context, r *mcp.CallToolRequest, _ none) (*mcp.CallToolResult, map[string]any, error) {
 			return nil, map[string]any{"events": []any{map[string]any{"id": "e1", "name": "Friday"}}}, nil

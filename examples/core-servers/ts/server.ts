@@ -6,7 +6,7 @@ import { z } from "zod";
 import { protectWithCore } from "../../../src/core-guard.js";
 import { setupOtlp } from "./otlp.js";
 
-const inner = new McpServer({ name: "mini-venue-ts", version: "0.4.0" });
+const inner = new McpServer({ name: "mini-venue-ts", version: "0.5.0" });
 const text = (v: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(v) }], structuredContent: v as Record<string, unknown> });
 inner.registerTool("list_events", { description: "List events", inputSchema: {} }, async () => text({ events: [{ id: "e1", name: "Friday" }] }));
 inner.registerTool("checkin", { description: "Check a ticket in", inputSchema: { ticketId: z.string() } }, async ({ ticketId }) => text({ checkedIn: ticketId }));

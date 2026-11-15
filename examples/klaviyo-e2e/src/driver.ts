@@ -76,7 +76,7 @@ function cookieToken(setCookie: string | null): string | undefined {
 async function connectMcp(mcpUrl: string, token?: string): Promise<Client> {
   const headers: Record<string, string> = {};
   if (token) headers.authorization = `Bearer ${token}`;
-  const client = new Client({ name: "klaviyo-e2e-driver", version: "0.4.0" });
+  const client = new Client({ name: "klaviyo-e2e-driver", version: "0.5.0" });
   await client.connect(new StreamableHTTPClientTransport(new URL(mcpUrl), { requestInit: { headers } }));
   return client;
 }
@@ -146,7 +146,7 @@ async function connectDirectLive(): Promise<{ client: Client; close: () => Promi
     },
     stderr: errStream,
   });
-  const client = new Client({ name: "klaviyo-e2e-direct", version: "0.4.0" });
+  const client = new Client({ name: "klaviyo-e2e-direct", version: "0.5.0" });
   await client.connect(transport);
   return {
     client,

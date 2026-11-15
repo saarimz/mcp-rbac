@@ -57,7 +57,7 @@ async function main() {
   mkdirSync(join(ROOT, "out"), { recursive: true });
   const errStream = createWriteStream(join(ROOT, "out/class-run.upstream.stderr.log"));
   await new Promise<void>((r, j) => errStream.on("open", () => r()).on("error", j));
-  const upstream = new Client({ name: "mcp-rbac-class-run", version: "0.4.0" });
+  const upstream = new Client({ name: "mcp-rbac-class-run", version: "0.5.0" });
   await upstream.connect(new StdioClientTransport({
     command: "uvx", args: ["klaviyo-mcp-server@latest"],
     env: { ...(process.env as Record<string, string>), PRIVATE_API_KEY: key, READ_ONLY: "false", ALLOW_USER_GENERATED_CONTENT: "false" },

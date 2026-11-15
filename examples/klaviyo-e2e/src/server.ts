@@ -102,7 +102,7 @@ async function connectLive(key: string): Promise<{ client: Client; close: () => 
     },
     stderr: "inherit",
   });
-  const client = new Client({ name: "mcp-rbac-klaviyo-e2e", version: "0.4.0" });
+  const client = new Client({ name: "mcp-rbac-klaviyo-e2e", version: "0.5.0" });
   await client.connect(transport);
   return { client, close: async () => { await client.close().catch(() => {}); } };
 }

@@ -1,19 +1,28 @@
 {
   "name": "mcp-rbac",
-  "version": "0.4.0",
-  "description": "Authorization for any MCP server: roles, OAuth scopes, tenants, delegation (RFC 8693), approvals (incl. MCP 2026-07-28 MRTR), PII redaction, budgets, tamper-evident audit, OpenTelemetry. TypeScript library, stdio/HTTP proxy, AuthZEN PDP, Python package.",
+  "version": "0.5.0",
+  "description": "Authorization for MCP servers: one YAML policy decides which roles can call which tools, with argument limits, approvals bound to exact arguments, rate limits, and a tamper-evident audit chain. TypeScript guard (SDK v1 and v2), stdio/HTTP proxy, CLI.",
   "license": "MIT",
   "author": "Saarim Zaman",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mcp-rbac/mcp-rbac.git"
+  },
+  "homepage": "https://github.com/mcp-rbac/mcp-rbac#readme",
+  "bugs": {
+    "url": "https://github.com/mcp-rbac/mcp-rbac/issues"
+  },
   "keywords": [
     "mcp",
     "model-context-protocol",
     "authorization",
     "rbac",
+    "access-control",
     "ai-agents",
     "security",
-    "prompt-injection",
-    "proxy",
-    "oauth"
+    "policy",
+    "audit",
+    "proxy"
   ],
   "type": "module",
   "engines": {
@@ -93,13 +102,29 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.map",
+    "wasm-pkg/*.js",
+    "wasm-pkg/*.d.ts",
+    "wasm-pkg/*.wasm",
+    "wasm-pkg/package.json",
+    "packs",
+    "spec",
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
-    "docs/*.md",
-    "packs",
-    "spec",
-    "wasm-pkg"
+    "SECURITY.md",
+    "llms.txt",
+    "docs/quickstart.md",
+    "docs/policy-format.md",
+    "docs/library.md",
+    "docs/proxy.md",
+    "docs/clients.md",
+    "docs/AUDIT.md",
+    "docs/otel.md",
+    "docs/polyglot.md",
+    "docs/MIGRATION.md",
+    "docs/THREAT-MODEL.md",
+    "docs/experimental/README.md"
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/cli.js",
@@ -175,5 +200,9 @@
     "typescript": "^7.0.2",
     "typescript5": "npm:typescript@^5.9.3",
     "vitest": "^5.1.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

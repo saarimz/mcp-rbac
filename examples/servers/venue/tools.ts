@@ -43,7 +43,7 @@ export function resolveResource(db: DatabaseSync, tool: string, a: Record<string
 }
 
 export function venueTools(db: DatabaseSync): McpServer {
-  const s = new McpServer({ name: "venue-ops", version: "0.4.0" });
+  const s = new McpServer({ name: "venue-ops", version: "0.5.0" });
   const all = (sql: string, ...p: unknown[]) => db.prepare(sql).all(...(p as any[]));
   const get = (sql: string, ...p: unknown[]) => db.prepare(sql).get(...(p as any[])) as any;
   const run = (sql: string, ...p: unknown[]) => db.prepare(sql).run(...(p as any[]));

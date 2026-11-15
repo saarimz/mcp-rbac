@@ -16,7 +16,7 @@ import { CoreTelemetry } from "../../../src/core-otel.js";
 
 export function setupOtlp(serviceName: string): CoreTelemetry | undefined {
   if (!process.env.OTEL_EXPORTER_OTLP_ENDPOINT) return undefined;
-  const resource = resourceFromAttributes({ "service.name": serviceName, "service.version": "0.4.0" });
+  const resource = resourceFromAttributes({ "service.name": serviceName, "service.version": "0.5.0" });
   context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
   const tracerProvider = new BasicTracerProvider({ resource, spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter())] });
   const meterProvider = new MeterProvider({ resource, readers: [new PeriodicExportingMetricReader({ exporter: new OTLPMetricExporter(), exportIntervalMillis: 60_000 })] });

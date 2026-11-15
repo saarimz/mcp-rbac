@@ -26,7 +26,7 @@ import (
 
 const (
 	InstrumentationName    = "mcp-rbac"
-	InstrumentationVersion = "0.4.0"
+	InstrumentationVersion = "0.5.0"
 	SemconvGenAICommit     = "e6658f14c9d9ea0760825f029cb82e7673f48fab"
 	SemconvCoreVersion     = "1.45.0"
 	OtherToolName          = "_OTHER"

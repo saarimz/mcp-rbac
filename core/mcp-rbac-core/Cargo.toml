@@ -5,6 +5,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository = "https://github.com/mcp-rbac/mcp-rbac"
+homepage = "https://github.com/mcp-rbac/mcp-rbac"
+documentation = "https://docs.rs/mcp-rbac-core"
+readme = "README.md"
+keywords = ["mcp", "rbac", "authorization", "policy", "ai-agents"]
+categories = ["authentication", "config", "wasm"]
+include = ["src/**/*.rs", "examples/readme.rs", "Cargo.toml", "README.md", "LICENSE"]
 
 [dependencies]
 serde_json = { version = "1", features = ["arbitrary_precision", "preserve_order"] }

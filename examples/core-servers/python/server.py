@@ -13,7 +13,7 @@ from mcp_rbac.core_guard import protect_with_core  # noqa: E402
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from otlp import setup_otlp  # noqa: E402
 
-server = MCPServer("mini-venue-py", version="0.4.0")
+server = MCPServer("mini-venue-py", version="0.5.0")
 
 
 @server.tool(structured_output=True)

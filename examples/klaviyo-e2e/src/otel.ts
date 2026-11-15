@@ -48,7 +48,7 @@ export interface OtelHandle {
 export function startOtel(outDir: string): OtelHandle {
   mkdirSync(outDir, { recursive: true });
   const tracesFile = join(outDir, "traces.jsonl");
-  const resource = resourceFromAttributes({ "service.name": "mcp-rbac-klaviyo-e2e", "service.version": "0.4.0" });
+  const resource = resourceFromAttributes({ "service.name": "mcp-rbac-klaviyo-e2e", "service.version": "0.5.0" });
   context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
   const processors = [new BatchSpanProcessor(new FileSpanExporter(tracesFile))];
   const otlp = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
@@ -58,7 +58,7 @@ export function startOtel(outDir: string): OtelHandle {
   const tracerProvider = new BasicTracerProvider({ resource, spanProcessors: processors });
   trace.setGlobalTracerProvider(tracerProvider);
   return {
-    tracer: tracerProvider.getTracer("mcp-rbac-klaviyo-e2e", "0.4.0"),
+    tracer: tracerProvider.getTracer("mcp-rbac-klaviyo-e2e", "0.5.0"),
     tracesFile,
     flush: () => tracerProvider.forceFlush(),
     shutdown: async () => {

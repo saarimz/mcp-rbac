@@ -1,15 +1,36 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-rbac"
-version = "0.4.0"
-description = "Authorization for Python MCP servers: typed roles, OAuth scopes, tenants, RFC 8693 delegation, approvals (MRTR), budgets, PII redaction, tamper-evident audit, AuthZEN 1.0."
+version = "0.5.0"
+description = "Authorization for Python MCP servers: one YAML policy decides which roles can call which tools, with argument limits, approvals bound to exact arguments, rate limits and a tamper-evident audit chain."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
-dependencies = ["mcp>=2.3,<3", "httpx>=0.27", "pyyaml>=6"]
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Saarim Zaman" }]
+keywords = ["mcp", "model-context-protocol", "authorization", "rbac", "ai-agents", "policy", "audit"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security",
+  "Typing :: Typed",
+]
+dependencies = ["mcp>=2.3,<3", "mcp-rbac-core==0.5.0", "httpx>=0.27", "pyyaml>=6"]
+
+[project.urls]
+Homepage = "https://github.com/mcp-rbac/mcp-rbac"
+Documentation = "https://github.com/mcp-rbac/mcp-rbac/blob/main/docs/python.md"
+Issues = "https://github.com/mcp-rbac/mcp-rbac/issues"
+Changelog = "https://github.com/mcp-rbac/mcp-rbac/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 jwt = ["pyjwt[crypto]>=2.8"]

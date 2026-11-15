@@ -72,7 +72,7 @@ def resolve_resource(db: SerializedDB, tool: str, a: dict[str, Any]) -> dict[str
 
 
 def build(db: SerializedDB, identity_fn: Any, sink: SqliteAuditSink | None = None) -> MCPServer:
-    s = MCPServer("marketing-platform", version="0.4.0")
+    s = MCPServer("marketing-platform", version="0.5.0")
 
     def acct_of() -> str:
         c = current_caller()

@@ -41,7 +41,7 @@ func TestDecideAndHelpers(t *testing.T) {
 	if !strings.Contains(got, `"decision":"needs_approval"`) {
 		t.Fatal(got)
 	}
-	if v, _ := rt.Version(ctx); v != "0.4.0" {
+	if v, _ := rt.Version(ctx); v != "0.5.0" {
 		t.Fatalf("version %q", v)
 	}
 	if c, _ := rt.Check(ctx, "version: 2"); !strings.HasPrefix(c, `{"error":"policy_invalid"`) {

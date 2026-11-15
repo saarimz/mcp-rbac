@@ -28,7 +28,7 @@ def setup_otlp(service_name: str) -> tuple[CoreTelemetry | None, Callable[[], No
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-    resource = Resource.create({"service.name": service_name, "service.version": "0.4.0"})
+    resource = Resource.create({"service.name": service_name, "service.version": "0.5.0"})
     tp = TracerProvider(resource=resource)
     tp.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     mp = MeterProvider(resource=resource, metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter(), export_interval_millis=60_000)])

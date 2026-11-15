@@ -28,7 +28,7 @@ TRACE_ID, PARENT = "4bf92f3577b34da6a3ce929d0e0e4736", "00f067aa0ba902b7"
 
 
 def build(identity: Any, *, tel: CoreTelemetry | None, approve: bool | None = None, sdk_otel: bool = True) -> MCPServer:
-    s = MCPServer("mini-venue-py", version="0.4.0")
+    s = MCPServer("mini-venue-py", version="0.5.0")
 
     @s.tool(structured_output=True)
     def list_events() -> dict[str, Any]:
@@ -85,7 +85,7 @@ async def test_enriches_sdk_server_span_and_adds_authorize_child(otel_spans: Any
     assert srv.attributes["error.type"] == "tool_error" and srv.status.status_code == StatusCode.ERROR
     auth = one(otel_spans, "mcp_rbac.authorize refund")
     assert auth.kind == SpanKind.INTERNAL and auth.parent.span_id == srv.context.span_id
-    assert auth.instrumentation_scope.name == "mcp-rbac" and auth.instrumentation_scope.version == "0.4.0"
+    assert auth.instrumentation_scope.name == "mcp-rbac" and auth.instrumentation_scope.version == "0.5.0"
 
 
 async def test_owns_server_span_without_sdk_instrumentation_and_continues_trace(otel_spans: Any) -> None:

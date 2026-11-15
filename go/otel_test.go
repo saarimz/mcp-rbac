@@ -77,7 +77,7 @@ func (h *otelHarness) session(t *testing.T, identity any, approve *bool) *mcp.Cl
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := mcp.NewServer(&mcp.Implementation{Name: "mini-venue-go", Version: "0.4.0"}, nil)
+	s := mcp.NewServer(&mcp.Implementation{Name: "mini-venue-go", Version: "0.5.0"}, nil)
 	type in struct {
 		TicketID string  `json:"ticketId,omitempty"`
 		Amount   float64 `json:"amount,omitempty"`
@@ -185,7 +185,7 @@ func TestOTelServerSpanSemconvAndAuthorizeChild(t *testing.T) {
 	}
 	auth := h.one(t, "mcp_rbac.authorize refund")
 	if auth.SpanKind() != trace.SpanKindInternal || auth.Parent().SpanID() != srv.SpanContext().SpanID() ||
-		auth.InstrumentationScope().Name != "mcp-rbac" || auth.InstrumentationScope().Version != "0.4.0" {
+		auth.InstrumentationScope().Name != "mcp-rbac" || auth.InstrumentationScope().Version != "0.5.0" {
 		t.Fatalf("authorize span: kind=%v parent=%v", auth.SpanKind(), auth.Parent().SpanID())
 	}
 	if _, err := cs.ListTools(context.Background(), &mcp.ListToolsParams{}); err != nil {

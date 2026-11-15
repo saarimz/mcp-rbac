@@ -23,7 +23,7 @@ SERVER = ROOT / "examples/core-servers/python/server.py"
 
 
 def test_binding_loads_and_matches_pure_python():
-    assert core.__version__ == "0.4.0"
+    assert core.__version__ == "0.5.0"
     with pytest.raises(ValueError, match="version"):
         core.Engine("version: 2\nroles: {}\n")
     e = core.Engine(POLICY)

@@ -21,7 +21,7 @@ const call = async (c: Client, name: string, args: Record<string, unknown> = {})
 
 describe("WASM core binding", () => {
   it("loads, reports its version, rejects bad policies with the loader message", () => {
-    expect(loadCoreWasm().version()).toBe("0.4.0");
+    expect(loadCoreWasm().version()).toBe("0.5.0");
     expect(() => createCoreEngine("version: 2\nroles: {}\n")).toThrow(/version/);
     expect(JSON.parse(loadCoreWasm().check(POLICY))).toEqual({ ok: true, warnings: [] });
   });

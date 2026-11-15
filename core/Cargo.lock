@@ -775,7 +775,7 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "mcp-rbac-abi"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "mcp-rbac-core",
  "serde_json",
@@ -783,7 +783,7 @@ dependencies = [
 
 [[package]]
 name = "mcp-rbac-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "indexmap",
  "proptest",
@@ -795,7 +795,7 @@ dependencies = [
 
 [[package]]
 name = "mcp-rbac-py"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "mcp-rbac-core",
  "pyo3",
@@ -803,7 +803,7 @@ dependencies = [
 
 [[package]]
 name = "mcp-rbac-rmcp"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "mcp-rbac-core",
  "opentelemetry",
@@ -819,7 +819,7 @@ dependencies = [
 
 [[package]]
 name = "mcp-rbac-wasm"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "mcp-rbac-core",
  "wasm-bindgen",

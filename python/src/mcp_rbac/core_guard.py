@@ -35,7 +35,7 @@ def load_core() -> Any:
     try:
         import mcp_rbac_core
     except ImportError as e:  # pragma: no cover - depends on the environment
-        raise ImportError("mcp-rbac: the Rust core is not installed (maturin develop in core/mcp-rbac-py)") from e
+        raise ImportError("mcp-rbac: the Rust core is not installed (pip install mcp-rbac-core, or maturin develop in core/mcp-rbac-py)") from e
     return mcp_rbac_core
 
 

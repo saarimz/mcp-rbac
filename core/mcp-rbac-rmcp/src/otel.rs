@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub const INSTRUMENTATION_NAME: &str = "mcp-rbac";
-pub const INSTRUMENTATION_VERSION: &str = "0.4.0";
+pub const INSTRUMENTATION_VERSION: &str = "0.5.0";
 pub const SEMCONV_GENAI_COMMIT: &str = "e6658f14c9d9ea0760825f029cb82e7673f48fab";
 pub const SEMCONV_CORE_VERSION: &str = "1.45.0";
 pub const OTHER: &str = "_OTHER";

@@ -41,7 +41,7 @@ func main() {
 	policyPath := flag.String("policy", "../examples/core-servers/mini.yaml", "policy file")
 	flag.Parse()
 	ctx := context.Background()
-	res := resource.NewSchemaless(attribute.String("service.name", "mini-venue-go"), attribute.String("service.version", "0.4.0"))
+	res := resource.NewSchemaless(attribute.String("service.name", "mini-venue-go"), attribute.String("service.version", "0.5.0"))
 	te, err := otlptracehttp.New(ctx)
 	must(err)
 	me, err := otlpmetrichttp.New(ctx)
@@ -74,7 +74,7 @@ func main() {
 	tel, err := mcprbac.NewTelemetry(mcprbac.TelemetryOptions{TracerProvider: tp, MeterProvider: mp, LoggerProvider: lp, NetworkTransport: "pipe"})
 	must(err)
 
-	s := mcp.NewServer(&mcp.Implementation{Name: "mini-venue-go", Version: "0.4.0"}, nil)
+	s := mcp.NewServer(&mcp.Implementation{Name: "mini-venue-go", Version: "0.5.0"}, nil)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_events", Description: "List events"},
 		func(ctx context.Context, r *mcp.CallToolRequest, _ none) (*mcp.CallToolResult, map[string]any, error) {
 			return nil, map[string]any{"events": []any{map[string]any{"id": "e1", "name": "Friday"}}}, nil

@@ -108,7 +108,7 @@ func run(args []string) error {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() { <-sigs; _ = sink.Close(); os.Exit(0) }() // flush queued audit records before exiting
 	// One server (and one engine) for every session, so budgets and rate limits are shared across HTTP sessions.
-	server := mcp.NewServer(&mcp.Implementation{Name: "devops", Version: "0.4.0"}, nil)
+	server := mcp.NewServer(&mcp.Implementation{Name: "devops", Version: "0.5.0"}, nil)
 	registerTools(server, db, func() { _ = sink.Flush(context.Background()) })
 	eng.Protect(server, mcprbac.GuardOptions{
 		Identity: identity,

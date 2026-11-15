@@ -49,7 +49,7 @@ Otherwise (TS SDK 1.32, go-sdk 1.8 and rmcp 3.10 have no server spans) the guard
 
 ## Metrics
 
-Meter `mcp-rbac` 0.4.0. Every metric attribute is low-cardinality by construction:
+Meter `mcp-rbac` 0.5.0. Every metric attribute is low-cardinality by construction:
 - **Tool names are capped.** `gen_ai.tool.name` keeps the first 256 distinct names (configurable); later names are recorded as `_OTHER`, so a client calling random tool names cannot grow the series without bound.
 - **Reasons are reduced to their class.** `mcp_rbac.reason_class` is the first `:` segment of the reason. Full reasons can contain caller-controlled text (`actor_unknown:<actor>`), so they stay on spans and out of metrics.
 - **No limit keys.** Limit keys embed identity ids, so only the policy's limit name is used.

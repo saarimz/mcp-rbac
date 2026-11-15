@@ -30,7 +30,7 @@ export const SEMCONV = {
   core: "1.45.0",
 } as const;
 export const INSTRUMENTATION_NAME = "mcp-rbac";
-export const INSTRUMENTATION_VERSION = "0.4.0";
+export const INSTRUMENTATION_VERSION = "0.5.0";
 /** Histogram buckets (seconds) for the engine's authorize latency: microseconds to a second. */
 export const AUTHORIZE_BUCKETS = [0.00001, 0.000025, 0.00005, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.5, 1];
 /** semconv mcp.server.operation.duration buckets. */

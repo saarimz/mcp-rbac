@@ -3,12 +3,15 @@
 ## Supported versions
 | Version | Status |
 |---------|--------|
-| 0.3.x (TS `mcp-rbac`, Python `mcp-rbac`) | security fixes |
-| 0.2.x | security fixes until 0.4.0 ships, then end of life (see docs/SUPPORT.md) |
-| < 0.2 (`mcp-guard`) | unsupported |
+| 0.5.x (npm `mcp-rbac`, PyPI `mcp-rbac` + `mcp-rbac-core`, crates.io `mcp-rbac-core`) | security fixes |
+| < 0.5 | never published to a registry; unsupported |
+
+Features exported from `mcp-rbac/experimental` (and `mcp_rbac.experimental`) are covered by this policy, but their
+API may change in a minor release (see docs/experimental/README.md).
 
 ## Reporting a vulnerability
-Please report privately to the maintainers (security contact to be set before the first public release). Do not open
+Please report privately through GitHub private vulnerability reporting on the repository (to be enabled when the
+public repository is created; a security contact address will be listed here before the first release). Do not open
 a public issue. Include the version, a minimal reproduction, and the impact. We aim to acknowledge reports within 3
 business days, ship a fix or mitigation for high/critical issues within 30 days, and credit reporters who want it.
 

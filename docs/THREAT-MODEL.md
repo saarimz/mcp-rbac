@@ -1,4 +1,4 @@
-# Threat model (mcp-rbac 0.4.0)
+# Threat model (mcp-rbac 0.5.0)
 
 ## Assets
 Tool side effects (sending campaigns, refunds, deletes), personal data in tool results (emails, phones), tenant

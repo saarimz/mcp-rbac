@@ -286,7 +286,7 @@ export async function protect<Id extends Identity<any, any> = Identity>(server: 
 
   const [ct, st] = InMemoryTransport.createLinkedPair();
   await server.connect(st);
-  const client = new Client({ name: "mcp-rbac", version: "0.4.0" });
+  const client = new Client({ name: "mcp-rbac", version: "0.5.0" });
   await client.connect(ct);
   const tools = client.getServerCapabilities()?.tools ? await listTools(client) : [];
   const toolNames = new Set(tools.map((t) => t.name));

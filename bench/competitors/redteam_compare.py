@@ -13,6 +13,8 @@ Checks on the devops server are not part of this comparison (it runs mcp-rbac in
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import inspect
 import json
 import pathlib
 import sys
@@ -33,6 +35,8 @@ from redteam.harness import Report  # noqa: E402
 AUTHN = {"payload roles edited, signature kept", "alg none", "alg HS512 header (alg confusion)", "crit header", "signed with another key"}
 APPROVAL = lambda c: c["category"] == "approval_bypass"  # noqa: E731
 BUDGET = lambda c: c["category"] == "budget_exhaustion"  # noqa: E731
+JWT_TAMPER = {"payload roles edited, signature kept", "alg none", "alg HS512 header (alg confusion)", "crit header", "signed with another key"}
+ARG_SCOPE = {"list_events for venue qn", "list profiles naming account globex"}
 RECORD_OWNER = {"check_in a qn ticket, claiming venue bk in args", "refund a qn ticket from a bk manager", "read a qn ticket",
                 "read a globex profile", "update a globex profile"}
 
@@ -55,12 +59,23 @@ TARGETS: dict[str, dict[str, Any]] = {
                                 (lambda c: c["name"] in RECORD_OWNER, "needs the record's owner (DB lookup); gateway sees only token + arguments"),
                                 (lambda c: c["name"] == "lifetime over 1 h", "no maximum-token-lifetime setting in jwtAuth"),
                                 (lambda c: c["name"].startswith("revoked jti") and "control" not in c["name"], "no jti revocation list")]},
+    "pomerium": {"label": "Pomerium 0.34.1 (MCP route)", "authz": "none", "front": "gateway", "oauth": True,
+                 "na": [(lambda c: c["name"] in JWT_TAMPER, "clients hold Pomerium-issued opaque MCP tokens (OAuth 2.1 via Pomerium), never a JWT they could tamper with")],
+                 "cannot": [(APPROVAL, "no approval primitive"),
+                            (BUDGET, "no per-tool-call counters (PPL has no rate limits)"),
+                            (lambda c: c["name"] in RECORD_OWNER, "needs the record's owner (DB lookup); PPL sees only claims + tool name"),
+                            (lambda c: c["name"] in ARG_SCOPE or c["category"] == "prompt_injection", "PPL cannot read tool arguments (mcp_tool matches the tool name only): no argument limits or argument-level scope"),
+                            (lambda c: c["name"].startswith("door staff's list_events only shows"), "no result filtering (PPL decides per request; records in the response are not visible)"),
+                            (lambda c: "tools/list" in c["name"] or "see only allow" in c["name"], "no tools/list filtering"),
+                            (lambda c: c["name"] == "lifetime over 1 h", "no maximum IdP-token-lifetime setting"),
+                            (lambda c: c["name"].startswith("revoked jti") and "control" not in c["name"], "IdP jti revocation is not visible to Pomerium (it has its own token revocation endpoint)")]},
 }
 
 
 ORIG = {"start_http": servers.start_http, "stdio": servers.stdio, "mint": servers.mint, "auth_mint": auth.mint,
         "h_classify": harness.classify, "a_classify": agent.classify, "outcome": harness.outcome,
-        "sa_outcome": scenarios_auth.outcome, "sd_outcome": scenarios_data.outcome, "agent_run": agent.run}
+        "sa_outcome": scenarios_auth.outcome, "sd_outcome": scenarios_data.outcome, "agent_run": agent.run,
+        "priv_esc": scenarios_auth.privilege_escalation, "http": servers.http}
 
 
 def restore() -> None:
@@ -68,6 +83,40 @@ def restore() -> None:
     harness.classify, agent.classify = ORIG["h_classify"], ORIG["a_classify"]  # type: ignore[assignment]
     harness.outcome, scenarios_auth.outcome, scenarios_data.outcome = ORIG["outcome"], ORIG["sa_outcome"], ORIG["sd_outcome"]  # type: ignore[assignment]
     agent.run = ORIG["agent_run"]  # type: ignore[assignment]
+    scenarios_auth.privilege_escalation = ORIG["priv_esc"]  # type: ignore[attr-defined]
+    servers.http = ORIG["http"]  # type: ignore[assignment]
+
+
+def _messages(e: BaseException) -> list[str]:
+    if isinstance(e, BaseExceptionGroup):
+        return [m for x in e.exceptions for m in _messages(x)]
+    return [str(e)]
+
+
+class RefusedSession:
+    """Pomerium refuses the whole MCP session (403 at initialize) when no allow rule matches, e.g. unknown roles:
+    the caller sees no tools and every call is denied."""
+
+    async def list_tools(self) -> Any:
+        from mcp import types
+        return types.ListToolsResult(tools=[])
+
+    async def call_tool(self, *_a: Any, **_k: Any) -> Any:
+        from mcp import types
+        return types.CallToolResult(content=[types.TextContent(type="text", text="Denied: gateway_session_refused")], isError=True)
+
+
+@contextlib.asynccontextmanager
+async def http_refusable(url: str, token: str) -> Any:
+    entered = False
+    try:
+        async with ORIG["http"](url, token) as s:
+            entered = True
+            yield s
+    except BaseException as e:  # noqa: BLE001
+        if entered or not any("access denied" in m for m in _messages(e)):
+            raise
+        yield RefusedSession()
 
 
 class GatewaySession:
@@ -85,7 +134,7 @@ class GatewaySession:
         try:
             return await self._s.call_tool(tool, args, *a, **k)
         except Exception as e:  # noqa: BLE001
-            if "unknown resource" not in str(e):
+            if "unknown resource" not in str(e) and "access denied" not in str(e):
                 raise
             return types.CallToolResult(content=[types.TextContent(type="text", text="Denied: gateway_unknown_resource")], isError=True)
 
@@ -137,7 +186,7 @@ def patch(target: str) -> None:
 
         async def outcome(s: Any, tool: str, args: dict[str, Any] | None = None, meta: dict[str, Any] | None = None) -> str:
             o = await orig(s, tool, args, meta)
-            if t["front"] == "gateway" and o.startswith("protocol_error:") and "unknown resource" in o:
+            if t["front"] == "gateway" and o.startswith("protocol_error:") and ("unknown resource" in o or "access denied" in o):
                 return "denied:gateway_unknown_resource"
             return o
         for m in (harness, scenarios_auth, scenarios_data):
@@ -152,7 +201,26 @@ def patch(target: str) -> None:
             raise NotApplicable("stdio transport not part of the competitor run")
         servers.stdio = stdio  # type: ignore[assignment]
 
-    if t["front"] == "gateway":
+    if t.get("oauth"):  # Pomerium: a "token" is a Pomerium MCP access token obtained by signing in with these claims
+        import pomerium_login
+        by_aud = {servers.AUDIENCE[n]: n for n in t.get("servers", ["venue", "marketing"])}
+
+        def pom_mint(secret: Any, claims: dict[str, Any], *a: Any) -> Any:
+            name = by_aud.get(claims.get("aud"))
+            if name is None:
+                return ORIG["mint"](secret, claims, *a)
+            try:
+                return pomerium_login.login(services.POMERIUM_ROUTES[name], services.start_mock_idp(), claims, services.pomerium_tls()[2])
+            except Exception as e:  # noqa: BLE001  the IdP token was rejected at sign-in (expired, not yet valid, ...)
+                return "sign-in-rejected." + type(e).__name__
+        servers.mint = pom_mint  # type: ignore[assignment]
+        servers.http = http_refusable  # type: ignore[assignment]
+        src = inspect.getsource(ORIG["priv_esc"])
+        a, b = src.index('    h, p, sig = good.split(".")'), src.index("    async with servers.http(url, good) as s:")
+        ns: dict[str, Any] = {}
+        exec(compile(src[:a] + src[b:], "privilege_escalation(no JWT tamper)", "exec"), vars(scenarios_auth), ns)
+        scenarios_auth.privilege_escalation = ns["privilege_escalation"]  # type: ignore[attr-defined]
+    elif t["front"] == "gateway":
         gw_aud = {servers.AUDIENCE[n] for n in t.get("servers", ["venue", "marketing"])}  # devops stays the real HS256 server
 
         def gw_mint(secret: Any, claims: dict[str, Any], *a: Any, key: str = "idp", orig: Any = ORIG["mint"]) -> Any:
@@ -160,9 +228,22 @@ def patch(target: str) -> None:
         servers.mint = gw_mint  # type: ignore[assignment]
         auth.mint = lambda secret, claims, now=None: gw_mint(secret, claims, key="attacker", orig=ORIG["auth_mint"])  # type: ignore[assignment]
 
+    pom: dict[str, Any] = {}
+
     def start_http(name: str, db: str) -> tuple[str, Any]:
         if target == "mcp-rbac" or name == "devops" or name not in t.get("servers", ["venue", "marketing"]):
             url, p = real_start(name, db)  # devops / not-applicable servers: real mcp-rbac, checks dropped below
+        elif t.get("oauth"):  # one Pomerium per round with both routes (venue starts first; marketing's port is reserved)
+            env = {"TRUST_ASSERTION_HEADER": "x-pomerium-jwt-assertion"}
+            if name == "venue":
+                mport = services.free_port()
+                up, p1 = services.start_alt(name, db, "none", trust=True, env=env)
+                pom["urls"], p2 = services.start_pomerium({"venue": up, "marketing": f"http://127.0.0.1:{mport}/mcp"})
+                pom["mport"] = mport
+                url, p = pom["urls"]["venue"], services.Group(p2, p1)
+            else:
+                _, p = services.start_alt(name, db, "none", trust=True, port=pom["mport"], env=env)
+                url = pom["urls"]["marketing"]
         elif t["front"] == "gateway":
             up, p1 = services.start_alt(name, db, "none", trust=True)
             url, p2 = services.start_agentgateway(name, up)
@@ -217,7 +298,10 @@ async def run_target(target: str) -> dict[str, Any]:
         if c.server == "devops":
             continue
         authn = c.category == "token_replay" or c.name in AUTHN
-        if c.server not in t.get("servers", ["venue", "marketing"]):
+        na = next((w for f, w in t.get("na", []) if f(d)), None)
+        if na:
+            d["status"], d["why"] = "n/a", na
+        elif c.server not in t.get("servers", ["venue", "marketing"]):
             d["status"], d["why"] = "n/a", "library is TypeScript-only; the marketing server is Python"
         elif authn and t["front"] == "shared":
             d["status"], d["why"] = "shared_auth", "checked by the shared demo JWT front, not by this product"
@@ -237,7 +321,10 @@ async def run_target(target: str) -> dict[str, Any]:
                                "status": "n/a", "why": "stdio transport not part of the competitor run"})
                 continue
             d = {**{f: c[f] for f in ("category", "server", "transport", "name", "expected")}, "observed": "not reached: an earlier step of this scenario failed", "ok": False}
-            if c["server"] not in t.get("servers", ["venue", "marketing"]):
+            na = next((w for f, w in t.get("na", []) if f(d)), None)
+            if na:
+                d["status"], d["why"] = "n/a", na
+            elif c["server"] not in t.get("servers", ["venue", "marketing"]):
                 d["status"], d["why"] = "n/a", "library is TypeScript-only; the marketing server is Python"
             else:
                 why = next((w for f, w in t.get("cannot", []) if f(d)), None)

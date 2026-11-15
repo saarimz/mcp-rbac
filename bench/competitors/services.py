@@ -1,6 +1,7 @@
 """Start/stop the competitor processes for bench/competitors (local binaries only; nothing leaves the machine)."""
 from __future__ import annotations
 
+import base64
 import json
 import os
 import pathlib
@@ -96,7 +97,7 @@ def init_db(server: str, db: str) -> None:
     servers.init_db(server, db)
 
 
-def start_alt(server: str, db: str, authz: str, trust: bool = False, port: int = 0) -> tuple[str, subprocess.Popen[str]]:
+def start_alt(server: str, db: str, authz: str, trust: bool = False, port: int = 0, env: dict[str, str] | None = None) -> tuple[str, subprocess.Popen[str]]:
     init_db(server, db)
     if server == "venue":
         cmd = [TSX, str(HERE / "servers/venue-alt.ts")]
@@ -105,7 +106,7 @@ def start_alt(server: str, db: str, authz: str, trust: bool = False, port: int =
     else:
         raise ValueError(server)
     cmd += ["--http", str(port), "--db", db, "--authz", authz] + (["--front", "trust"] if trust else [])
-    p = subprocess.Popen(cmd, env={**os.environ, "MCP_DEMO_JWT_SECRET": SECRET}, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    p = subprocess.Popen(cmd, env={**os.environ, "MCP_DEMO_JWT_SECRET": SECRET, **(env or {})}, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     assert p.stdout is not None
     line = p.stdout.readline()
     if "listening on" not in line:
@@ -153,3 +154,94 @@ def start_protect_mcp(db: str, role: str = "project_manager", identity: dict[str
                          env={**os.environ, "PROTECT_MCP_HTTP_TOKEN": PROTECT_TOKEN, "MCP_RBAC_IDENTITY": json.dumps(ident)})
     wait_http(f"http://127.0.0.1:{port}/health")
     return f"http://127.0.0.1:{port}/mcp", p
+
+
+# --- Pomerium -------------------------------------------------------------------------------------------------------
+# Needs /etc/hosts: 127.0.0.1 authenticate.mcpbench.test venue.mcpbench.test marketing.mcpbench.test idp.mcpbench.test
+POMERIUM_HOSTS = ["authenticate.mcpbench.test", "venue.mcpbench.test", "marketing.mcpbench.test", "idp.mcpbench.test"]
+POMERIUM_ROUTES: dict[str, str] = {}  # server -> https route base, for the patched mint
+_IDP: dict[str, Any] = {}
+
+
+def pomerium_tls() -> tuple[str, str, str]:
+    keys = HERE / "results/keys"
+    keys.mkdir(parents=True, exist_ok=True)
+    crt, key, bundle = keys / "pomerium.crt", keys / "pomerium.key", keys / "ca-bundle.pem"
+    if not crt.exists():
+        subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "30", "-subj", "/CN=mcpbench.test",
+                        "-addext", "subjectAltName=DNS:*.mcpbench.test,DNS:mcpbench.test", "-keyout", str(key), "-out", str(crt)],
+                       check=True, capture_output=True)
+    if not bundle.exists():
+        import certifi
+        bundle.write_text(pathlib.Path(certifi.where()).read_text() + crt.read_text())
+    os.environ["SSL_CERT_FILE"] = str(bundle)  # httpx clients in this process trust the self-signed route certificate
+    return str(crt), str(key), str(bundle)
+
+
+def start_mock_idp() -> str:
+    if _IDP.get("p") is None or _IDP["p"].poll() is not None:
+        port = free_port()
+        issuer = f"http://idp.mcpbench.test:{port}"
+        _IDP["p"] = subprocess.Popen([PY, str(HERE / "mock_oidc.py"), str(port), issuer], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        _IDP["issuer"] = issuer
+        wait_http(issuer + "/.well-known/openid-configuration")
+    return str(_IDP["issuer"])
+
+
+_POM: dict[str, Any] = {}
+
+
+def start_pomerium(upstreams: dict[str, str]) -> tuple[dict[str, str], subprocess.Popen[Any]]:
+    """One Pomerium (one MCP server route per entry; policies from config/pomerium/policies.yaml) in front of trust-mode
+    alt servers reading x-pomerium-jwt-assertion. Only one instance can run at a time (its embedded Envoy's base id is
+    fixed), so a previous instance is stopped first. Returns {server: route /mcp URL}."""
+    import socket as _s
+    import yaml
+    for h in POMERIUM_HOSTS:
+        if _s.gethostbyname(h) != "127.0.0.1":
+            raise RuntimeError(f"{h} must resolve to 127.0.0.1 (add it to /etc/hosts)")
+    if _POM.get("p") is not None and _POM["p"].poll() is None:
+        _POM["p"].terminate()
+        try:
+            _POM["p"].wait(15)
+        except subprocess.TimeoutExpired:
+            _POM["p"].kill()
+            _POM["p"].wait(5)
+    crt, key, _ = pomerium_tls()
+    idp = start_mock_idp()
+    port = free_port()
+    pols = yaml.safe_load((HERE / "config/pomerium/policies.yaml").read_text())
+    routes = {n: f"https://{n}.mcpbench.test:{port}" for n in upstreams}
+    cfg = {
+        "address": f"127.0.0.1:{port}", "certificate_file": crt, "certificate_key_file": key,
+        "shared_secret": base64.b64encode(os.urandom(32)).decode(), "cookie_secret": base64.b64encode(os.urandom(32)).decode(),
+        "authenticate_service_url": f"https://authenticate.mcpbench.test:{port}",
+        "idp_provider": "oidc", "idp_provider_url": idp, "idp_client_id": "pomerium", "idp_client_secret": "pomerium-secret",
+        "log_level": os.environ.get("POMERIUM_LOG_LEVEL", "warn"), "metrics_address": f"127.0.0.1:{free_port()}",
+        "jwt_claims_headers": {"X-Mcp-Roles": "roles", "X-Mcp-Venue": "venue", "X-Mcp-Tenant": "tenant", "X-Mcp-Org": "org"},
+        "runtime_flags": {"mcp_dynamic_client_registration": True},
+        "routes": [{"from": routes[n], "to": up.rsplit("/mcp", 1)[0], "mcp": {"server": {}}, "pass_identity_headers": True, "policy": pols[n]}
+                   for n, up in upstreams.items()],
+    }
+    d = tempfile.mkdtemp(prefix="pomerium-")
+    (pathlib.Path(d) / "config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
+    log = open(pathlib.Path(d) / "pomerium.log", "w")
+    p = subprocess.Popen([str(TOOLS / "pomerium/pomerium"), "--config", "config.yaml"], cwd=d, stdout=log, stderr=log)
+    first = next(iter(routes.values()))
+    end = time.time() + 40
+    import httpx
+    while time.time() < end:
+        if p.poll() is not None:
+            raise RuntimeError("pomerium exited: " + (pathlib.Path(d) / "pomerium.log").read_text()[-800:])
+        try:
+            if httpx.get(first + "/.well-known/oauth-authorization-server", timeout=1).status_code == 200:
+                break
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(0.3)
+    else:
+        p.kill()
+        raise RuntimeError("pomerium did not come up: " + (pathlib.Path(d) / "pomerium.log").read_text()[-800:])
+    _POM["p"] = p
+    POMERIUM_ROUTES.update(routes)
+    return {n: r + "/mcp" for n, r in routes.items()}, p

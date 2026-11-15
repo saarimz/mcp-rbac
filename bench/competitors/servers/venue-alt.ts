@@ -22,6 +22,8 @@ const flag = (n: string) => { const i = process.argv.indexOf(n); return i > 0 ? 
 export function trustDecode(token: string) {
   try {
     const claims = JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8"));
+    if (claims && typeof claims.roles === "string") claims.roles = claims.roles ? claims.roles.split(",") : [];  // gateway assertions flatten a 1-element list
+    for (const k of ["venue", "tenant"]) if (claims && claims[k] === "") delete claims[k];
     return claims && typeof claims.sub === "string" ? { ok: true as const, claims } : { ok: false as const, error: "claims" };
   } catch { return { ok: false as const, error: "malformed" }; }
 }
@@ -74,7 +76,7 @@ async function main() {
   const h = await serveStreamable({
     port: Number(flag("--http") ?? 0), audience: "venue-mcp", secret,
     revoked: (jti) => !!db.prepare("SELECT 1 FROM revoked_tokens WHERE jti = ?").get(jti),
-    ...(trust ? { verifyToken: trustDecode, dnsRebindingProtection: false, bindSession: false } : {}),
+    ...(trust ? { verifyToken: trustDecode, dnsRebindingProtection: false, bindSession: false, assertionHeader: process.env.TRUST_ASSERTION_HEADER } : {}),
     newSession,
   });
   process.stdout.write(`venue-alt(${kind}${trust ? ",trust" : ""}) listening on ${h.url}\n`);

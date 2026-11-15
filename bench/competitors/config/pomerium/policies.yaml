@@ -1,0 +1,203 @@
+venue:
+- allow: &id001
+    or:
+    - claim/roles: door_staff
+    - claim/roles: owner
+    - claim/roles: project_manager
+    - claim/roles: vendor
+- allow: *id001
+  deny:
+    and:
+    - claim/roles: door_staff
+    - mcp_tool:
+        not_in:
+        - check_in
+        - get_event
+        - get_ticket
+        - list_bookings
+        - list_booth_spaces
+        - list_events
+        - list_tickets
+        - list_vendors
+- allow: *id001
+  deny:
+    and:
+    - claim/roles: project_manager
+    - mcp_tool:
+        not_in:
+        - book_booth_space
+        - cancel_booking
+        - check_in
+        - create_booking
+        - create_event
+        - export_guest_list
+        - get_event
+        - get_sales_report
+        - get_ticket
+        - list_bookings
+        - list_booth_spaces
+        - list_events
+        - list_tickets
+        - list_vendors
+        - refund_ticket
+        - release_booth_space
+        - undo_check_in
+        - update_event
+- allow: *id001
+  deny:
+    and:
+    - claim/roles: vendor
+    - mcp_tool:
+        not_in:
+        - book_booth_space
+        - list_booth_spaces
+- allow: *id001
+  deny:
+    and:
+    - mcp_tool:
+        not_in:
+        - book_booth_space
+        - cancel_booking
+        - cancel_event
+        - check_in
+        - create_booking
+        - create_event
+        - export_guest_list
+        - get_event
+        - get_sales_report
+        - get_ticket
+        - list_bookings
+        - list_booth_spaces
+        - list_events
+        - list_tickets
+        - list_vendors
+        - refund_ticket
+        - release_booth_space
+        - undo_check_in
+        - update_event
+marketing:
+- allow: &id002
+    or:
+    - claim/roles: account_admin
+    - claim/roles: analyst
+    - claim/roles: campaign_reviewer
+    - claim/roles: marketer
+    - claim/roles: support
+    - claim/roles: viewer
+- allow: *id002
+  deny:
+    and:
+    - claim/roles: analyst
+    - mcp_tool:
+        not_in:
+        - campaigns.get
+        - campaigns.list
+        - flows.list
+        - lists.list
+        - metrics.query
+        - profiles.get
+        - profiles.list
+        - segments.list
+        - templates.list
+- allow: *id002
+  deny:
+    and:
+    - claim/roles: campaign_reviewer
+    - mcp_tool:
+        not_in:
+        - campaigns.get
+        - campaigns.list
+        - profiles.get
+        - profiles.list
+- allow: *id002
+  deny:
+    and:
+    - claim/roles: marketer
+    - mcp_tool:
+        not_in:
+        - campaigns.create
+        - campaigns.get
+        - campaigns.list
+        - campaigns.send
+        - campaigns.update
+        - events.track
+        - flows.create
+        - flows.list
+        - flows.update_status
+        - lists.add_profiles
+        - lists.create
+        - lists.list
+        - metrics.query
+        - profiles.create
+        - profiles.export
+        - profiles.get
+        - profiles.list
+        - profiles.update
+        - segments.create
+        - segments.list
+        - templates.create
+        - templates.list
+- allow: *id002
+  deny:
+    and:
+    - claim/roles: support
+    - mcp_tool:
+        not_in:
+        - campaigns.get
+        - campaigns.list
+        - data_privacy.delete_profile
+        - events.track
+        - flows.list
+        - lists.list
+        - metrics.query
+        - profiles.create
+        - profiles.get
+        - profiles.list
+        - profiles.update
+        - segments.list
+        - templates.list
+- allow: *id002
+  deny:
+    and:
+    - claim/roles: viewer
+    - mcp_tool:
+        not_in:
+        - campaigns.get
+        - campaigns.list
+        - flows.list
+        - lists.list
+        - metrics.query
+        - profiles.get
+        - profiles.list
+        - segments.list
+        - templates.list
+- allow: *id002
+  deny:
+    and:
+    - mcp_tool:
+        not_in:
+        - accounts.list
+        - campaigns.create
+        - campaigns.get
+        - campaigns.list
+        - campaigns.send
+        - campaigns.update
+        - data_privacy.delete_profile
+        - events.track
+        - flows.create
+        - flows.list
+        - flows.update_status
+        - lists.add_profiles
+        - lists.create
+        - lists.list
+        - metrics.query
+        - profiles.create
+        - profiles.delete
+        - profiles.export
+        - profiles.get
+        - profiles.list
+        - profiles.update
+        - segments.create
+        - segments.list
+        - templates.create
+        - templates.list

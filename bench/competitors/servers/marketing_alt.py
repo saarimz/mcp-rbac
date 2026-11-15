@@ -66,12 +66,20 @@ def M_dump(v: Any) -> dict[str, Any]:  # noqa: N802
 
 
 def trust_identity(ctx: Any) -> dict[str, Any] | None:
-    tok = M.bearer(getattr(getattr(ctx, "request", None), "headers", None))
+    headers = getattr(getattr(ctx, "request", None), "headers", None)
+    hdr = os.environ.get("TRUST_ASSERTION_HEADER")
+    tok = (headers.get(hdr) if hdr and headers is not None else None) or M.bearer(headers)
     if not tok:
         return None
     try:
         p = tok.split(".")[1]
-        return M.identity_of(json.loads(base64.urlsafe_b64decode(p + "=" * (-len(p) % 4))))
+        claims = json.loads(base64.urlsafe_b64decode(p + "=" * (-len(p) % 4)))
+        if isinstance(claims.get("roles"), str):  # gateway assertions flatten a 1-element list
+            claims["roles"] = [r for r in claims["roles"].split(",") if r]
+        for k in ("venue", "tenant"):
+            if claims.get(k) == "":
+                claims.pop(k)
+        return M.identity_of(claims)
     except Exception:  # noqa: BLE001
         return None
 

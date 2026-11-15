@@ -25,6 +25,8 @@ export interface HttpHostOptions {
   dnsRebindingProtection?: boolean;
   /** Bind a session to the subject that created it (default true). Benchmarks turn it off when a gateway owns authn. */
   bindSession?: boolean;
+  /** Read the token from this header instead of Authorization (benchmarks: a gateway's signed identity assertion, e.g. x-pomerium-jwt-assertion). */
+  assertionHeader?: string;
 }
 
 function deny(res: ServerResponse, status: number, error: string, desc: string) {
@@ -54,7 +56,8 @@ export async function serveStreamable(o: HttpHostOptions): Promise<{ url: string
   const http = createServer(async (req, res) => {
     try {
       if (!req.url?.startsWith("/mcp")) return deny(res, 404, "not_found", "use /mcp");
-      const auth = req.headers.authorization ?? "";
+      const asserted = o.assertionHeader ? req.headers[o.assertionHeader] : undefined;
+      const auth = typeof asserted === "string" && asserted ? `Bearer ${asserted}` : (req.headers.authorization ?? "");
       const m = /^Bearer ([A-Za-z0-9._-]+)$/.exec(auth);
       if (!m) return deny(res, 401, "invalid_request", "missing bearer token");
       const v = o.verifyToken ? o.verifyToken(m[1]!) : verify(m[1]!, o.secret, o.audience, o.revoked);

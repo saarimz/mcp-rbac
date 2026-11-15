@@ -1,0 +1,12 @@
+# Resource-resolution scenario shared by every binding's `resource` resolver test: who may touch which venue's tickets
+# is decided from the venue that OWNS the ticket (looked up by the host), never from arguments.
+version: 1
+name: scoped-venue
+tenantKey: venue
+roles:
+  door:
+    description: Door staff at one venue.
+    tools: [get_ticket]
+  owner:
+    description: Every venue.
+    tools: ["*"]

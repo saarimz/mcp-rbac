@@ -68,6 +68,13 @@ export interface CoreGuardOptions {
   toolsets?: (extra: any) => string[] | undefined;
   /** Called for needs_approval decisions; return true once a human approved. Default: never approved. */
   approve?: (call: { tool: string; args: Record<string, unknown>; identity: unknown }, d: CoreDecision) => Promise<boolean> | boolean;
+  /**
+   * The resource the call touches, resolved by the host from its own data (e.g. the venue that owns the ticket in
+   * `args.ticket_id`), never from the caller's say-so. Return undefined for "the caller's own scope" (identity.scope).
+   * Throwing denies the call with reason `resource_unresolved` (fail-closed). docs/policy-format.md "Decision request".
+   */
+  resource?: (call: { tool: string; args: Record<string, unknown>; identity: unknown }, extra: any) =>
+    Record<string, string> | undefined | Promise<Record<string, string> | undefined>;
   /** Clock for rate-limit windows (default Date.now). */
   now?: () => number;
   /** Observability hook, called once per tools/call decision. */
@@ -79,6 +86,11 @@ export interface CoreGuardOptions {
 }
 
 export const DENIAL_META_KEY = "mcp-rbac/denial";
+/** `_meta` key on the forwarded tools/call: {identity, tenant, rule, resource?} for the (trusted) inner server. */
+export const CORE_CALLER_META_KEY = "mcp-rbac/caller";
+/** Guard-level denial when the host's resource resolver throws (same shape as a core decision). */
+const RESOURCE_UNRESOLVED = JSON.stringify({ decision: "deny", labels: [], limits: [], missingScopes: [], reason: "resource_unresolved",
+  redact: [], requiredScopes: [], rule: null, tenant: null, withholdText: false });
 
 /** Wrap an McpServer / Server (or an upstream Client) behind the WASM core. Returns the outer server to connect. */
 export async function protectWithCore(inner: McpServer | Server | Client, opts: CoreGuardOptions): Promise<{ server: Server; engine: CoreEngine }> {
@@ -135,10 +147,15 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
       const args = (req.params.arguments ?? {}) as Record<string, unknown>;
       const identity = await opts.identity(extra);
       const toolsets = opts.toolsets?.(extra);
-      const reqJson = JSON.stringify({ tool, args, ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}) });
+      let resource: Record<string, string> | undefined;
+      let unresolved = false;
+      if (opts.resource && identity !== undefined) {
+        try { resource = await opts.resource({ tool, args, identity }, extra); } catch { unresolved = true; }
+      }
+      const reqJson = JSON.stringify({ tool, args, ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}), ...(resource ? { resource } : {}) });
       const authSpan = tel?.startAuthorize(tool);
       let e0 = performance.now();
-      let raw = engine.authorize(reqJson, now());
+      let raw = unresolved ? RESOURCE_UNRESOLVED : engine.authorize(reqJson, now());
       let engineMs = performance.now() - e0;
       let d = JSON.parse(raw) as CoreDecision;
       let approved = false;
@@ -160,7 +177,10 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
         const text = d.decision === "needs_approval" ? `Approval required for ${tool}` : `Denied: ${d.reason}`;
         return { content: [{ type: "text" as const, text }], isError: true, _meta: { [DENIAL_META_KEY]: { decision: d.decision, reason: d.reason } } };
       }
-      const result = await client.request({ method: "tools/call", params: { name: tool, arguments: args } }, CallToolResultSchema, { signal: extra.signal, timeout });
+      // The inner server is trusted and in-process: tell it who is calling (client _meta is never forwarded, so this
+      // key cannot be spoofed) so it can scope its own queries to the caller's tenant.
+      const caller = { identity, tenant: d.tenant, rule: d.rule, ...(resource ? { resource } : {}) };
+      const result = await client.request({ method: "tools/call", params: { name: tool, arguments: args, _meta: { [CORE_CALLER_META_KEY]: caller } } }, CallToolResultSchema, { signal: extra.signal, timeout });
       if (!d.redact.length && !d.labels.length) return result;
       server?.setAttribute("mcp_rbac.redacted", d.redact.length > 0);
       return JSON.parse(engine.redact(JSON.stringify(result), raw));

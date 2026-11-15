@@ -26,6 +26,23 @@ type ToolsetsFn = dyn Fn(&RequestContext<RoleServer>) -> Option<Vec<String>> + S
 type ApproveFn = dyn Fn(&str, &Value, &Value) -> bool + Send + Sync;
 type NowFn = dyn Fn() -> f64 + Send + Sync;
 type OnDecisionFn = dyn Fn(&DecisionEvent) + Send + Sync;
+/// (tool, args, identity, ctx) -> resource object, `Ok(None)` = the caller's own scope, `Err` = deny `resource_unresolved`.
+type ResourceFn = dyn Fn(&str, &Value, &Value, &RequestContext<RoleServer>) -> Result<Option<serde_json::Map<String, Value>>, String> + Send + Sync;
+
+/// The guard's view of an allowed tools/call, inserted into the request extensions before the inner service runs:
+/// take `Extension<Caller>` in a tool to scope its own queries to the caller's tenant (same data as the TS guard's
+/// `mcp-rbac/caller` _meta).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Caller {
+    pub identity: Value,
+    pub tenant: Option<String>,
+    pub rule: Option<String>,
+    /// `None` when the resolver returned `Ok(None)` (the caller's own scope) or no resolver is set.
+    pub resource: Option<serde_json::Map<String, Value>>,
+}
+
+/// Guard-level denial when the resource resolver fails (same shape as a core decision).
+const RESOURCE_UNRESOLVED: &str = r#"{"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"resource_unresolved","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}"#;
 
 /// One tools/call decision, passed to [`GuardOptions::on_decision`].
 #[derive(Debug, Clone)]
@@ -46,6 +63,8 @@ pub struct GuardOptions {
     /// Unix milliseconds (default: wall clock).
     pub now: Option<Arc<NowFn>>,
     pub on_decision: Option<Arc<OnDecisionFn>>,
+    /// The resource a call touches, resolved from the host's own data (never the caller's say-so).
+    pub resource: Option<Arc<ResourceFn>>,
     /// OpenTelemetry (docs/otel.md); feature `otel`. None = off.
     #[cfg(feature = "otel")]
     pub telemetry: Option<Arc<otel::Telemetry>>,
@@ -54,7 +73,7 @@ pub struct GuardOptions {
 impl GuardOptions {
     pub fn with_identity(f: impl Fn(&RequestContext<RoleServer>) -> Option<Value> + Send + Sync + 'static) -> Self {
         GuardOptions {
-            identity: Arc::new(f), toolsets: None, approve: None, now: None, on_decision: None,
+            identity: Arc::new(f), toolsets: None, approve: None, now: None, on_decision: None, resource: None,
             #[cfg(feature = "otel")]
             telemetry: None,
         }
@@ -180,7 +199,7 @@ impl<S: Service<RoleServer>> Guarded<S> {
         Ok(ServerResult::ListToolsResult(lr))
     }
 
-    async fn call(&self, request: ClientRequest, context: RequestContext<RoleServer>, obs: &mut Obs) -> Result<ServerResult, McpError> {
+    async fn call(&self, request: ClientRequest, mut context: RequestContext<RoleServer>, obs: &mut Obs) -> Result<ServerResult, McpError> {
         let ClientRequest::CallToolRequest(ref r) = request else { return self.inner.handle_request(request, context).await };
         let t0 = Instant::now();
         let tool = r.params.name.to_string();
@@ -188,10 +207,20 @@ impl<S: Service<RoleServer>> Guarded<S> {
         let mut body = self.opts.base(&context);
         body.insert("tool".into(), json!(tool));
         body.insert("args".into(), args.clone());
+        let mut unresolved = false;
+        if let (Some(f), Some(id)) = (&self.opts.resource, body.get("identity").cloned()) {
+            match f(&tool, &args, &id, &context) {
+                Ok(Some(r)) => { body.insert("resource".into(), Value::Object(r)); }
+                Ok(None) => {}
+                Err(_) => unresolved = true,
+            }
+        }
+        let body_identity = body.get("identity").cloned();
+        let body_resource = body.get("resource").and_then(Value::as_object).cloned();
         let req = Value::Object(body).to_string();
         obs.start_authorize(&tool);
         let e0 = Instant::now();
-        let mut raw = self.engine.authorize(&req, self.opts.now_ms());
+        let mut raw = if unresolved { RESOURCE_UNRESOLVED.to_string() } else { self.engine.authorize(&req, self.opts.now_ms()) };
         let mut engine = e0.elapsed();
         let mut d: Value = serde_json::from_str(&raw).map_err(|e| internal(format!("mcp-rbac: decision: {e}")))?;
         let mut approved = false;
@@ -228,6 +257,12 @@ impl<S: Service<RoleServer>> Guarded<S> {
             }
             return Ok(out);
         }
+        context.extensions.insert(Caller {
+            identity: body_identity.unwrap_or(Value::Null),
+            tenant: d["tenant"].as_str().map(str::to_string),
+            rule: d["rule"].as_str().map(str::to_string),
+            resource: body_resource,
+        });
         let res = self.inner.handle_request(request, context).await?;
         let empty = |k: &str| d[k].as_array().is_none_or(Vec::is_empty);
         if empty("redact") && empty("labels") {

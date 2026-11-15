@@ -7,6 +7,7 @@ denies calls, and redacts results. Other methods pass through untouched.
 """
 from __future__ import annotations
 
+import contextvars
 import json
 import time
 from collections.abc import Awaitable, Callable
@@ -16,6 +17,18 @@ if TYPE_CHECKING:
     from mcp_rbac.core_otel import CoreTelemetry
 
 DENIAL_META_KEY = "mcp-rbac/denial"
+_CALLER: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("mcp_rbac_caller", default=None)
+
+
+def current_caller() -> dict[str, Any] | None:
+    """Inside a tool allowed by CoreGuard: ``{"identity", "tenant", "rule", "resource"?}`` for this call (else None).
+    Use it to scope the tool's own queries to the caller's tenant (same data as the TS guard's ``mcp-rbac/caller``)."""
+    return _CALLER.get()
+
+
+# Guard-level denial when the host's resource resolver raises (same shape as a core decision).
+RESOURCE_UNRESOLVED = json.dumps({"decision": "deny", "labels": [], "limits": [], "missingScopes": [], "reason": "resource_unresolved",
+                                  "redact": [], "requiredScopes": [], "rule": None, "tenant": None, "withholdText": False})
 
 
 def load_core() -> Any:
@@ -46,13 +59,17 @@ class CoreGuard:
         now: Callable[[], float] | None = None,
         on_decision: Callable[[dict[str, Any]], None] | None = None,
         telemetry: CoreTelemetry | bool | None = None,
+        resource: Callable[[str, dict[str, Any], Any, Any], dict[str, str] | None | Awaitable[dict[str, str] | None]] | None = None,
     ) -> None:
+        """``resource(tool, args, identity, ctx)`` returns the resource the call touches, resolved from the host's own data
+        (never the caller's say-so); ``None`` = the caller's own scope. Raising denies with ``resource_unresolved``."""
         self.engine = load_core().Engine(policy)
         self._identity = identity
         self._toolsets = toolsets
         self._approve = approve
         self._now = now or (lambda: time.time() * 1000.0)
         self._on_decision = on_decision
+        self._resource = resource
         self.telemetry: CoreTelemetry | None = None
         if telemetry:
             from mcp_rbac.core_otel import CoreTelemetry as _CT
@@ -96,11 +113,22 @@ class CoreGuard:
         params = dict(ctx.params or {})
         tool = params.get("name")
         args = params.get("arguments") or {}
-        req = json.dumps({"tool": tool, "args": args, **self._base(ctx)})
+        base = self._base(ctx)
+        unresolved = False
+        if self._resource is not None and "identity" in base:
+            try:
+                r = self._resource(str(tool), args, base["identity"], ctx)
+                if r is not None and not isinstance(r, dict):
+                    r = await r
+                if r is not None:
+                    base["resource"] = r
+            except Exception:  # noqa: BLE001 - any resolver failure fails closed
+                unresolved = True
+        req = json.dumps({"tool": tool, "args": args, **base})
         tel = self.telemetry
         auth_span = tel.start_authorize(str(tool)) if tel is not None else None
         e0 = time.perf_counter()
-        raw = self.engine.authorize(req, self._now())
+        raw = RESOURCE_UNRESOLVED if unresolved else self.engine.authorize(req, self._now())
         engine_s = time.perf_counter() - e0
         d = json.loads(raw)
         approved = False
@@ -130,7 +158,14 @@ class CoreGuard:
             # `resultType` is required from MCP 2026-07-28 on; older surfaces ignore it (extra="ignore"), so always set it.
             return {"resultType": "complete", "content": [{"type": "text", "text": text}], "isError": True,
                     "_meta": {DENIAL_META_KEY: {"decision": d["decision"], "reason": d["reason"]}}}
-        res = _dump(await call_next(ctx))
+        caller: dict[str, Any] = {"identity": base.get("identity"), "tenant": d.get("tenant"), "rule": d.get("rule")}
+        if "resource" in base:
+            caller["resource"] = base["resource"]
+        token = _CALLER.set(caller)
+        try:
+            res = _dump(await call_next(ctx))
+        finally:
+            _CALLER.reset(token)
         if not d["redact"] and not d["labels"]:
             return res
         if server_span is not None and d["redact"]:

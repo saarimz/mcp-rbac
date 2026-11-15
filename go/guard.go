@@ -21,8 +21,26 @@ type Decision struct {
 	Reason   string            `json:"reason"`
 	Redact   []json.RawMessage `json:"redact"` // redaction rules ({fields, replacement}); applied by the core
 	Labels   []json.RawMessage `json:"labels"`
-	Rule     string            `json:"rule"` // empty when no rule matched (JSON null)
+	Rule     string            `json:"rule"`   // empty when no rule matched (JSON null)
+	Tenant   string            `json:"tenant"` // empty when the call has no tenant (JSON null)
 	Limits   []LimitUse        `json:"limits"`
+}
+
+// Caller describes an allowed tools/call to the tool handler: see CallerFrom.
+type Caller struct {
+	Identity any
+	Tenant   string
+	Rule     string
+	Resource map[string]string // nil when GuardOptions.Resource returned nil (the caller's own scope)
+}
+
+type callerKey struct{}
+
+// CallerFrom returns the guard's view of the current call inside a tool handler the guard allowed. Use it to scope
+// the tool's own queries to the caller's tenant (same data as the TS guard's "mcp-rbac/caller" _meta).
+func CallerFrom(ctx context.Context) (Caller, bool) {
+	c, ok := ctx.Value(callerKey{}).(Caller)
+	return c, ok
 }
 
 // DecisionEvent is passed to GuardOptions.OnDecision for every tools/call.
@@ -42,6 +60,9 @@ type GuardOptions struct {
 	Toolsets func(ctx context.Context, req mcp.Request) []string
 	// Approve is asked for needs_approval decisions; true re-authorizes as approved.
 	Approve func(ctx context.Context, tool string, args json.RawMessage, d Decision) bool
+	// Resource returns the resource a call touches, resolved from the host's own data (never the caller's say-so);
+	// nil = the caller's own scope. An error denies the call with reason "resource_unresolved" (fail-closed).
+	Resource func(ctx context.Context, req *mcp.CallToolRequest, tool string, args json.RawMessage, identity any) (map[string]string, error)
 	// Now returns Unix milliseconds (default: wall clock).
 	Now func() float64
 	// OnDecision observes every tools/call decision (metrics, audit).
@@ -185,6 +206,16 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	body := o.base(ctx, req)
 	body["tool"] = tool
 	body["args"] = args
+	unresolved := false
+	if id, ok := body["identity"]; ok && o.Resource != nil {
+		r, rerr := o.Resource(ctx, cr, tool, args, id)
+		switch {
+		case rerr != nil:
+			unresolved = true
+		case r != nil:
+			body["resource"] = r
+		}
+	}
 	in, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("mcp-rbac: request: %w", err)
@@ -194,7 +225,10 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 		az = o.Telemetry.startAuthorize(ctx, tool)
 	}
 	e0 := time.Now()
-	raw, err := e.Authorize(ctx, string(in), o.now())
+	raw, err := resourceUnresolved, error(nil)
+	if !unresolved {
+		raw, err = e.Authorize(ctx, string(in), o.now())
+	}
 	engine := time.Since(e0)
 	if err != nil {
 		if az.span != nil {
@@ -241,6 +275,11 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	if d.Decision != "allow" {
 		return denial(tool, d), nil
 	}
+	caller := Caller{Identity: body["identity"], Tenant: d.Tenant, Rule: d.Rule}
+	if r, ok := body["resource"].(map[string]string); ok {
+		caller.Resource = r
+	}
+	ctx = context.WithValue(ctx, callerKey{}, caller)
 	res, err := next(ctx, method, req)
 	if err != nil || (len(d.Redact) == 0 && len(d.Labels) == 0) {
 		return res, err
@@ -262,6 +301,9 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	}
 	return out, nil
 }
+
+// resourceUnresolved is the guard-level denial when GuardOptions.Resource fails (same shape as a core decision).
+const resourceUnresolved = `{"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"resource_unresolved","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}`
 
 // requestMeta returns params._meta, tolerating requests sent without params: go-sdk then hands the middleware a typed-nil
 // params pointer inside a non-nil interface, and calling GetMeta on it panics (e.g. a tools/list without "params").

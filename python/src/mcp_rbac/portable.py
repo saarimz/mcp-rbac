@@ -230,11 +230,14 @@ class _Map:
         self.has_key = False
 
 
+_DOC_END = re.compile(r"^\.\.\.(?:[ #\r]|$)", re.M)
 _ESC_SURROGATE = re.compile(r"\\(?:u[dD][89a-fA-F][0-9a-fA-F]{2}|U0000[dD][89a-fA-F][0-9a-fA-F]{2})")
 
 
 def check_yaml_chars(src: str) -> None:
     """Portable character set for policy YAML (identical in Rust/TS/Python; see docs/policy-format.md)."""
+    if (m := _DOC_END.search(src)) is not None:
+        _fail(f"yaml: document end markers ('...') are not allowed (line {src.count(chr(10), 0, m.start()) + 1})")
     if _ESC_SURROGATE.search(src):
         _fail("yaml: escaped surrogates (\\uD800-\\uDFFF) are not allowed; write the character itself")
     line = 1

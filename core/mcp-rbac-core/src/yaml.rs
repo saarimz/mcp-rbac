@@ -94,6 +94,11 @@ fn has_escaped_surrogate(src: &str) -> bool {
 /// Portable character set for policy YAML (identical in Rust/TS/Python; parsers disagree outside it, found by
 /// differential fuzzing): printable characters, LF or CRLF line breaks, a BOM only at the very start.
 pub fn check_chars(src: &str) -> Result<(), String> {
+    for (i, line) in src.split('\n').enumerate() {
+        if let Some(rest) = line.strip_prefix("...") {
+            if rest.is_empty() || rest.starts_with([' ', '#', '\r']) { return Err(format!("yaml: document end markers ('...') are not allowed (line {})", i + 1)) }
+        }
+    }
     if has_escaped_surrogate(src) { return Err("yaml: escaped surrogates (\\uD800-\\uDFFF) are not allowed; write the character itself".into()) }
     let mut line = 1;
     let mut it = src.char_indices().peekable();

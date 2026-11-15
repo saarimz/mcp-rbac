@@ -102,6 +102,8 @@ const radix = (d: string, r: number) => [...d].reduce((acc, c) => acc * r + pars
  * C0/C1 controls, DEL, lone CR, NEL/LS/PS (line breaks in YAML 1.1 but not 1.2), U+FEFF elsewhere, U+FFFE/U+FFFF,
  * lone surrogates. */
 export function checkYamlChars(src: string): void {
+  const de = /^\.\.\.(?:[ #\r]|$)/m.exec(src);
+  if (de) fail(`yaml: document end markers ('...') are not allowed (line ${src.slice(0, de.index).split("\n").length})`);
   if (/\\(?:u[dD][89a-fA-F][0-9a-fA-F]{2}|U0000[dD][89a-fA-F][0-9a-fA-F]{2})/.test(src)) fail("yaml: escaped surrogates (\\uD800-\\uDFFF) are not allowed; write the character itself");
   let line = 1, i = 0;
   for (const ch of src) {

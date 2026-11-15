@@ -26,6 +26,7 @@ Portability restrictions on top of YAML 1.2 (each found by differential fuzzing;
 - A leading byte-order mark is allowed.
 - A plain (unquoted) scalar may not start with `|`, `>`, `@`, `` ` `` or `%`; block scalars (`|`, `>`) are only valid in block context.
 - A plain scalar cannot be just `-`, `?` or `:` (quote it).
+- No document-end markers: a line that is `...` (alone, or followed by a space or `#`) is rejected; a leading `---` is fine.
 - **Flow collections (`[...]`, `{...}`) must start and end on the same line.** Multi-line flow collections have
   indentation rules that yaml-rust2, `yaml` (JS) and PyYAML each implement differently (a nested `]` at the block
   indent, `[\n]`, under-indented plain continuation lines...). Use block style, or write the whole policy as JSON.

@@ -195,7 +195,7 @@ Local only. Nothing pushed, published, reserved, created or posted. Every number
 | 8 | Launch kit drafts (files only) | done | 67135ec, `docs/launch/*.md` |
 | 9 | PROGRESS, CHANGELOG, Page status | done | 9e8fc7f (CHANGELOG 0.5.0, AGENTS.md, llms.txt), this section |
 
-## Full matrix (one sequential run, 18:13-18:22 ET, logs /tmp/p12-final-*.log)
+## Full matrix (one sequential run, 18:05-18:10 ET; clippy re-run after the fix, logs /tmp/p12-final-*.log)
 
 | Suite | Result |
 |---|---|

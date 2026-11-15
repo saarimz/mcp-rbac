@@ -79,6 +79,22 @@ fn finite(x: f64) -> Result<Value, String> {
     if x.is_finite() { Ok(crate::json::number(x)) } else { Err("non-finite numbers are not allowed".into()) }
 }
 
+/// YAML 1.2 forbids a plain scalar from starting with an indicator character (`|`, `>`, `@`, `` ` ``, `%`).
+/// yaml-rust2 leniently scans e.g. `{a: |\n x}` (a block scalar inside a flow collection) as the plain scalar
+/// "| x"; the TS and Python parsers reject it. Scan tokens and reject, so all three loaders agree
+/// (found by the conformance corpus, vector yaml-00362).
+fn reject_indicator_plain_scalars(src: &str) -> Result<(), String> {
+    use yaml_rust2::scanner::{Scanner, TokenType};
+    for tok in Scanner::new(src.chars()) {
+        if let TokenType::Scalar(TScalarStyle::Plain, v) = &tok.1 {
+            if v.starts_with(['|', '>', '@', '`', '%']) {
+                return Err(format!("yaml: plain scalar may not start with an indicator (line {})", tok.0.line()));
+            }
+        }
+    }
+    Ok(())
+}
+
 enum Frame {
     Seq(Vec<Value>),
     Map(Map<String, Value>, Option<String>),
@@ -86,6 +102,9 @@ enum Frame {
 
 /// Parse a YAML (or JSON) policy document into a JSON value.
 pub fn load(src: &str) -> Result<Value, String> {
+    // a byte-order mark is allowed at the start of a YAML stream (the TS and Python loaders accept it too)
+    let src = src.strip_prefix('\u{feff}').unwrap_or(src);
+    reject_indicator_plain_scalars(src)?;
     let mut p = Parser::new_from_str(src);
     let mut stack: Vec<Frame> = vec![];
     let mut root: Option<Value> = None;

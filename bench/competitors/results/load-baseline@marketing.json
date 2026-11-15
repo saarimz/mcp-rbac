@@ -1,0 +1,35 @@
+{
+ "target": "baseline@marketing",
+ "tool": "profiles.list",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10.008,
+  "ok": 446,
+  "errors": 0,
+  "rps": 44.6,
+  "p50_ms": 40.988,
+  "p90_ms": 44.744,
+  "p99_ms": 46.287,
+  "max_ms": 49.283,
+  "mean_ms": 22.423
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.039,
+  "ok": 7148,
+  "errors": 0,
+  "rps": 712,
+  "p50_ms": 44.125,
+  "p90_ms": 48.23,
+  "p99_ms": 68.211,
+  "max_ms": 84.402,
+  "mean_ms": 44.861
+ },
+ "peak_rss_mb": {
+  "app": 79.4
+ },
+ "peak_rss_total_mb": 79.4,
+ "measured_at": "2026-11-15T15:11:02-0500",
+ "cpu": 8
+}

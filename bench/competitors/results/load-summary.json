@@ -352,5 +352,145 @@
   "peak_rss_total_mb": 370.2,
   "measured_at": "2026-11-15T14:45:56-0500",
   "cpu": 8
+ },
+ "sdk2": {
+  "target": "sdk2",
+  "tool": "list_events",
+  "transport": "http",
+  "latency_c1": {
+   "concurrency": 1,
+   "seconds": 10,
+   "ok": 16291,
+   "errors": 0,
+   "rps": 1629.1,
+   "p50_ms": 0.529,
+   "p90_ms": 0.776,
+   "p99_ms": 1.134,
+   "max_ms": 11.693,
+   "mean_ms": 0.61
+  },
+  "throughput_c32": {
+   "concurrency": 32,
+   "seconds": 10.011,
+   "ok": 22634,
+   "errors": 0,
+   "rps": 2260.9,
+   "p50_ms": 11.992,
+   "p90_ms": 22.471,
+   "p99_ms": 30.227,
+   "max_ms": 45.834,
+   "mean_ms": 14.143
+  },
+  "peak_rss_mb": {
+   "app (SDK v2)": 427.8
+  },
+  "peak_rss_total_mb": 427.8,
+  "measured_at": "2026-11-15T15:10:11-0500",
+  "cpu": 8
+ },
+ "mcp-rbac@marketing": {
+  "target": "mcp-rbac@marketing",
+  "tool": "profiles.list",
+  "transport": "http",
+  "latency_c1": {
+   "concurrency": 1,
+   "seconds": 10.016,
+   "ok": 448,
+   "errors": 0,
+   "rps": 44.7,
+   "p50_ms": 40.693,
+   "p90_ms": 42.173,
+   "p99_ms": 45.848,
+   "max_ms": 46.01,
+   "mean_ms": 22.342
+  },
+  "throughput_c32": {
+   "concurrency": 32,
+   "seconds": 10.044,
+   "ok": 5945,
+   "errors": 0,
+   "rps": 591.9,
+   "p50_ms": 52.75,
+   "p90_ms": 57.8,
+   "p99_ms": 81.8,
+   "max_ms": 91.801,
+   "mean_ms": 53.931
+  },
+  "peak_rss_mb": {
+   "app": 82.3
+  },
+  "peak_rss_total_mb": 82.3,
+  "measured_at": "2026-11-15T15:12:38-0500",
+  "cpu": 8
+ },
+ "baseline@marketing": {
+  "target": "baseline@marketing",
+  "tool": "profiles.list",
+  "transport": "http",
+  "latency_c1": {
+   "concurrency": 1,
+   "seconds": 10.008,
+   "ok": 446,
+   "errors": 0,
+   "rps": 44.6,
+   "p50_ms": 40.988,
+   "p90_ms": 44.744,
+   "p99_ms": 46.287,
+   "max_ms": 49.283,
+   "mean_ms": 22.423
+  },
+  "throughput_c32": {
+   "concurrency": 32,
+   "seconds": 10.039,
+   "ok": 7148,
+   "errors": 0,
+   "rps": 712,
+   "p50_ms": 44.125,
+   "p90_ms": 48.23,
+   "p99_ms": 68.211,
+   "max_ms": 84.402,
+   "mean_ms": 44.861
+  },
+  "peak_rss_mb": {
+   "app": 79.4
+  },
+  "peak_rss_total_mb": 79.4,
+  "measured_at": "2026-11-15T15:11:02-0500",
+  "cpu": 8
+ },
+ "fastmcp@marketing": {
+  "target": "fastmcp@marketing",
+  "tool": "profiles.list",
+  "transport": "http",
+  "latency_c1": {
+   "concurrency": 1,
+   "seconds": 10.036,
+   "ok": 424,
+   "errors": 0,
+   "rps": 42.2,
+   "p50_ms": 40.86,
+   "p90_ms": 44.941,
+   "p99_ms": 48.911,
+   "max_ms": 80.914,
+   "mean_ms": 23.654
+  },
+  "throughput_c32": {
+   "concurrency": 32,
+   "seconds": 10.048,
+   "ok": 4557,
+   "errors": 0,
+   "rps": 453.5,
+   "p50_ms": 68.897,
+   "p90_ms": 73.084,
+   "p99_ms": 103.116,
+   "max_ms": 126.715,
+   "mean_ms": 70.341
+  },
+  "peak_rss_mb": {
+   "app": 82.2
+  },
+  "peak_rss_total_mb": 82.2,
+  "measured_at": "2026-11-15T15:11:28-0500",
+  "cpu": 8
  }
 }

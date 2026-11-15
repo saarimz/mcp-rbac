@@ -1,0 +1,35 @@
+{
+ "target": "mcp-rbac@marketing",
+ "tool": "profiles.list",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10.016,
+  "ok": 448,
+  "errors": 0,
+  "rps": 44.7,
+  "p50_ms": 40.693,
+  "p90_ms": 42.173,
+  "p99_ms": 45.848,
+  "max_ms": 46.01,
+  "mean_ms": 22.342
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.044,
+  "ok": 5945,
+  "errors": 0,
+  "rps": 591.9,
+  "p50_ms": 52.75,
+  "p90_ms": 57.8,
+  "p99_ms": 81.8,
+  "max_ms": 91.801,
+  "mean_ms": 53.931
+ },
+ "peak_rss_mb": {
+  "app": 82.3
+ },
+ "peak_rss_total_mb": 82.3,
+ "measured_at": "2026-11-15T15:12:38-0500",
+ "cpu": 8
+}

@@ -35,6 +35,9 @@ from redteam import servers  # noqa: E402
 
 TOOL, ARGS = "list_events", {"venue": "bk"}
 OWNER = {"sub": "olive", "roles": ["owner"]}
+# marketing (Python) targets, suffix "@marketing": an allowed read as the account admin
+M_TOOL, M_ARGS = "profiles.list", {"page_size": 10}
+M_ADMIN = {"sub": "ana", "roles": [{"role": "account_admin", "scope": {"account": "acme"}}], "rscope": {"account": "acme"}, "tenant": "acme"}
 TARGETS = ["baseline", "mcp-rbac", "cerbos", "openfga", "policy-guard", "agentgateway", "pomerium", "protect-mcp"]
 SECONDS = float(os.environ.get("LOAD_SECONDS", "10"))
 
@@ -105,13 +108,37 @@ def start(target: str, tmp: str) -> tuple[str, str, dict[str, int], list[Any], b
         urls, p2 = services.start_pomerium({"venue": up})
         tok = pomerium_login.login(services.POMERIUM_ROUTES["venue"], services.start_mock_idp(), {"aud": "venue-mcp", **OWNER}, services.pomerium_tls()[2])
         return urls["venue"], tok, {"app": p1.pid, "pomerium (+envoy)": p2.pid}, [p2, p1], True
+    if target == "sdk2":  # official MCP TS SDK v2 + requireScopes (venue copy)
+        url, p = services.start_builtin("venue", db)
+        return url, servers.token("venue", **OWNER), {"app (SDK v2)": p.pid}, [p], False
+    if target.endswith("@marketing"):
+        mdb = f"{tmp}/marketing.db"
+        base = target.split("@")[0]
+        if base == "mcp-rbac":
+            # the shipped policy caps each client at 1200 calls/minute, which a 32-way load trips by design;
+            # measure guard overhead with that one limit removed (everything else unchanged)
+            pol = pathlib.Path(tmp) / "marketing-load.yaml"
+            src = (ROOT / "examples/policies/marketing.yaml").read_text()
+            pol.write_text(src.replace("$schema: ../../spec/", f"$schema: {ROOT}/spec/").split("\nlimits:\n")[0] + "\n")
+            os.environ["MCP_RBAC_POLICY_FILE"] = str(pol)
+            try:
+                url, p = servers.start_http("marketing", mdb)
+            finally:
+                os.environ.pop("MCP_RBAC_POLICY_FILE", None)
+        elif base == "baseline":
+            url, p = services.start_alt("marketing", mdb, "none")
+        elif base == "fastmcp":
+            url, p = services.start_builtin("marketing", mdb)
+        else:
+            raise ValueError(target)
+        return url, servers.token("marketing", **M_ADMIN), {"app": p.pid}, [p], False
     if target == "protect-mcp":
         url, p = services.start_protect_mcp(db, policy=str(HERE / "config/protect-mcp/venue-load.json"))
         return url, services.PROTECT_TOKEN, {"protect-mcp + stdio app": p.pid}, [p], False
     raise ValueError(target)
 
 
-def session(url: str, token: str, insecure: bool) -> dict[str, str]:
+def session(url: str, token: str, insecure: bool, tool: str = TOOL, args: dict[str, Any] = ARGS) -> dict[str, str]:
     h = {"authorization": f"Bearer {token}", "accept": "application/json, text/event-stream", "content-type": "application/json"}
     with httpx.Client(verify=not insecure and services.pomerium_tls()[2] if insecure else True, timeout=30) as c:
         r = c.post(url, headers=h, json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
@@ -120,14 +147,14 @@ def session(url: str, token: str, insecure: bool) -> dict[str, str]:
         sid = r.headers.get("mcp-session-id")
         h = {**h, "mcp-protocol-version": "2025-06-18", **({"mcp-session-id": sid} if sid else {})}
         c.post(url, headers=h, json={"jsonrpc": "2.0", "method": "notifications/initialized"})
-        chk = c.post(url, headers=h, json={"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": TOOL, "arguments": ARGS}})
+        chk = c.post(url, headers=h, json={"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": tool, "arguments": args}})
         if chk.status_code != 200 or '"result"' not in chk.text or '"isError":true' in chk.text.replace(" ", ""):
             raise RuntimeError(f"check call failed: {chk.status_code} {chk.text[:300]}")
     return h
 
 
-def loadgen(url: str, headers: dict[str, str], concurrency: int, insecure: bool) -> dict[str, Any]:
-    o = {"url": url, "headers": headers, "tool": TOOL, "args": ARGS, "concurrency": concurrency, "seconds": SECONDS, "warmupSeconds": 2, "insecure": insecure}
+def loadgen(url: str, headers: dict[str, str], concurrency: int, insecure: bool, tool: str = TOOL, args: dict[str, Any] = ARGS) -> dict[str, Any]:
+    o = {"url": url, "headers": headers, "tool": tool, "args": args, "concurrency": concurrency, "seconds": SECONDS, "warmupSeconds": 2, "insecure": insecure}
     r = subprocess.run(["node", str(HERE / "loadgen.mjs"), json.dumps(o)], capture_output=True, text=True, cwd=HERE, timeout=SECONDS * 3 + 60)
     if r.returncode != 0:
         raise RuntimeError(r.stderr[-500:])
@@ -139,11 +166,12 @@ def run(target: str) -> dict[str, Any]:
         procs: list[Any] = []
         try:
             url, tok, roots, procs, insecure = start(target, tmp)
-            h = session(url, tok, insecure)
-            lat = loadgen(url, h, 1, insecure)
-            thr = loadgen(url, h, 32, insecure)
+            tool, args = (M_TOOL, M_ARGS) if target.endswith("@marketing") else (TOOL, ARGS)
+            h = session(url, tok, insecure, tool, args)
+            lat = loadgen(url, h, 1, insecure, tool, args)
+            thr = loadgen(url, h, 32, insecure, tool, args)
             mem = rss(roots)
-            return {"target": target, "tool": TOOL, "transport": "https (self-signed)" if insecure else "http", "latency_c1": lat,
+            return {"target": target, "tool": tool, "transport": "https (self-signed)" if insecure else "http", "latency_c1": lat,
                     "throughput_c32": thr, "peak_rss_mb": mem, "peak_rss_total_mb": round(sum(mem.values()), 1),
                     "measured_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "cpu": os.cpu_count()}
         except Exception as e:  # noqa: BLE001

@@ -69,6 +69,25 @@ TARGETS: dict[str, dict[str, Any]] = {
                             (lambda c: "tools/list" in c["name"] or "see only allow" in c["name"], "no tools/list filtering"),
                             (lambda c: c["name"] == "lifetime over 1 h", "no maximum IdP-token-lifetime setting"),
                             (lambda c: c["name"].startswith("revoked jti") and "control" not in c["name"], "IdP jti revocation is not visible to Pomerium (it has its own token revocation endpoint)")]},
+    "sdk2": {"label": "MCP TS SDK v2 2.4.0 requireScopes (venue)", "authz": "builtin", "front": "shared", "servers": ["venue"],
+             "servers_why": "the TS SDK built-in applies to the TS server; the Python server is scored with FastMCP",
+             # an insufficient_scope challenge reaches a 2025-era client as an HTTP 403, i.e. a JSON-RPC error response
+             "deny_errors": ["Server returned an error response"],
+             "cannot": [(APPROVAL, "no approval primitive (scopes only)"),
+                        (BUDGET, "no counters/rate limits"),
+                        (lambda c: c["name"] in RECORD_OWNER, "a scope cannot depend on the record's owner"),
+                        (lambda c: c["name"] in ARG_SCOPE or c["category"] == "prompt_injection", "requireScopes checks scopes only, never tool arguments (a custom ScopeChallengeHandler could, as your own code)"),
+                        (lambda c: c["name"].startswith("door staff's list_events only shows"), "no result filtering"),
+                        (lambda c: "tools/list" in c["name"] or "see only allow" in c["name"], "tools/list is not filtered by scope")]},
+    "fastmcp": {"label": "FastMCP 3.4.11 require_scopes (marketing)", "authz": "builtin", "front": "shared", "servers": ["marketing"],
+                "servers_why": "FastMCP is Python; the TS server is scored with the TS SDK v2",
+                # an unauthorized tool is hidden: calling it returns "Unknown tool: '<name>'"
+                "deny_text": ["Unknown tool: "],
+                "cannot": [(APPROVAL, "no approval primitive (scopes only)"),
+                           (BUDGET, "no counters/rate limits"),
+                           (lambda c: c["name"] in RECORD_OWNER, "a scope cannot depend on the record's owner"),
+                           (lambda c: c["name"] in ARG_SCOPE or c["category"] == "prompt_injection", "AuthContext has the token and the component, not the arguments"),
+                           (lambda c: c["name"].startswith("door staff's list_events only shows"), "no result filtering")]},
 }
 
 
@@ -123,8 +142,9 @@ class GatewaySession:
     """agentgateway rejects an unauthorized tool with a JSON-RPC error ("unknown resource"), not a tool
     result; map it to the same denied outcome `outcome()` uses so the scripted agent keeps going."""
 
-    def __init__(self, s: Any) -> None:
+    def __init__(self, s: Any, markers: list[str] | None = None) -> None:
         self._s = s
+        self._markers = ["unknown resource", "access denied", *(markers or [])]
 
     def __getattr__(self, k: str) -> Any:
         return getattr(self._s, k)
@@ -134,7 +154,7 @@ class GatewaySession:
         try:
             return await self._s.call_tool(tool, args, *a, **k)
         except Exception as e:  # noqa: BLE001
-            if "unknown resource" not in str(e) and "access denied" not in str(e):
+            if not any(m in str(e) for m in self._markers):
                 raise
             return types.CallToolResult(content=[types.TextContent(type="text", text="Denied: gateway_unknown_resource")], isError=True)
 
@@ -157,8 +177,11 @@ class LenientReport(Report):
 
 def normalizer(target: str) -> Any:
     base = ORIG["a_classify"]
+    deny_text = TARGETS[target].get("deny_text", [])
 
     def classify(is_error: bool, text: str) -> str:
+        if is_error and any(text.startswith(m) for m in deny_text):
+            return "denied:builtin_hidden_tool"
         if is_error and text.startswith("{"):
             try:  # mcp-policy-guard: JSON-in-text guard errors
                 j = json.loads(text)
@@ -188,13 +211,15 @@ def patch(target: str) -> None:
             o = await orig(s, tool, args, meta)
             if t["front"] == "gateway" and o.startswith("protocol_error:") and ("unknown resource" in o or "access denied" in o):
                 return "denied:gateway_unknown_resource"
+            if o.startswith("protocol_error:") and any(m in o for m in t.get("deny_errors", [])):
+                return "denied:builtin_scope_challenge"
             return o
         for m in (harness, scenarios_auth, scenarios_data):
             m.outcome = outcome  # type: ignore[attr-defined]
 
-        if t["front"] == "gateway":
+        if t["front"] == "gateway" or t.get("deny_errors"):
             async def run(session: Any, *a: Any, **k: Any) -> Any:
-                return await ORIG["agent_run"](GatewaySession(session), *a, **k)
+                return await ORIG["agent_run"](GatewaySession(session, t.get("deny_errors", [])), *a, **k)
             agent.run = run  # type: ignore[assignment]
 
         def stdio(*_a: Any, **_k: Any) -> Any:
@@ -248,6 +273,8 @@ def patch(target: str) -> None:
             up, p1 = services.start_alt(name, db, "none", trust=True)
             url, p2 = services.start_agentgateway(name, up)
             p = services.Group(p2, p1)
+        elif t["authz"] == "builtin":
+            url, p = services.start_builtin(name, db)
         else:
             url, p = services.start_alt(name, db, t["authz"])
         return url, p
@@ -302,7 +329,7 @@ async def run_target(target: str) -> dict[str, Any]:
         if na:
             d["status"], d["why"] = "n/a", na
         elif c.server not in t.get("servers", ["venue", "marketing"]):
-            d["status"], d["why"] = "n/a", "library is TypeScript-only; the marketing server is Python"
+            d["status"], d["why"] = "n/a", t.get("servers_why", "library is TypeScript-only; the marketing server is Python")
         elif authn and t["front"] == "shared":
             d["status"], d["why"] = "shared_auth", "checked by the shared demo JWT front, not by this product"
         else:
@@ -325,7 +352,7 @@ async def run_target(target: str) -> dict[str, Any]:
             if na:
                 d["status"], d["why"] = "n/a", na
             elif c["server"] not in t.get("servers", ["venue", "marketing"]):
-                d["status"], d["why"] = "n/a", "library is TypeScript-only; the marketing server is Python"
+                d["status"], d["why"] = "n/a", t.get("servers_why", "library is TypeScript-only; the marketing server is Python")
             else:
                 why = next((w for f, w in t.get("cannot", []) if f(d)), None)
                 d["status"], d["why"] = ("cannot_express", why) if why else ("fail", "not reached")

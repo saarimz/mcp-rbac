@@ -38,7 +38,7 @@ from mcp_rbac.core_guard import CoreGuard, current_caller  # noqa: E402
 from mcp_rbac.audit_sink import SqliteAuditSink, audit_record_from_decision  # noqa: E402
 
 AUDIENCE = "marketing-mcp"
-POLICY = (ROOT / "examples/policies/marketing.yaml").read_text()
+POLICY = pathlib.Path(os.environ.get("MCP_RBAC_POLICY_FILE") or ROOT / "examples/policies/marketing.yaml").read_text()  # override: load bench only
 GROUPS = {"agency_clients": ["acme", "globex"]}
 ALL_ACCOUNTS = ["acme", "globex", "initech", "umbrella"]
 

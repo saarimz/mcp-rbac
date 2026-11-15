@@ -115,6 +115,31 @@ def start_alt(server: str, db: str, authz: str, trust: bool = False, port: int =
     return line.split()[-1], p
 
 
+FASTMCP_PY = "/opt/tools/competitors/fastmcp-venv/bin/python"
+
+
+def start_builtin(server: str, db: str, port: int = 0, env: dict[str, str] | None = None) -> tuple[str, subprocess.Popen[str]]:
+    """Official built-ins: venue on MCP TS SDK v2 (requireScopes), marketing on FastMCP 3 (require_scopes)."""
+    init_db(server, db)
+    if server == "venue":
+        cmd = [TSX, str(HERE / "servers/venue-sdk2.ts")]
+    elif server == "marketing":
+        cmd = [FASTMCP_PY, str(HERE / "servers/marketing_fastmcp.py")]
+    else:
+        raise ValueError(server)
+    cmd += ["--http", str(port), "--db", db]
+    p = subprocess.Popen(cmd, env={**os.environ, "MCP_DEMO_JWT_SECRET": SECRET, **(env or {})}, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    assert p.stdout is not None
+    while True:
+        line = p.stdout.readline()
+        if not line or "listening on" in line:
+            break
+    if "listening on" not in line:
+        p.kill()
+        raise RuntimeError(f"{server}/builtin did not start: {line!r}")
+    return line.split()[3] if server == "marketing" else line.split()[-1], p
+
+
 def start_agentgateway(server: str, upstream: str) -> tuple[str, subprocess.Popen[Any]]:
     sys.path.insert(0, str(HERE))
     import tokens

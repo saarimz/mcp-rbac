@@ -1,0 +1,325 @@
+{
+ "marketing": {
+  "anyone": [
+   "tool:accounts.list"
+  ],
+  "implies": {
+   "account:admin": [
+    "profiles:write",
+    "lists:write",
+    "segments:write",
+    "campaigns:write",
+    "flows:write",
+    "templates:write",
+    "events:write",
+    "data:export",
+    "data-privacy:write",
+    "accounts:read"
+   ]
+  },
+  "roles": {
+   "account_admin": [
+    "tool:accounts.list",
+    "tool:campaigns.create",
+    "tool:campaigns.get",
+    "tool:campaigns.list",
+    "tool:campaigns.send",
+    "tool:campaigns.update",
+    "tool:data_privacy.delete_profile",
+    "tool:events.track",
+    "tool:flows.create",
+    "tool:flows.list",
+    "tool:flows.update_status",
+    "tool:lists.add_profiles",
+    "tool:lists.create",
+    "tool:lists.list",
+    "tool:metrics.query",
+    "tool:profiles.create",
+    "tool:profiles.delete",
+    "tool:profiles.export",
+    "tool:profiles.get",
+    "tool:profiles.list",
+    "tool:profiles.update",
+    "tool:segments.create",
+    "tool:segments.list",
+    "tool:templates.create",
+    "tool:templates.list"
+   ],
+   "analyst": [
+    "tool:campaigns.get",
+    "tool:campaigns.list",
+    "tool:flows.list",
+    "tool:lists.list",
+    "tool:metrics.query",
+    "tool:profiles.get",
+    "tool:profiles.list",
+    "tool:segments.list",
+    "tool:templates.list"
+   ],
+   "campaign_reviewer": [
+    "tool:campaigns.get",
+    "tool:campaigns.list",
+    "tool:profiles.get",
+    "tool:profiles.list"
+   ],
+   "marketer": [
+    "tool:campaigns.create",
+    "tool:campaigns.get",
+    "tool:campaigns.list",
+    "tool:campaigns.send",
+    "tool:campaigns.update",
+    "tool:events.track",
+    "tool:flows.create",
+    "tool:flows.list",
+    "tool:flows.update_status",
+    "tool:lists.add_profiles",
+    "tool:lists.create",
+    "tool:lists.list",
+    "tool:metrics.query",
+    "tool:profiles.create",
+    "tool:profiles.export",
+    "tool:profiles.get",
+    "tool:profiles.list",
+    "tool:profiles.update",
+    "tool:segments.create",
+    "tool:segments.list",
+    "tool:templates.create",
+    "tool:templates.list"
+   ],
+   "support": [
+    "tool:campaigns.get",
+    "tool:campaigns.list",
+    "tool:data_privacy.delete_profile",
+    "tool:events.track",
+    "tool:flows.list",
+    "tool:lists.list",
+    "tool:metrics.query",
+    "tool:profiles.create",
+    "tool:profiles.get",
+    "tool:profiles.list",
+    "tool:profiles.update",
+    "tool:segments.list",
+    "tool:templates.list"
+   ],
+   "viewer": [
+    "tool:campaigns.get",
+    "tool:campaigns.list",
+    "tool:flows.list",
+    "tool:lists.list",
+    "tool:metrics.query",
+    "tool:profiles.get",
+    "tool:profiles.list",
+    "tool:segments.list",
+    "tool:templates.list"
+   ]
+  },
+  "toolScopes": {
+   "accounts.list": [
+    "accounts:read"
+   ],
+   "campaigns.create": [
+    "campaigns:write"
+   ],
+   "campaigns.get": [
+    "campaigns:read"
+   ],
+   "campaigns.list": [
+    "campaigns:read"
+   ],
+   "campaigns.send": [
+    "campaigns:write"
+   ],
+   "campaigns.update": [
+    "campaigns:write"
+   ],
+   "data_privacy.delete_profile": [
+    "data-privacy:write"
+   ],
+   "events.track": [
+    "events:write"
+   ],
+   "flows.create": [
+    "flows:write"
+   ],
+   "flows.list": [
+    "flows:read"
+   ],
+   "flows.update_status": [
+    "flows:write"
+   ],
+   "lists.add_profiles": [
+    "lists:write"
+   ],
+   "lists.create": [
+    "lists:write"
+   ],
+   "lists.list": [
+    "lists:read"
+   ],
+   "metrics.query": [
+    "metrics:read"
+   ],
+   "profiles.create": [
+    "profiles:write"
+   ],
+   "profiles.delete": [
+    "profiles:write"
+   ],
+   "profiles.export": [
+    "profiles:read",
+    "data:export"
+   ],
+   "profiles.get": [
+    "profiles:read"
+   ],
+   "profiles.list": [
+    "profiles:read"
+   ],
+   "profiles.update": [
+    "profiles:write"
+   ],
+   "segments.create": [
+    "segments:write"
+   ],
+   "segments.list": [
+    "segments:read"
+   ],
+   "templates.create": [
+    "templates:write"
+   ],
+   "templates.list": [
+    "templates:read"
+   ]
+  }
+ },
+ "venue": {
+  "anyone": [],
+  "implies": {
+   "venue:admin": [
+    "events:write",
+    "tickets:write",
+    "refunds:write",
+    "bookings:write",
+    "booths:write",
+    "vendors:read",
+    "reports:read"
+   ]
+  },
+  "roles": {
+   "door_staff": [
+    "tool:check_in",
+    "tool:get_event",
+    "tool:get_ticket",
+    "tool:list_bookings",
+    "tool:list_booth_spaces",
+    "tool:list_events",
+    "tool:list_tickets",
+    "tool:list_vendors"
+   ],
+   "owner": [
+    "tool:book_booth_space",
+    "tool:cancel_booking",
+    "tool:cancel_event",
+    "tool:check_in",
+    "tool:create_booking",
+    "tool:create_event",
+    "tool:export_guest_list",
+    "tool:get_event",
+    "tool:get_sales_report",
+    "tool:get_ticket",
+    "tool:list_bookings",
+    "tool:list_booth_spaces",
+    "tool:list_events",
+    "tool:list_tickets",
+    "tool:list_vendors",
+    "tool:refund_ticket",
+    "tool:release_booth_space",
+    "tool:undo_check_in",
+    "tool:update_event"
+   ],
+   "project_manager": [
+    "tool:book_booth_space",
+    "tool:cancel_booking",
+    "tool:check_in",
+    "tool:create_booking",
+    "tool:create_event",
+    "tool:export_guest_list",
+    "tool:get_event",
+    "tool:get_sales_report",
+    "tool:get_ticket",
+    "tool:list_bookings",
+    "tool:list_booth_spaces",
+    "tool:list_events",
+    "tool:list_tickets",
+    "tool:list_vendors",
+    "tool:refund_ticket",
+    "tool:release_booth_space",
+    "tool:undo_check_in",
+    "tool:update_event"
+   ],
+   "vendor": [
+    "tool:book_booth_space",
+    "tool:list_booth_spaces"
+   ]
+  },
+  "toolScopes": {
+   "book_booth_space": [
+    "booths:write"
+   ],
+   "cancel_booking": [
+    "bookings:write"
+   ],
+   "cancel_event": [
+    "events:write"
+   ],
+   "check_in": [
+    "tickets:write"
+   ],
+   "create_booking": [
+    "bookings:write"
+   ],
+   "create_event": [
+    "events:write"
+   ],
+   "export_guest_list": [
+    "tickets:read"
+   ],
+   "get_event": [
+    "events:read"
+   ],
+   "get_sales_report": [
+    "reports:read"
+   ],
+   "get_ticket": [
+    "tickets:read"
+   ],
+   "list_bookings": [
+    "bookings:read"
+   ],
+   "list_booth_spaces": [
+    "booths:read"
+   ],
+   "list_events": [
+    "events:read"
+   ],
+   "list_tickets": [
+    "tickets:read"
+   ],
+   "list_vendors": [
+    "vendors:read"
+   ],
+   "refund_ticket": [
+    "refunds:write"
+   ],
+   "release_booth_space": [
+    "booths:write"
+   ],
+   "undo_check_in": [
+    "tickets:write"
+   ],
+   "update_event": [
+    "events:write"
+   ]
+  }
+ }
+}

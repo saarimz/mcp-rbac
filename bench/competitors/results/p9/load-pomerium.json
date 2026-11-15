@@ -1,0 +1,36 @@
+{
+ "target": "pomerium",
+ "tool": "list_events",
+ "transport": "https (self-signed)",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10.004,
+  "ok": 1856,
+  "errors": 0,
+  "rps": 185.5,
+  "p50_ms": 5.265,
+  "p90_ms": 6.17,
+  "p99_ms": 7.566,
+  "max_ms": 17.332,
+  "mean_ms": 5.379
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.006,
+  "ok": 14618,
+  "errors": 0,
+  "rps": 1460.9,
+  "p50_ms": 20.905,
+  "p90_ms": 30.195,
+  "p99_ms": 47.782,
+  "max_ms": 110.207,
+  "mean_ms": 21.891
+ },
+ "peak_rss_mb": {
+  "app": 337.1,
+  "pomerium (+envoy)": 325.3
+ },
+ "peak_rss_total_mb": 662.4,
+ "measured_at": "2026-11-15T14:20:58-0500",
+ "cpu": 8
+}

@@ -5,31 +5,31 @@
  "latency_c1": {
   "concurrency": 1,
   "seconds": 10,
-  "ok": 11564,
+  "ok": 20254,
   "errors": 0,
-  "rps": 1156.4,
-  "p50_ms": 0.717,
-  "p90_ms": 1.414,
-  "p99_ms": 2.088,
-  "max_ms": 52.142,
-  "mean_ms": 0.86
+  "rps": 2025.4,
+  "p50_ms": 0.431,
+  "p90_ms": 0.647,
+  "p99_ms": 0.996,
+  "max_ms": 12.837,
+  "mean_ms": 0.491
  },
  "throughput_c32": {
   "concurrency": 32,
-  "seconds": 10.014,
-  "ok": 15102,
+  "seconds": 10.01,
+  "ok": 28844,
   "errors": 0,
-  "rps": 1508.1,
-  "p50_ms": 19.467,
-  "p90_ms": 28.942,
-  "p99_ms": 46.939,
-  "max_ms": 67.154,
-  "mean_ms": 21.2
+  "rps": 2881.5,
+  "p50_ms": 9.921,
+  "p90_ms": 15.471,
+  "p99_ms": 23.559,
+  "max_ms": 45.396,
+  "mean_ms": 11.097
  },
  "peak_rss_mb": {
-  "app+guard": 367.6
+  "app+guard": 369.3
  },
- "peak_rss_total_mb": 367.6,
- "measured_at": "2026-11-15T14:18:50-0500",
+ "peak_rss_total_mb": 369.3,
+ "measured_at": "2026-11-15T14:45:31-0500",
  "cpu": 8
 }

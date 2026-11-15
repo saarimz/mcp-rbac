@@ -1,6 +1,7 @@
 /** Venue-ops data (node:sqlite). Two venues (bk, qn) so cross-venue access can be tested; seeded deterministically. */
 import { DatabaseSync } from "node:sqlite";
 
+// The audit table is created by SqliteAuditSink (src/audit-sink.ts): hash-chained, batched group commit.
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS venues (id TEXT PRIMARY KEY, name TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, venue TEXT NOT NULL REFERENCES venues(id), title TEXT NOT NULL,
@@ -16,8 +17,6 @@ CREATE TABLE IF NOT EXISTS vendors (id TEXT PRIMARY KEY, venue TEXT NOT NULL, na
 CREATE TABLE IF NOT EXISTS revoked_tokens (jti TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS approvals (id INTEGER PRIMARY KEY AUTOINCREMENT, sub TEXT NOT NULL, tool TEXT NOT NULL,
   args_hash TEXT NOT NULL, args TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, used_at TEXT);
-CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, sub TEXT, tool TEXT NOT NULL,
-  decision TEXT NOT NULL, reason TEXT NOT NULL);
 `;
 
 export function openDb(path = ":memory:"): DatabaseSync {

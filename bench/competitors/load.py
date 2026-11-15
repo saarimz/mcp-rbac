@@ -67,7 +67,7 @@ def start(target: str, tmp: str) -> tuple[str, str, dict[str, int], list[Any], b
     """-> (mcp url, bearer token, {component: root pid}, processes to stop, insecure TLS)"""
     db = f"{tmp}/venue.db"
     procs: list[Any] = []
-    if target in ("mcp-rbac", "mcp-rbac-noaudit"):  # -noaudit: diagnostic only (skips the per-decision SQLite audit INSERT)
+    if target in ("mcp-rbac", "mcp-rbac-sync", "mcp-rbac-noaudit"):  # -sync: audit committed per decision; -noaudit: diagnostic only
         pol = pathlib.Path(tmp) / "venue-nolimits.yaml"
         txt = (ROOT / "examples/policies/venue.yaml").read_text()
         pol.write_text(re.sub(r"\nlimits:\n(  - .*\n)+", "\n", txt))
@@ -75,9 +75,11 @@ def start(target: str, tmp: str) -> tuple[str, str, dict[str, int], list[Any], b
         os.environ["MCP_RBAC_POLICY_FILE"] = str(pol)
         if target.endswith("noaudit"):
             os.environ["MCP_RBAC_BENCH_NO_AUDIT"] = "1"
+        os.environ["MCP_RBAC_AUDIT_MODE"] = "sync" if target.endswith("-sync") else "batched"
         url, p = servers.start_http("venue", db)
         del os.environ["MCP_RBAC_POLICY_FILE"]
         os.environ.pop("MCP_RBAC_BENCH_NO_AUDIT", None)
+        os.environ.pop("MCP_RBAC_AUDIT_MODE", None)
         return url, servers.token("venue", **OWNER), {"app+guard": p.pid}, [p], False
     if target in ("baseline", "cerbos", "openfga", "policy-guard"):
         roots: dict[str, int] = {}

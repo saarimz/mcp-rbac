@@ -6,32 +6,32 @@
   "latency_c1": {
    "concurrency": 1,
    "seconds": 10,
-   "ok": 35470,
+   "ok": 34480,
    "errors": 0,
-   "rps": 3547,
-   "p50_ms": 0.231,
-   "p90_ms": 0.368,
-   "p99_ms": 0.692,
-   "max_ms": 13.433,
-   "mean_ms": 0.28
+   "rps": 3448,
+   "p50_ms": 0.242,
+   "p90_ms": 0.372,
+   "p99_ms": 0.693,
+   "max_ms": 35.469,
+   "mean_ms": 0.288
   },
   "throughput_c32": {
    "concurrency": 32,
    "seconds": 10.005,
-   "ok": 53894,
+   "ok": 56071,
    "errors": 0,
-   "rps": 5386.7,
-   "p50_ms": 4.999,
-   "p90_ms": 9.755,
-   "p99_ms": 16.426,
-   "max_ms": 79.623,
-   "mean_ms": 5.937
+   "rps": 5604.3,
+   "p50_ms": 4.929,
+   "p90_ms": 9.479,
+   "p99_ms": 13.411,
+   "max_ms": 20.759,
+   "mean_ms": 5.707
   },
   "peak_rss_mb": {
-   "app": 350.1
+   "app": 355.5
   },
-  "peak_rss_total_mb": 350.1,
-  "measured_at": "2026-11-15T14:18:25-0500",
+  "peak_rss_total_mb": 355.5,
+  "measured_at": "2026-11-15T14:46:22-0500",
   "cpu": 8
  },
  "mcp-rbac": {
@@ -41,32 +41,32 @@
   "latency_c1": {
    "concurrency": 1,
    "seconds": 10,
-   "ok": 11564,
+   "ok": 20254,
    "errors": 0,
-   "rps": 1156.4,
-   "p50_ms": 0.717,
-   "p90_ms": 1.414,
-   "p99_ms": 2.088,
-   "max_ms": 52.142,
-   "mean_ms": 0.86
+   "rps": 2025.4,
+   "p50_ms": 0.431,
+   "p90_ms": 0.647,
+   "p99_ms": 0.996,
+   "max_ms": 12.837,
+   "mean_ms": 0.491
   },
   "throughput_c32": {
    "concurrency": 32,
-   "seconds": 10.014,
-   "ok": 15102,
+   "seconds": 10.01,
+   "ok": 28844,
    "errors": 0,
-   "rps": 1508.1,
-   "p50_ms": 19.467,
-   "p90_ms": 28.942,
-   "p99_ms": 46.939,
-   "max_ms": 67.154,
-   "mean_ms": 21.2
+   "rps": 2881.5,
+   "p50_ms": 9.921,
+   "p90_ms": 15.471,
+   "p99_ms": 23.559,
+   "max_ms": 45.396,
+   "mean_ms": 11.097
   },
   "peak_rss_mb": {
-   "app+guard": 367.6
+   "app+guard": 369.3
   },
-  "peak_rss_total_mb": 367.6,
-  "measured_at": "2026-11-15T14:18:50-0500",
+  "peak_rss_total_mb": 369.3,
+  "measured_at": "2026-11-15T14:45:31-0500",
   "cpu": 8
  },
  "cerbos": {
@@ -316,6 +316,41 @@
   },
   "peak_rss_total_mb": 365.5,
   "measured_at": "2026-11-15T14:22:16-0500",
+  "cpu": 8
+ },
+ "mcp-rbac-sync": {
+  "target": "mcp-rbac-sync",
+  "tool": "list_events",
+  "transport": "http",
+  "latency_c1": {
+   "concurrency": 1,
+   "seconds": 10,
+   "ok": 17454,
+   "errors": 0,
+   "rps": 1745.4,
+   "p50_ms": 0.507,
+   "p90_ms": 0.679,
+   "p99_ms": 1.081,
+   "max_ms": 21.046,
+   "mean_ms": 0.57
+  },
+  "throughput_c32": {
+   "concurrency": 32,
+   "seconds": 10.021,
+   "ok": 23152,
+   "errors": 0,
+   "rps": 2310.3,
+   "p50_ms": 11.976,
+   "p90_ms": 20.14,
+   "p99_ms": 30.83,
+   "max_ms": 153.744,
+   "mean_ms": 13.831
+  },
+  "peak_rss_mb": {
+   "app+guard": 370.2
+  },
+  "peak_rss_total_mb": 370.2,
+  "measured_at": "2026-11-15T14:45:56-0500",
   "cpu": 8
  }
 }

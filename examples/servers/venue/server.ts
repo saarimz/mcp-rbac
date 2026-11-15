@@ -11,6 +11,7 @@
 import { readFileSync } from "node:fs";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createCoreEngine, protectWithCore, type CoreDecision } from "../../../src/core-guard.js";
+import { SqliteAuditSink, auditRecordFromDecision, type AuditMode } from "../../../src/audit-sink.js";
 import { openDb } from "./db.js";
 import { argsHash, canonical, resolveResource, venueTools } from "./tools.js";
 import { serveStreamable } from "../shared/http.js";
@@ -25,8 +26,9 @@ function flag(name: string): string | undefined {
 }
 
 export async function main() {
-  const db = openDb(flag("--db") ?? ":memory:");
-  if (process.argv[2] === "admin") return admin(db);
+  const dbPath = flag("--db") ?? ":memory:";
+  const db = openDb(dbPath);
+  if (process.argv[2] === "admin") { if (dbPath !== ":memory:") new SqliteAuditSink(dbPath, { shutdownHooks: false }).close(); return admin(db); }
   // authz-begin (mcp-rbac wiring: engine, approval store, audit sink; counted by bench/competitors/loc.py)
   const engine = createCoreEngine(POLICY);
   const now = () => new Date().toISOString();
@@ -47,8 +49,9 @@ export async function main() {
       return false;
     },
   });
-  const audit = (e: { tool: string; identity: unknown; decision: CoreDecision }) =>
-    db.prepare("INSERT INTO audit (at, sub, tool, decision, reason) VALUES (?, ?, ?, ?, ?)").run(now(), (e.identity as any)?.id ?? null, e.tool, e.decision.decision, e.decision.reason);
+  // Hash-chained decision audit; batched group commit by default (MCP_RBAC_AUDIT_MODE=sync commits before the call proceeds).
+  const sink = new SqliteAuditSink(dbPath, { mode: (process.env.MCP_RBAC_AUDIT_MODE as AuditMode | undefined) ?? "batched" });
+  const audit = (e: Parameters<typeof auditRecordFromDecision>[0]) => sink.write(auditRecordFromDecision(e));
   // authz-end
 
   const httpPort = flag("--http");
@@ -63,7 +66,7 @@ export async function main() {
       },
     });
     process.stdout.write(`venue-ops listening on ${h.url}\n`);
-    const stop = async () => { await h.close(); db.close(); process.exit(0); };
+    const stop = async () => { await h.close(); sink.close(); db.close(); process.exit(0); };
     process.on("SIGTERM", stop);
     process.on("SIGINT", stop);
     return;

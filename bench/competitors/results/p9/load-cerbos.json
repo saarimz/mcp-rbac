@@ -1,0 +1,36 @@
+{
+ "target": "cerbos",
+ "tool": "list_events",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10,
+  "ok": 6337,
+  "errors": 0,
+  "rps": 633.7,
+  "p50_ms": 1.487,
+  "p90_ms": 1.91,
+  "p99_ms": 2.542,
+  "max_ms": 15.848,
+  "mean_ms": 1.57
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.006,
+  "ok": 22619,
+  "errors": 0,
+  "rps": 2260.5,
+  "p50_ms": 12.877,
+  "p90_ms": 19.053,
+  "p99_ms": 30.633,
+  "max_ms": 116.775,
+  "mean_ms": 14.148
+ },
+ "peak_rss_mb": {
+  "app+adapter": 379.1,
+  "cerbos PDP": 112.2
+ },
+ "peak_rss_total_mb": 491.3,
+ "measured_at": "2026-11-15T14:19:16-0500",
+ "cpu": 8
+}

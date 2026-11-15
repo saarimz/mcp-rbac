@@ -1,0 +1,36 @@
+{
+ "target": "agentgateway",
+ "tool": "list_events",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10,
+  "ok": 14374,
+  "errors": 0,
+  "rps": 1437.4,
+  "p50_ms": 0.63,
+  "p90_ms": 0.933,
+  "p99_ms": 1.373,
+  "max_ms": 73.972,
+  "mean_ms": 0.691
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.004,
+  "ok": 67135,
+  "errors": 0,
+  "rps": 6710.8,
+  "p50_ms": 4.075,
+  "p90_ms": 7.637,
+  "p99_ms": 11.878,
+  "max_ms": 24.761,
+  "mean_ms": 4.765
+ },
+ "peak_rss_mb": {
+  "app": 356.0,
+  "agentgateway": 73.8
+ },
+ "peak_rss_total_mb": 429.8,
+ "measured_at": "2026-11-15T14:20:31-0500",
+ "cpu": 8
+}

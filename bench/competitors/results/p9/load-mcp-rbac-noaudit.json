@@ -1,0 +1,35 @@
+{
+ "target": "mcp-rbac-noaudit",
+ "tool": "list_events",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10,
+  "ok": 23855,
+  "errors": 0,
+  "rps": 2385.5,
+  "p50_ms": 0.375,
+  "p90_ms": 0.522,
+  "p99_ms": 0.782,
+  "max_ms": 10.205,
+  "mean_ms": 0.416
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.008,
+  "ok": 32916,
+  "errors": 0,
+  "rps": 3289,
+  "p50_ms": 8.567,
+  "p90_ms": 15.379,
+  "p99_ms": 19.598,
+  "max_ms": 55.812,
+  "mean_ms": 9.723
+ },
+ "peak_rss_mb": {
+  "app+guard": 365.5
+ },
+ "peak_rss_total_mb": 365.5,
+ "measured_at": "2026-11-15T14:22:16-0500",
+ "cpu": 8
+}

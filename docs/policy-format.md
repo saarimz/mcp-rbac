@@ -3,7 +3,8 @@
 One policy file, identical decisions in every language (TypeScript, Python, Rust, Go). The Rust core
 (`core/`), the pure TypeScript evaluator (`src/portable.ts`) and the pure Python evaluator
 (`python/src/mcp_rbac/portable.py`) implement this document; `conformance/` proves they agree byte for byte.
-JSON Schema: [`spec/mcp-rbac.schema.json`](../spec/mcp-rbac.schema.json). YAML or JSON may be used (JSON is YAML).
+JSON Schema: [`spec/mcp-rbac.schema.json`](../spec/mcp-rbac.schema.json). YAML or JSON may be used: a document whose first non-whitespace character (after an optional BOM) is `{` is parsed as
+**JSON** (RFC 8259, duplicate keys rejected), anything else as YAML. So a JSON policy can be multi-line and use any file name.
 
 ## Versioning
 `version: 1` is required. A future incompatible change bumps the integer; loaders reject versions they don't
@@ -24,6 +25,15 @@ Portability restrictions on top of YAML 1.2 (each found by differential fuzzing;
   of these; 67 of 128 probe documents diverged before this rule.
 - A leading byte-order mark is allowed.
 - A plain (unquoted) scalar may not start with `|`, `>`, `@`, `` ` `` or `%`; block scalars (`|`, `>`) are only valid in block context.
+- A plain scalar cannot be just `-`, `?` or `:` (quote it).
+- **Flow collections (`[...]`, `{...}`) must start and end on the same line.** Multi-line flow collections have
+  indentation rules that yaml-rust2, `yaml` (JS) and PyYAML each implement differently (a nested `]` at the block
+  indent, `[\n]`, under-indented plain continuation lines...). Use block style, or write the whole policy as JSON.
+- Inside flow collections `?` and `:` follow YAML 1.2: they are indicators only when followed by a space (or a flow
+  indicator; `:` also right after a quoted key, JSON style), so `[a?b]`, `[?x]` and `{x?: 1}` hold plain strings.
+  (PyYAML implements YAML 1.1 here; the Python loader overrides its scanner.)
+- Escaped surrogates (`\uD800`-`\uDFFF`, `\U0000D800`...) are rejected anywhere in the text (lexical rule): one
+  loader joined escaped pairs, one rejected them, one produced lone surrogates. Write the character itself.
 
 ## Top level
 | key | type | meaning |
@@ -107,7 +117,7 @@ shared?: delegation|user|global|tenant|client|agent, burst?: {max, per}, name?}`
 Hosts resolve `resource` from their own data (the record the tool touches); the core never trusts arguments for it.
 
 ## Algorithm (first failure wins)
-1. Input must be valid Unicode (no lone surrogates) → else `invalid_input`; request an object with string `tool`,
+1. Input must be valid JSON (nesting ≤ 64) and valid Unicode (no lone surrogates), with **no duplicate object keys at any depth** (compared after unescaping, so `"tool"` and `"\u0074ool"` collide; otherwise a first-wins gateway and a last-wins engine would authorize different tools) → else `invalid_input`; request an object with string `tool`,
    optional `kind` in tool/resource/prompt, object-or-absent `resource`, list-of-strings-or-absent `toolsets`, string-or-absent `agent` → else `invalid_request`.
 2. `args` (absent = `{}`): a JSON object (anything else, including `null`, → `unsafe_arguments`); no key `__proto__`/`constructor`/`prototype`; nesting depth ≤ 16; ≤ 2000 keys/elements in total → else `unsafe_arguments`.
 3. `identity`: object with non-empty string `id`, `roles` list (default `[]`) of role names or `{role, scope}`, scope values

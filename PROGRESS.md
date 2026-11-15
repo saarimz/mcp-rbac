@@ -38,8 +38,8 @@ Design decisions (recorded so a resumed run doesn't re-decide):
 | # | Milestone | Status | Evidence |
 |---|-----------|--------|----------|
 | P1 | yaml format + JSON Schema + TS/Python loaders/exporters + CLI check/diff | done | spec/mcp-rbac.schema.json; src/portable.ts, policy-diff.ts, policy-io.ts; python portable.py, policy_diff.py, policy_io.py; CLI check/diff/decide/export (TS) + check/diff/decide (py). TS 338/9 skip, py 79. Guard-from-yaml == portable on 600 generated venue requests (TS and Python). TS diff JSON == Python diff JSON. |
-| P2 | Rust core crate (proptest, cargo-fuzz run, clippy -D warnings) | todo | |
-| P3 | conformance corpus + byte-identical runners (TS pure, TS wasm, Py pure, Py pyo3, Rust, Go) + differential fuzz | todo | |
+| P2 | Rust core crate (proptest, cargo-fuzz run, clippy -D warnings) | done | core/mcp-rbac-core: 9 unit + 12 proptest (11 properties x 2000 cases + outcome-distribution check) + 1 doc test; `#![forbid(unsafe_code)]`; `cargo clippy --release --all-targets -- -D warnings` clean. cargo-fuzz (libFuzzer, nightly, no sanitizer since the crate forbids unsafe), 5 targets: run 1 ~6.7 min/target, run 2 **1801 s/target** (02:05:36 to 02:35:38 ET, parallel): policy_yaml 14.9M execs cov 7015, decide_json 17.6M cov 2258, policy_and_request 21.4M cov 7210, regex_portable 0.60M cov 3041, redact 44.0M cov 1767; **0 crashes, 0 timeouts, 0 OOM, peak RSS 55 MB**. Run 2 fuzzed the pre-P3 loader; a final run on the 0.4.0 code is in P8. |
+| P3 | conformance corpus + byte-identical runners (TS pure, TS wasm, Py pure, Py pyo3, Rust, Go) + differential fuzz | done (pure + Rust; binding runners join in P4) | `conformance/run.sh` (one command): 3585 vectors (393 hand-written expectations, 185 value-level YAML docs), Rust == TS == Python byte-identical and == golden expected.jsonl. `conformance/difffuzz.py <seconds>`: mutated policies (line ops, token swaps, char inserts, splices from the corpus) + random/mutated requests through all 3 engines. See P3 findings. |
 | P4 | bindings + SDK wrappers + minimal real server per language (TS SDK, Python SDK, rmcp, go-sdk) e2e | todo | |
 | P5 | OTel in 4 languages + real collector + Jaeger | todo | |
 | P6 | 3 realistic servers (venue, marketing, devops; 15+ tools, SQLite, stdio+HTTP), Inspector CLI, scripted agent, red team | todo | |
@@ -54,3 +54,16 @@ Design decisions (recorded so a resumed run doesn't re-decide):
 - Python Guard role-step reasons have no `user:` prefix (TS/core: `user:constraint:...`). Kept for API stability; the equivalence test normalizes it. Documented.
 - Python exporter: PyYAML emits YAML 1.1 plain scalars (`1e3`, `0o7` unquoted) that the YAML 1.2 portable loader reads as numbers. Custom representer quotes anything `resolve_plain` would not read back as the same string; both exporters assert a strict round-trip.
 - CLI flag parser quirk: `--json <file>` consumes the file as the flag value; documented usage puts flags after positionals.
+
+### P3 findings / fixes (2026-11-15)
+The corpus found 2 Rust-only bugs and 4 wrong hand-written expectations (the engines were right: `requiredScopes` is the union of matching patterns; a policy whose `in` sets can't overlap is invalid). Differential fuzzing then found **7 classes of loader divergence** the hand-written corpus missed (seed 20261115, 10 min, 138k vectors, 53 divergent):
+- tabs (PyYAML rejects tab separators that YAML 1.2 allows; yaml-rust2 accepts tab indentation that YAML forbids);
+- control characters / NEL / LS / PS / lone CR: 67 of 128 probe documents diverged;
+- escaped surrogates in double-quoted strings: TS joined pairs, Rust rejected them, Python produced lone surrogates; `"\U00110000"` crashed Python with a bare ValueError;
+- multi-line flow collections (each parser has different indentation rules);
+- PyYAML implements YAML 1.1 in flow context (`[campaig?ns]` rejected, `[?x]` became a mapping);
+- yaml-rust2 accepted `[?]` and `{a: |` block scalars in flow (read as the plain scalar "| ...");
+- leading BOM rejected by Rust only.
+Fixes: a portable YAML profile enforced identically in all three (docs/policy-format.md), PyYAML scanner overrides for YAML 1.2 flow rules, '{'-first documents parsed as JSON.
+Separately, **duplicate JSON keys** were accepted last-wins everywhere: `{"tool":"t",...,"tool":"u"}` was decided as `u`, which a first-wins gateway or log would read as `t`. Now rejected in request, visible and policy JSON (DX-LOG #8).
+Also fixed: a time-bomb test (delegation expiry hard-coded to 2026-11-15 02:00 ET).

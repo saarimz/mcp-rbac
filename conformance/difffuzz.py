@@ -63,11 +63,37 @@ def mutate_policy(src: str) -> str:
     return src
 
 
+sys.path.insert(0, str(ROOT / "python/src"))
+from mcp_rbac.portable import load_yaml  # noqa: E402
+
+_names_cache: dict[str, tuple[list[str], list[str]]] = {}
+
+
 def names(src: str) -> tuple[list[str], list[str]]:
-    words = set(re.findall(r"[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*", src))
-    tools = [w for w in words if "." in w or "_" in w] or ["t"]
-    roles = re.findall(r"^  ([a-z][a-z0-9_-]*):", src, re.M) or ["r"]
-    return sorted(tools), sorted(set(roles))
+    """Real tool and role names when the policy parses (so requests hit allow paths), else regex guesses."""
+    if src in _names_cache:
+        return _names_cache[src]
+    tools: set[str] = set()
+    roles: set[str] = set()
+    try:
+        doc = load_yaml(src)
+        if isinstance(doc, dict):
+            roles |= set((doc.get("roles") or {}).keys()) | set((doc.get("customRoles") or {}).keys())
+            tools |= set((doc.get("tools") or {}).keys())
+            for r in (doc.get("roles") or {}).values():
+                for t in (r or {}).get("tools", []) if isinstance(r, dict) else []:
+                    n = t if isinstance(t, str) else (t.get("name") if isinstance(t, dict) else None)
+                    if isinstance(n, str):
+                        tools.add(n.replace("**", "x").replace("*", "x"))
+    except Exception:
+        pass
+    if not tools:
+        tools = {w for w in re.findall(r"[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*", src) if "." in w or "_" in w} or {"t"}
+    if not roles:
+        roles = set(re.findall(r"^  ([a-z][a-z0-9_-]*):", src, re.M)) or {"r"}
+    out = (sorted(tools), sorted(roles))
+    _names_cache[src] = out
+    return out
 
 
 def rand_value(d: int = 0):
@@ -84,12 +110,20 @@ def rand_value(d: int = 0):
 
 def rand_request(src: str):
     tools, roles = names(src)
-    ident: dict = {"id": rng.choice(["u", "u2", "", "admin"]), "roles": rng.sample(roles + ["zz", "admin", "*"], min(len(roles) + 3, rng.randrange(0, 4)))}
-    for k, vals in [("tenant", ["t1", "t2", "acme", "", 5]), ("scopes", [["x:read"], ["*"], [], "x", ["venue:write"], ["root"]]), ("actors", [["bot"], ["agent"], [], [5]]),
-                    ("orgRoles", [["admin"], {}, ["owner"]]), ("groups", [["g1"], []]), ("attributes", [{"a": 1}, []])]:
+    pool_roles = roles if rng.random() < 0.8 else roles + ["zz", "admin", "*"]
+    ident: dict = {"id": rng.choice(["u", "u", "u2", "", "admin"]), "roles": rng.sample(pool_roles, min(len(pool_roles), rng.randrange(1, 4)))}
+    if rng.random() < 0.3:  # scoped assignment
+        ident["roles"] = [{"role": r, "scope": {rng.choice(["venue", "account", "org", "env", "tenant"]): rng.choice(["v1", "acme", "prod", "t1"])}} if rng.random() < 0.5 else r for r in ident["roles"]]
+    if rng.random() < 0.05:
+        ident["id"] = rng.choice(["", 5, None])
+    good = {"tenant": ["t1", "acme", "v1", "prod"], "scopes": [["x:read"], ["*"], [], ["venue:write", "venue:read"], ["root"], ["campaigns:write"]],
+            "actors": [["bot"], ["agent"], []], "orgRoles": [[{"role": "Admin", "access": "all"}], [{"role": "Analyst", "access": {"group": "eu"}}]],
+            "groups": [["g1"], []], "scope": [{"venue": "v1"}, {"account": "acme"}, {"env": "prod"}]}
+    bad = {"tenant": ["", 5], "scopes": ["x", [5]], "actors": [[5], "bot"], "orgRoles": [{}, ["owner"]], "groups": [5], "scope": ["x", {"a": 1}]}
+    for k in good:
         if rng.random() < 0.25:
-            ident[k] = rng.choice(vals)
-    req: dict = {"tool": rng.choice(tools + ["", "zz", "a.b", "*", "x" * 140]), "identity": ident}
+            ident[k] = rng.choice(bad[k]) if rng.random() < 0.05 else rng.choice(good[k])
+    req: dict = {"tool": rng.choice(tools) if rng.random() < 0.9 else rng.choice(["", "zz", "a.b", "*", "x" * 140]), "identity": ident}
     if rng.random() < 0.85:
         req["args"] = {rng.choice(["n", "amount", "venue", "account", "org", "email", "path", "id", "tenant", "limit"]): rand_value() for _ in range(rng.randrange(4))}
     if rng.random() < 0.15:

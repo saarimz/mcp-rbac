@@ -264,13 +264,31 @@ def _yaml12_loader() -> Any:
         return _YAML12_LOADER
     from yaml.parser import Parser
     from yaml.reader import Reader
-    from yaml.scanner import Scanner
+    from yaml.scanner import Scanner, ScannerError
     from yaml.tokens import ScalarToken
 
     ws = "\0 \t\r\n\x85\u2028\u2029"
     flow_ind = ",[]{}"
 
     class Scanner12(Scanner):  # type: ignore[misc]
+        def scan_to_next_token(self) -> None:  # PyYAML's, plus YAML 1.2: a comment must follow whitespace (`]#` is an error)
+            if self.index == 0 and self.peek() == "\ufeff":
+                self.forward()
+            found = False
+            while not found:
+                while self.peek() == " ":
+                    self.forward()
+                if self.peek() == "#":
+                    if self.pointer > 0 and self.buffer[self.pointer - 1] not in " \t\r\n\ufeff":
+                        raise ScannerError(None, None, "comments must be separated from other tokens by whitespace", self.get_mark())
+                    while self.peek() not in "\0\r\n\x85\u2028\u2029":
+                        self.forward()
+                if self.scan_line_break():
+                    if not self.flow_level:
+                        self.allow_simple_key = True
+                else:
+                    found = True
+
         def check_key(self) -> bool:
             nxt = self.peek(1)
             return nxt in ws or (bool(self.flow_level) and nxt in flow_ind)

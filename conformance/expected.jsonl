@@ -812,6 +812,23 @@
 {"error":"yaml_invalid"}
 {"doc":{"a":"\u0000"}}
 {"error":"yaml_invalid"}
+{"error":"yaml_invalid"}
+{"doc":{"a":["x"]}}
+{"error":"yaml_invalid"}
+{"error":"yaml_invalid"}
+{"error":"yaml_invalid"}
+{"doc":{"a":"x#c"}}
+{"doc":{"a":1}}
+{"doc":{"a":1}}
+{"error":"yaml_invalid"}
+{"error":"yaml_invalid"}
+{"doc":"a:#c 1"}
+{"doc":{"a":1}}
+{"doc":["x"]}
+{"doc":"-#c"}
+{"error":"yaml_invalid"}
+{"doc":{"a":"x\n"}}
+{"doc":{"a":1}}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"invalid_input","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"invalid_input","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"invalid_input","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}

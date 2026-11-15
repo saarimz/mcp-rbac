@@ -1,0 +1,7 @@
+reviewer get_file_contents: allow (ok) classes=read
+reviewer add_issue_comment: deny (user:no_matching_permission) classes=write+send
+maintainer add_issue_comment: allow (ok) classes=write+send
+maintainer merge_pull_request: allow (ok) classes=write+x-merge
+maintainer delete_file: deny (user:no_matching_permission) classes=write+destructive+x-code-change
+owner delete_file: needs_approval (ok) classes=write+destructive+x-code-change
+owner some_new_tool: deny (user:no_matching_permission) classes=unknown

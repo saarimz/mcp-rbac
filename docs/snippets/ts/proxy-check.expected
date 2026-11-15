@@ -1,0 +1,2 @@
+read-only: tools=[read_note]; write_note -> Forbidden
+no-destructive: tools=[read_note, write_note]; write_note -> saved

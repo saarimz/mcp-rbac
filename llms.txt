@@ -1,0 +1,45 @@
+# mcp-rbac
+
+> Authorization for Model Context Protocol (MCP) servers. One portable policy file (mcp-rbac.yaml) decides who may call which tool, with which arguments, how often, how much it may spend, and what the result may show. The same decisions come from one Rust core in TypeScript, Python, Go and Rust (4,128 conformance vectors, byte-identical across 6 engines). Use it as a no-code proxy in front of any MCP server, or as middleware for the official TS, Python and Go SDKs and rmcp. Roles can be granted side-effect classes (read, write, send, spend, destructive, external-comm) instead of tool names, with built-in packs for Klaviyo, GitHub and Stripe. Status: 0.4.x, not published to npm or PyPI yet.
+
+Key facts for agents:
+- TypeScript: `import { protectWithCore } from "mcp-rbac/core"`; `protectWithCore(server, { policy, identity })`.
+- Python: `from mcp_rbac.core_guard import protect_with_core`; `protect_with_core(server, policy, identity=...)`.
+- Go: module `github.com/mcp-rbac/mcp-rbac-go`; `rt.NewEngine(ctx, policy)`, then `engine.Protect(server, mcprbac.GuardOptions{Identity: ...})`.
+- Proxy: `mcp-rbac proxy --preset read-only -- <server command>`.
+- Denials are tool results: `Denied: <reason>` or `Approval required for <tool>`.
+- Policies with `semantics.packs` must be loaded with `loadPolicyWithPacks` / `load_policy_with_packs` / `Runtime.LoadPolicyWithPacks`.
+
+## Docs
+
+- [Quickstart](docs/quickstart.md): proxy; one policy in TS, Python and Go; classes and packs; multiple agents per human. Every snippet is tested.
+- [Policy format](docs/policy-format.md): the mcp-rbac.yaml v1 reference.
+- [Tool semantics](spec/tool-semantics.md): classes, spend budgets, post-call cost accounting, policy packs.
+- [Proxy mode](docs/proxy.md): presets, path and repo scoping, approvals, hosted servers.
+- [TypeScript library](docs/library.md): the full API.
+- [Python](docs/python.md): the Python package and CoreGuard.
+- [Polyglot core](docs/polyglot.md): WASM, PyO3, wazero, rmcp.
+- [Audit](docs/AUDIT.md) and [OpenTelemetry](docs/otel.md).
+- [AGENTS.md](AGENTS.md): how coding agents should integrate it and work on the repository.
+
+## Specs and data
+
+- [Policy JSON Schema](spec/mcp-rbac.schema.json)
+- [Pack JSON Schema](spec/mcp-rbac-pack.schema.json)
+- [Klaviyo pack](packs/klaviyo/pack.json), [GitHub pack](packs/github/pack.json), [Stripe pack](packs/stripe/pack.json)
+- [Conformance](docs/CONFORMANCE.md)
+
+## Examples
+
+- [ITM agent grants](examples/itm-agents/README.md): several AI agents per human, each limited differently; tested live (read-only) against ITM staging.
+- [Klaviyo class-based live run](examples/klaviyo-e2e/LIVE-RESULTS-CLASSES.md)
+- [Realistic servers](examples/servers/README.md)
+
+## Optional
+
+- [Threat model](docs/THREAT-MODEL.md)
+- [Security policy](SECURITY.md)
+- [Standardisation plan](docs/STANDARD.md)
+- [SEP draft](docs/SEP-tool-semantics.md)
+- [Market research](docs/MARKET.md)
+- [Changelog](CHANGELOG.md)

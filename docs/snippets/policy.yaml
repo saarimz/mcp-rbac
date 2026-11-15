@@ -1,0 +1,11 @@
+# docs/snippets/policy.yaml: the policy used by the quickstart snippets (TS, Python, Go).
+version: 1
+roles:
+  owner: {includes: [staff], tools: [refund]}
+  staff: {tools: [list_events, checkin]}
+tools:
+  refund: {limits: {amount: {min: 0, max: 500}}}
+approvals:
+  - {tool: refund, when: {amount: {min: 100}}}
+limits:
+  - {tool: checkin, max: 3, per: minute}

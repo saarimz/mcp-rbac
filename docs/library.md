@@ -1,6 +1,45 @@
 # mcp-rbac library reference
 
-This page covers the in-process library, for servers you write. For any third-party server, use the proxy CLI described in the [README](../README.md).
+This page covers the in-process library, for servers you write. For any third-party server, use the [proxy](proxy.md). For one policy file shared by TS, Python, Go and Rust servers, see the [quickstart](quickstart.md) and [polyglot.md](polyglot.md).
+
+## Colocated rules (TypeScript `protect` / `tool`)
+
+Start with one line, and add rules next to each tool when you need them. The full design and before/after examples are in [docs/API-DESIGN.md](API-DESIGN.md).
+
+```ts
+import { protect, tool, rbac, definePolicy, unsafeTrustArg } from "mcp-rbac";
+
+// Level 0: local server, one user. Reads work; destructive tools need a human.
+await (await protect(server)).connect(new StdioServerTransport());
+
+// Level 2: multi-user. Rules colocated with the tool; identity from the verified token.
+const { tool, protect } = rbac<{ roles: "owner" | "manager"; scope: { venue: string } }>();   // optional: typed roles/scope
+
+tool(server, "refund", {
+  input: { ticketId: z.string(), amount: z.number().positive() },
+  allow: { owner: true, manager: { amount: { max: 200 } } },        // per-role limits, autocompleted from input
+  scope: { lookup: ({ ticketId }) => venueOfTicket(ticketId) },     // scope of the record you touch, not an arg
+  approve: ({ amount }) => amount > 50,
+  effect: ({ ticketId, amount }) => `Refund $${amount} on ${ticketId}`,
+  budget: { max: 500, per: "hour", sum: "amount" },
+}, ({ ticketId, amount }, { identity }) => refund(ticketId, amount, identity.id));
+
+const outer = await protect(server, { identity: ({ claims }) => ({ id: claims.sub, roles: [claims.role], scope: { venue: claims.venue } }) });
+```
+
+- **Safe scope by default.** With `"identity"` (the default) a tool acts within the caller's own scope; `lookup` uses the scope of a record you look up. Trusting an agent argument needs `unsafeTrustArg(...)`, which editors strike through (`@deprecated`) and which warns at startup. A dev-mode check also flags lookups that just echo an argument.
+- **Errors.** Prod (the default) returns `Forbidden (ref 1a2b3c4d)` and nothing more. Dev (`errors: "dev"` or `NODE_ENV=development|test`) explains which rule denied the call, why, and how to fix it.
+- **Multiple roles, per-venue roles, agents.** [`examples/roles-venue.ts`](../examples/roles-venue.ts) is a copyable server with owner / project_manager / door_staff, shared role arrays (`ANY_STAFF`, `MANAGERS`), per-venue role assignments resolved from the record, refund limits with approval over $100, and agent tokens that can only narrow their user's roles (`narrowIdentity`). See [docs/library.md](library.md#roles-per-venue-roles-and-agents-example-examplesroles-venuets).
+- **Examples.** [`examples/partner-mcp.ts`](../examples/partner-mcp.ts): the identity is admin + brand + OAuth client from a verified JWT, brand always comes from the token, and refund takes its brand from the order. [`examples/itm-colocated.ts`](../examples/itm-colocated.ts): the ITM server ported to colocated rules.
+- **Central policy is still there.** `new Guard({ roles, resolveUser, scopeFrom, ... })` + `await guard.wrap(server)`, or `protect(server, { roles, guard: {...} })`. The old API is unchanged; see [docs/MIGRATION.md](MIGRATION.md).
+- **Tools, resources (including templates) and prompts** are filtered in lists and checked at call time.
+- **Shared state.** `new SqliteStore(path)` from `mcp-rbac/sqlite` gives several processes shared revocation, budgets and audit (tested with 3 processes).
+- **HTTP.** `serveGuardedHttp` from `mcp-rbac/http` serves Streamable HTTP. It needs a bearer token: missing auth gets 401 + `WWW-Authenticate`, and RFC 9728 protected-resource metadata is served. Sessions are bound to an identity. Use `jwtVerifier({ jwksUrl, issuer, audience })` from `mcp-rbac/jwt` (needs `jose`), or your own verifier.
+- **Engines.** The built-in engine is the default. `CerbosEngine` uses Cerbos's HTTP check API; it's tested against a mock, so the request shape follows the Cerbos docs. `CasbinEngine` is tested with real casbin. `PermitEngine` is a documented stub tested with a fake. Grants always narrow on top of any engine.
+- **Generate a starter policy.** `mcp-rbac init --stdio "<cmd>"` or `--module server.ts` writes a TS or JSON policy with viewer/operator/admin roles and approvals plus budgets on destructive tools.
+
+Full API and how a call is decided: [docs/library.md](library.md). Upstream SDK hook proposal: [docs/upstream-hook-proposal.md](upstream-hook-proposal.md).
+
 
 ## v0.2 additions at a glance
 

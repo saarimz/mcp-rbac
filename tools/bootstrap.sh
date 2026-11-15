@@ -16,7 +16,7 @@ command -v rustup >/dev/null && { rustup toolchain list | grep -q stable || rust
 echo "== npm"; npm ci --no-audit --no-fund --loglevel=error
 echo "== python venv"
 [ -x python/.venv/bin/python ] || uv venv -q -p 3.13 python/.venv
-VIRTUAL_ENV=$ROOT/python/.venv uv pip install -q -e "python[dev,pdp]" maturin
+VIRTUAL_ENV=$ROOT/python/.venv uv pip install -q -e "python[dev,pdp,otlp]" maturin
 echo "== cores"; npm run -s build:wasm >/dev/null; go/build-wasm.sh >/dev/null
 (cd core/mcp-rbac-py && VIRTUAL_ENV="$ROOT/python/.venv" "$ROOT/python/.venv/bin/maturin" develop --release -q >/dev/null)
 [ "${1:-}" = "--tools" ] || exit 0

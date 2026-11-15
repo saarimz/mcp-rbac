@@ -47,17 +47,31 @@ async def session(lang: str, identity: dict[str, Any], steps: list[tuple[str, di
     env = {**os.environ, "MCP_RBAC_IDENTITY": json.dumps(identity), "OTEL_EXPORTER_OTLP_ENDPOINT": ENDPOINT,
            "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf"}
     out: list[Any] = []
-    async with stdio_client(StdioServerParameters(command=cmd, args=args, env=env, cwd=str(ROOT))) as (r, w):
-        async with ClientSession(r, w) as s:
-            await s.initialize()
-            out.append(sorted(t.name for t in (await s.list_tools()).tools))
-            for tool, a, traceparent in steps:
-                meta: dict[str, Any] = {"baggage": f"user={CANARY_BAG}"}
-                if traceparent:
-                    meta["traceparent"] = traceparent
-                    meta["tracestate"] = "e2e=1"
-                res = await s.call_tool(tool, a, meta=meta)  # type: ignore[arg-type]
-                out.append({"isError": res.is_error, "text": res.content[0].text if res.content else None})  # type: ignore[union-attr]
+    # The server's stderr goes to its own file; if the session fails, it is printed with a header, so a server that
+    # dies at startup (missing dependency, missing build artifact, bad env) explains itself in the log.
+    errpath = BIN / f"{lang}-server.stderr.log"
+    with open(errpath, "a") as errlog:
+        start = errlog.tell()
+        try:
+            async with stdio_client(StdioServerParameters(command=cmd, args=args, env=env, cwd=str(ROOT)), errlog=errlog) as (r, w):
+                async with ClientSession(r, w) as s:
+                    await s.initialize()
+                    out.append(sorted(t.name for t in (await s.list_tools()).tools))
+                    for tool, a, traceparent in steps:
+                        meta: dict[str, Any] = {"baggage": f"user={CANARY_BAG}"}
+                        if traceparent:
+                            meta["traceparent"] = traceparent
+                            meta["tracestate"] = "e2e=1"
+                        res = await s.call_tool(tool, a, meta=meta)  # type: ignore[arg-type]
+                        out.append({"isError": res.is_error, "text": res.content[0].text if res.content else None})  # type: ignore[union-attr]
+        except BaseException as e:
+            errlog.flush()
+            with open(errpath) as f:
+                f.seek(start)
+                tail = f.read()[-8000:]
+            print(f"\n== {lang} server session failed ({type(e).__name__}): {' '.join([cmd, *args])}\n"
+                  f"== {lang} server stderr ({errpath}):\n{tail or '(empty)'}\n== end {lang} server stderr", file=sys.stderr, flush=True)
+            raise
     return out
 
 

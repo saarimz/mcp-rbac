@@ -61,3 +61,6 @@ print(json.dumps({k: v for k, v in s.items() if k not in ("otel_e2e",)}, indent=
 PY
 for k in "${!RC[@]}"; do echo "$k=${RC[$k]}"; done | sort > "$OUT/exit-codes.txt"
 cat "$OUT/exit-codes.txt"
+FAILED=$(grep -vc '=0$' "$OUT/exit-codes.txt")
+echo "failed steps: $FAILED"
+exit $(( FAILED > 0 ))

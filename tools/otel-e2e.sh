@@ -10,6 +10,9 @@ rm -rf "$WORK" && mkdir -p "$WORK"
 export OTEL_E2E_OUT=$WORK/collector.jsonl OTEL_E2E_BIN=$WORK
 source "$HOME/.cargo/env" 2>/dev/null || true
 
+echo "== preflight"
+"$ROOT/python/.venv/bin/python" -c "import opentelemetry.exporter.otlp.proto.http, mcp_rbac_core" \
+  || { echo "python/.venv lacks the OTLP exporter or the PyO3 core: run tools/bootstrap.sh (installs python[dev,pdp,otlp])" >&2; exit 2; }
 echo "== build servers"
 (cd "$ROOT/core" && cargo build -q -p mcp-rbac-rmcp --features otlp --bin mini-server)
 (cd "$ROOT/go" && ./build-wasm.sh >/dev/null)

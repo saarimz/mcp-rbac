@@ -16,6 +16,8 @@ jwt = ["pyjwt[crypto]>=2.8"]
 redis = ["redis>=5"]
 postgres = ["psycopg[binary]>=3.1"]
 pdp = ["uvicorn>=0.30", "starlette>=0.37"]
+# OTLP/HTTP export (examples/core-servers/python/otlp.py, tools/otel-e2e.sh); the guard itself needs only opentelemetry-api/sdk
+otlp = ["opentelemetry-sdk>=1.25", "opentelemetry-exporter-otlp-proto-http>=1.25"]
 dev = ["pytest>=8", "anyio>=4", "mypy>=1.10", "opentelemetry-sdk>=1.25", "pyjwt[crypto]>=2.8", "redis>=5", "psycopg[binary]>=3.1", "uvicorn>=0.30"]
 
 [project.scripts]

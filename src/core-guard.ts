@@ -83,7 +83,7 @@ export interface CoreGuardOptions {
   /** Clock for rate-limit windows (default Date.now). */
   now?: () => number;
   /** Observability hook, called once per tools/call decision. */
-  onDecision?: (e: { tool: string; decision: CoreDecision; durationMs: number; approved: boolean }) => void;
+  onDecision?: (e: { tool: string; identity: unknown; decision: CoreDecision; durationMs: number; approved: boolean }) => void;
   /** OpenTelemetry (docs/otel.md): a CoreTelemetry, its options, or true for the global providers. Default off. */
   telemetry?: CoreTelemetry | CoreTelemetryOptions | boolean;
   /** Upstream request timeout (default 10 minutes). */
@@ -178,7 +178,7 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
         } else approval = "rejected";
       }
       if (tel && authSpan && server) tel.endAuthorize(authSpan, server, tool, d, approval, engineMs / 1000);
-      opts.onDecision?.({ tool, decision: d, durationMs: performance.now() - t0, approved });
+      opts.onDecision?.({ tool, identity, decision: d, durationMs: performance.now() - t0, approved });
       if (d.decision !== "allow") {
         const text = d.decision === "needs_approval" ? `Approval required for ${tool}` : `Denied: ${d.reason}`;
         return { content: [{ type: "text" as const, text }], isError: true, _meta: { [DENIAL_META_KEY]: { decision: d.decision, reason: d.reason } } };

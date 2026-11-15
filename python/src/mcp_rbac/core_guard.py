@@ -137,7 +137,7 @@ class CoreGuard:
             if self._approve is None:
                 approval = "unavailable"
             else:
-                verdict = self._approve({"tool": tool, "args": args}, d)
+                verdict = self._approve({"tool": tool, "args": args, "identity": base.get("identity")}, d)
                 if not isinstance(verdict, bool):
                     verdict = await verdict
                 if verdict:
@@ -152,7 +152,7 @@ class CoreGuard:
         if tel is not None and auth_span is not None:
             tel.end_authorize(auth_span, server_span, str(tool), d, approval, engine_s)
         if self._on_decision is not None:
-            self._on_decision({"tool": tool, "decision": d, "duration_ms": (time.perf_counter() - t0) * 1000.0, "approved": approved})
+            self._on_decision({"tool": tool, "identity": base.get("identity"), "decision": d, "duration_ms": (time.perf_counter() - t0) * 1000.0, "approved": approved})
         if d["decision"] != "allow":
             text = f"Approval required for {tool}" if d["decision"] == "needs_approval" else f"Denied: {d['reason']}"
             # `resultType` is required from MCP 2026-07-28 on; older surfaces ignore it (extra="ignore"), so always set it.

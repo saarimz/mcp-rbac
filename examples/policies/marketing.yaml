@@ -84,7 +84,7 @@ tools:
   templates.create: { allow: ["@builders"], scopes: [templates:write], toolset: campaigns, limits: { html: { maxLength: 200000 } } }
   metrics.query: { allow: ["@readers"], scopes: [metrics:read], toolset: analytics, limits: { days: { min: 1, max: 365, integer: true } } }
   events.track: { allow: [marketer, support], scopes: [events:write], toolset: analytics, budget: { max: 600, per: minute, shared: tenant, burst: { max: 50, per: 1000 } } }
-  accounts.list: { allow: ["@readers"], scopes: [accounts:read] }
+  accounts.list: { allow: "*", scopes: [accounts:read] }  # any authenticated caller, incl. agency users with only account-scoped org roles
 
 scopes:
   implies:
@@ -99,7 +99,7 @@ output:
   labelRules:
     - { labels: [pii, export], allowRoles: [account_admin] }
   redact:
-    - { label: pii, fields: [email, phone_number, "location.*", "profiles.*.email", "profiles.*.phone_number"], unlessRoles: [account_admin, support] }
+    - { label: pii, fields: [email, phone_number, "location.*", "profiles.*.email", "profiles.*.phone_number", "profiles.*.location.*"], unlessRoles: [account_admin, support] }
 
 toolsets:
   default: [profiles, lists, campaigns, flows, analytics]

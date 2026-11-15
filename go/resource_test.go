@@ -14,6 +14,8 @@ import (
 // Host-resolved resources (GuardOptions.Resource) and the caller context exposed to allowed tools.
 var ticketVenue = map[string]string{"t1": "bk", "t2": "qn"} // the host's own data
 
+var testOnDecision func(DecisionEvent) // set by TestOnDecisionReportsIdentity
+
 func doorBK() map[string]any {
 	return map[string]any{"id": "dana", "roles": []any{map[string]any{"role": "door", "scope": map[string]any{"venue": "bk"}}}, "scope": map[string]any{"venue": "bk"}}
 }
@@ -40,7 +42,7 @@ func scopedSession(t *testing.T, identity any, resolver string, seen *[]Caller) 
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "ticket " + a.TicketID}}}, nil, nil
 	})
-	opts := GuardOptions{Identity: func(context.Context, mcp.Request) any { return identity }}
+	opts := GuardOptions{Identity: func(context.Context, mcp.Request) any { return identity }, OnDecision: testOnDecision}
 	if resolver != "none" {
 		opts.Resource = func(_ context.Context, _ *mcp.CallToolRequest, _ string, args json.RawMessage, _ any) (map[string]string, error) {
 			if resolver == "throws" {
@@ -120,5 +122,24 @@ func TestCallerContextInsideTool(t *testing.T) {
 	}
 	if _, ok := CallerFrom(context.Background()); ok {
 		t.Fatal("no caller outside a guarded call")
+	}
+}
+
+func TestOnDecisionReportsIdentity(t *testing.T) {
+	var got [][3]string
+	testOnDecision = func(e DecisionEvent) {
+		id, _ := e.Identity.(map[string]any)["id"].(string)
+		got = append(got, [3]string{e.Tool, e.Decision.Decision, id})
+	}
+	defer func() { testOnDecision = nil }()
+	cs := scopedSession(t, doorBK(), "db", nil)
+	for _, tk := range []string{"t1", "t2"} {
+		if _, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_ticket", Arguments: map[string]any{"ticketId": tk}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := [][3]string{{"get_ticket", "allow", "dana"}, {"get_ticket", "deny", "dana"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("events %v, want %v", got, want)
 	}
 }

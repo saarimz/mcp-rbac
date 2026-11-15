@@ -96,7 +96,7 @@ func (h *otelHarness) session(t *testing.T, identity any, approve *bool) *mcp.Cl
 	opts := GuardOptions{Identity: func(context.Context, mcp.Request) any { return identity }, Telemetry: h.tel, Now: func() float64 { return 1.8e12 }}
 	if approve != nil {
 		v := *approve
-		opts.Approve = func(context.Context, string, json.RawMessage, Decision) bool { return v }
+		opts.Approve = func(context.Context, string, json.RawMessage, any, Decision) bool { return v }
 	}
 	e.Protect(s, opts)
 	ct, st := mcp.NewInMemoryTransports()

@@ -46,6 +46,7 @@ func CallerFrom(ctx context.Context) (Caller, bool) {
 // DecisionEvent is passed to GuardOptions.OnDecision for every tools/call.
 type DecisionEvent struct {
 	Tool     string
+	Identity any // the identity the decision was made for (nil when unauthenticated)
 	Decision Decision
 	Raw      string
 	Duration time.Duration
@@ -59,7 +60,8 @@ type GuardOptions struct {
 	// Toolsets optionally restricts the session to named toolsets (nil = no restriction).
 	Toolsets func(ctx context.Context, req mcp.Request) []string
 	// Approve is asked for needs_approval decisions; true re-authorizes as approved.
-	Approve func(ctx context.Context, tool string, args json.RawMessage, d Decision) bool
+	// identity is the caller identity the guard decided on (bind approvals to it).
+	Approve func(ctx context.Context, tool string, args json.RawMessage, identity any, d Decision) bool
 	// Resource returns the resource a call touches, resolved from the host's own data (never the caller's say-so);
 	// nil = the caller's own scope. An error denies the call with reason "resource_unresolved" (fail-closed).
 	Resource func(ctx context.Context, req *mcp.CallToolRequest, tool string, args json.RawMessage, identity any) (map[string]string, error)
@@ -246,7 +248,7 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 		switch {
 		case o.Approve == nil:
 			approval = "unavailable"
-		case o.Approve(ctx, tool, args, d):
+		case o.Approve(ctx, tool, args, body["identity"], d):
 			approval = "granted"
 			e0 = time.Now()
 			raw, err = e.AuthorizeApproved(ctx, string(in), o.now())
@@ -270,7 +272,7 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 		o.Telemetry.endAuthorize(az, server, tool, d, approval, engine)
 	}
 	if o.OnDecision != nil {
-		o.OnDecision(DecisionEvent{Tool: tool, Decision: d, Raw: raw, Duration: time.Since(t0), Approved: approved})
+		o.OnDecision(DecisionEvent{Tool: tool, Identity: body["identity"], Decision: d, Raw: raw, Duration: time.Since(t0), Approved: approved})
 	}
 	if d.Decision != "allow" {
 		return denial(tool, d), nil

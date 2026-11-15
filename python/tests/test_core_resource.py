@@ -70,3 +70,19 @@ async def test_caller_context_inside_the_tool_only() -> None:
         await c.call_tool("get_ticket", {"ticketId": "t1"})
     assert seen == [{"identity": DOOR_BK, "tenant": "bk", "rule": "door@{venue:bk}:get_ticket", "resource": {"venue": "bk"}}]
     assert current_caller() is None
+
+
+async def test_on_decision_reports_the_identity_for_allows_and_denials() -> None:
+    events: list[dict[str, Any]] = []
+    s = MCPServer("scoped")
+
+    @s.tool()
+    def get_ticket(ticketId: str) -> str:  # noqa: N803
+        return ticketId
+
+    s.middleware.append(CoreGuard(POLICY, identity=lambda ctx: DOOR_BK, on_decision=events.append,
+                                  resource=lambda tool, args, ident, ctx: {"venue": OWNER[args["ticketId"]]}))
+    async with Client(s) as c:
+        await c.call_tool("get_ticket", {"ticketId": "t1"})
+        await c.call_tool("get_ticket", {"ticketId": "t2"})
+    assert [(e["tool"], e["decision"]["decision"], e["identity"]["id"]) for e in events] == [("get_ticket", "allow", "dana"), ("get_ticket", "deny", "dana")]

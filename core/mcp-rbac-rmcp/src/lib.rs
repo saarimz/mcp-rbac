@@ -23,7 +23,8 @@ pub const DENIAL_META_KEY: &str = "mcp-rbac/denial";
 
 type IdentityFn = dyn Fn(&RequestContext<RoleServer>) -> Option<Value> + Send + Sync;
 type ToolsetsFn = dyn Fn(&RequestContext<RoleServer>) -> Option<Vec<String>> + Send + Sync;
-type ApproveFn = dyn Fn(&str, &Value, &Value) -> bool + Send + Sync;
+/// (tool, args, identity, decision) -> approved. `identity` is what the guard decided on (`Value::Null` if none).
+type ApproveFn = dyn Fn(&str, &Value, &Value, &Value) -> bool + Send + Sync;
 type NowFn = dyn Fn() -> f64 + Send + Sync;
 type OnDecisionFn = dyn Fn(&DecisionEvent) + Send + Sync;
 /// (tool, args, identity, ctx) -> resource object, `Ok(None)` = the caller's own scope, `Err` = deny `resource_unresolved`.
@@ -48,6 +49,8 @@ const RESOURCE_UNRESOLVED: &str = r#"{"decision":"deny","labels":[],"limits":[],
 #[derive(Debug, Clone)]
 pub struct DecisionEvent {
     pub tool: String,
+    /// The identity the decision was made for (`None` when unauthenticated).
+    pub identity: Option<Value>,
     pub decision: Value,
     pub duration: std::time::Duration,
     pub approved: bool,
@@ -58,7 +61,7 @@ pub struct DecisionEvent {
 pub struct GuardOptions {
     pub identity: Arc<IdentityFn>,
     pub toolsets: Option<Arc<ToolsetsFn>>,
-    /// Asked for `needs_approval` decisions with (tool, args, decision); `true` re-authorizes as approved.
+    /// Asked for `needs_approval` decisions with (tool, args, identity, decision); `true` re-authorizes as approved.
     pub approve: Option<Arc<ApproveFn>>,
     /// Unix milliseconds (default: wall clock).
     pub now: Option<Arc<NowFn>>,
@@ -228,7 +231,7 @@ impl<S: Service<RoleServer>> Guarded<S> {
         if d["decision"] == "needs_approval" {
             match &self.opts.approve {
                 None => approval = "unavailable",
-                Some(approve) if approve(&tool, &args, &d) => {
+                Some(approve) if approve(&tool, &args, body_identity.as_ref().unwrap_or(&Value::Null), &d) => {
                     approval = "granted";
                     let e0 = Instant::now();
                     raw = self.engine.authorize_approved(&req, self.opts.now_ms());
@@ -241,7 +244,7 @@ impl<S: Service<RoleServer>> Guarded<S> {
         }
         obs.end_authorize(&tool, &d, approval, engine);
         if let Some(f) = &self.opts.on_decision {
-            f(&DecisionEvent { tool: tool.clone(), decision: d.clone(), duration: t0.elapsed(), approved });
+            f(&DecisionEvent { tool: tool.clone(), identity: body_identity.clone(), decision: d.clone(), duration: t0.elapsed(), approved });
         }
         if d["decision"] != "allow" {
             // Same per-peer shaping rmcp's ServerHandler applies (we answer without reaching it):

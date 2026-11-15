@@ -37,9 +37,20 @@ impl ServerHandler for Scoped {
 
 fn door_bk() -> Value { json!({"id": "dana", "roles": [{"role": "door", "scope": {"venue": "bk"}}], "scope": {"venue": "bk"}}) }
 
+type Events = Arc<Mutex<Vec<(String, String, Option<Value>)>>>;
+
 async fn session(identity: Value, resolver: &'static str) -> (RunningService<RoleClient, ()>, Arc<Mutex<Vec<Caller>>>) {
+    session_with_events(identity, resolver, None).await
+}
+
+async fn session_with_events(identity: Value, resolver: &'static str, events: Option<Events>) -> (RunningService<RoleClient, ()>, Arc<Mutex<Vec<Caller>>>) {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let mut opts = GuardOptions::with_identity(move |_| Some(identity.clone()));
+    if let Some(ev) = events {
+        opts.on_decision = Some(Arc::new(move |e: &mcp_rbac_rmcp::DecisionEvent| {
+            ev.lock().unwrap().push((e.tool.clone(), e.decision["decision"].as_str().unwrap_or_default().to_string(), e.identity.clone()));
+        }));
+    }
     if resolver != "none" {
         opts.resource = Some(Arc::new(move |_, args: &Value, _, _| {
             if resolver == "throws" { return Err("db down".into()) }
@@ -92,4 +103,14 @@ async fn caller_extension_inside_tool() {
     let mut m = serde_json::Map::new();
     m.insert("venue".into(), json!("bk"));
     assert_eq!(s, vec![Caller { identity: door_bk(), tenant: Some("bk".into()), rule: Some("door@{venue:bk}:get_ticket".into()), resource: Some(m) }]);
+}
+
+#[tokio::test]
+async fn on_decision_reports_identity() {
+    let ev: Events = Arc::default();
+    let (c, _) = session_with_events(door_bk(), "db", Some(ev.clone())).await;
+    call(&c, json!({"ticketId": "t1"})).await;
+    call(&c, json!({"ticketId": "t2"})).await;
+    let got = ev.lock().unwrap().clone();
+    assert_eq!(got, vec![("get_ticket".into(), "allow".into(), Some(door_bk())), ("get_ticket".into(), "deny".into(), Some(door_bk()))]);
 }

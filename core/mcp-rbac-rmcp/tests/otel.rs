@@ -81,7 +81,7 @@ struct Rig {
     client: RunningService<RoleClient, ()>,
 }
 
-type Approve = Option<Arc<dyn Fn(&str, &Value, &Value) -> bool + Send + Sync>>;
+type Approve = Option<Arc<dyn Fn(&str, &Value, &Value, &Value) -> bool + Send + Sync>>;
 
 async fn rig(identity: Value, approve: Approve, max_tools: Option<usize>) -> Rig {
     let spans = InMemorySpanExporter::default();
@@ -232,8 +232,8 @@ async fn denial_is_tool_error_with_warn_log_correlated_to_authorize_span() {
 
 #[tokio::test]
 async fn approval_outcomes_are_recorded() {
-    let yes: Approve = Some(Arc::new(|_, _, _| true));
-    let no: Approve = Some(Arc::new(|_, _, _| false));
+    let yes: Approve = Some(Arc::new(|_, _, _, _| true));
+    let no: Approve = Some(Arc::new(|_, _, _, _| false));
     for (approve, outcome, decision) in [(yes, "granted", "allow"), (no, "rejected", "needs_approval"), (None, "unavailable", "needs_approval")] {
         let r = rig(json!({"id": "olu", "roles": ["owner"]}), approve, None).await;
         r.call("refund", json!({"ticketId": "t1", "amount": 150}), None).await;

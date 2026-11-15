@@ -67,3 +67,22 @@ describe("resource resolver", () => {
     expect(meta.other).toBeUndefined();
   });
 });
+
+describe("onDecision", () => {
+  it("reports the identity each decision was made for, for allows and denials (audit logs need the subject)", async () => {
+    const events: any[] = [];
+    const inner = new McpServer({ name: "scoped", version: "0" });
+    inner.registerTool("get_ticket", { inputSchema: { ticketId: z.string() } }, async ({ ticketId }) => ({ content: [{ type: "text" as const, text: ticketId }] }));
+    const { server } = await protectWithCore(inner, {
+      policy: POLICY, identity: () => DOOR_BK, onDecision: (e) => events.push(e),
+      resource: ({ args }) => (OWNER[String(args.ticketId)] ? { venue: OWNER[String(args.ticketId)] } : {}),
+    });
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    await server.connect(st);
+    const client = new Client({ name: "t", version: "0" });
+    await client.connect(ct);
+    await call(client, { ticketId: "t1" });
+    await call(client, { ticketId: "t2" });
+    expect(events.map((e) => [e.tool, e.decision.decision, e.identity?.id])).toEqual([["get_ticket", "allow", "dana"], ["get_ticket", "deny", "dana"]]);
+  });
+});

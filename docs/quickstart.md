@@ -11,8 +11,16 @@ Pick the path that matches your situation. Every code block on this page is a re
 | a partner's server (Klaviyo, Stripe, GitHub) and you care about *what calls do* | [tool semantics + packs](#3-govern-by-what-tools-do-classes-and-packs) | 5 min |
 | several AI agents acting for one human, each limited differently | [agent grants (ITM example)](#4-several-agents-per-human-itm) | read |
 
-Requirements: Node ≥ 22.13. Python ≥ 3.11 for the Python guard, Go ≥ 1.27 for the Go guard. Not yet published:
-run from this repository (`npm ci && npm run build`; `pip install -e python`).
+Requirements: Node ≥ 22.13. Python ≥ 3.11 for the Python guard, Go ≥ 1.27 for the Go guard (preview, not
+published in 0.5).
+
+New here? `npx mcp-rbac demo` runs section 2 in one command, and `npx mcp-rbac demo --save-policy mcp-rbac.yaml`
+writes the policy below into the current folder.
+
+> Until 0.5.0 is on npm and PyPI, use the local build instead of the registry: in this repository
+> `npm ci && npm run build:wasm && npm run build` (then `node dist/cli.js` wherever this page says `npx mcp-rbac`),
+> or `tools/release-dry-run.sh` to build the npm tarball and both wheels and install those
+> (`npm i /path/mcp-rbac-0.5.0.tgz`, `pip install mcp_rbac_core-*.whl mcp_rbac-*.whl`).
 
 ## 1. Any server: proxy mode (no code)
 
@@ -58,9 +66,9 @@ Presets, path and repo scoping, approvals, hosted servers (`--url`) and client c
 
 One `mcp-rbac.yaml` ([format](policy-format.md), [JSON Schema](../spec/mcp-rbac.schema.json)):
 
-<!-- snippet: docs/snippets/policy.yaml -->
+<!-- snippet: docs/snippets/mcp-rbac.yaml -->
 ```yaml
-# docs/snippets/policy.yaml: the policy used by the quickstart snippets (TS, Python, Go).
+# mcp-rbac.yaml: the policy used by the quickstart snippets (TS, Python, Go). Run them from the folder that holds it.
 version: 1
 roles:
   owner: {includes: [staff], tools: [refund]}
@@ -74,6 +82,14 @@ limits:
 ```
 
 ### TypeScript (official SDK)
+
+```bash
+mkdir venue && cd venue && npm init -y && npm pkg set type=module
+npm i mcp-rbac @modelcontextprotocol/sdk zod && npm i -D tsx
+npx mcp-rbac demo --save-policy mcp-rbac.yaml   # or paste the policy above into mcp-rbac.yaml
+# save the code below as server.ts, then:
+npx tsx server.ts
+```
 
 <!-- snippet: docs/snippets/ts/quickstart.ts -->
 ```ts
@@ -94,7 +110,7 @@ server.registerTool("refund", { inputSchema: { ticketId: z.string(), amount: z.n
 // identity(extra) returns who is calling: from your OAuth/JWT layer in production (extra.authInfo).
 const who = { id: "dana", roles: ["staff"] };
 const { server: guarded } = await protectWithCore(server, {
-  policy: readFileSync(new URL("../policy.yaml", import.meta.url), "utf8"),
+  policy: readFileSync("mcp-rbac.yaml", "utf8"), // run from the folder that holds mcp-rbac.yaml
   identity: () => who,
 });
 
@@ -125,7 +141,8 @@ Approval required for refund
 
 ### TypeScript SDK v2
 
-Same call, same policy, on `@modelcontextprotocol/server` 2.4+ (SDK v1 1.32+ keeps working). v2 servers are guarded
+Same call, same policy, on `@modelcontextprotocol/server` 2.4+ (SDK v1 1.32+ keeps working;
+`npm i @modelcontextprotocol/server @modelcontextprotocol/client` for this example). v2 servers are guarded
 in place; the handler context is `ctx`, so read the verified token with `authInfoOf(ctx)`.
 
 <!-- snippet: docs/snippets/ts/quickstart-v2.ts -->
@@ -146,7 +163,7 @@ server.registerTool("refund", { inputSchema: z.object({ ticketId: z.string(), am
 // v2 handlers get ctx: the verified token is authInfoOf(ctx) (ctx.http.authInfo) in production.
 const who = { id: "dana", roles: ["staff"] };
 const { server: guarded } = await protectWithCore(server, {
-  policy: readFileSync(new URL("../policy.yaml", import.meta.url), "utf8"),
+  policy: readFileSync("mcp-rbac.yaml", "utf8"), // run from the folder that holds mcp-rbac.yaml
   identity: () => who,
 });
 
@@ -168,6 +185,13 @@ await client.close();
 Output: identical to the v1 run above (checked by `tools/docs-check.sh`).
 
 ### Python (official SDK)
+
+```bash
+python3 -m venv .venv && . .venv/bin/activate
+pip install mcp-rbac        # pulls mcp-rbac-core (the Rust core, prebuilt wheels) and the official mcp SDK
+# put mcp-rbac.yaml (above) in this folder, save the code below as server.py, then:
+python server.py
+```
 
 <!-- snippet: docs/snippets/py/quickstart.py -->
 ```python
@@ -200,7 +224,7 @@ def refund(ticketId: str, amount: float) -> str:  # noqa: N803
 
 # identity(ctx) returns who is calling: from your OAuth/JWT layer in production.
 who = {"id": "dana", "roles": ["staff"]}
-policy = (pathlib.Path(__file__).resolve().parent.parent / "policy.yaml").read_text()
+policy = pathlib.Path("mcp-rbac.yaml").read_text()  # run from the folder that holds mcp-rbac.yaml
 protect_with_core(server, policy, identity=lambda ctx: who)
 
 
@@ -261,7 +285,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer rt.Close(ctx)
-	policy, err := os.ReadFile("../policy.yaml")
+	policy, err := os.ReadFile("mcp-rbac.yaml") // run from the folder that holds mcp-rbac.yaml
 	if err != nil {
 		log.Fatal(err)
 	}

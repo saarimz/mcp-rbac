@@ -57,7 +57,7 @@ const peer = ["./redis", "./postgres", "./jwt", "./experimental/cedar"];  // nee
   console.log(`imported ${subs.length - peer.length} of ${subs.length} entry points (skipped optional-peer entry points: ${peer.join(", ")})`);
 })().catch(e => { console.error(e); process.exit(1); });
 ')
-(cd "$APP" && cp "$ROOT/docs/snippets/policy.yaml" . && npx --no-install mcp-rbac check policy.yaml)
+(cd "$APP" && cp "$ROOT/docs/snippets/mcp-rbac.yaml" . && npx --no-install mcp-rbac check mcp-rbac.yaml)
 
 note "PyPI mcp-rbac (python/)"
 rm -rf python/build python/dist
@@ -75,7 +75,7 @@ note "install both wheels into a clean venv"
 "$PYBOOT" -m venv "$OUT/py-app"
 "$OUT/py-app/bin/pip" install -q "$OUT"/py-core/*.whl "$OUT"/py/*.whl
 "$OUT/py-app/bin/python" -c 'import mcp_rbac, mcp_rbac_core; from mcp_rbac.core_guard import CoreGuard; print("mcp_rbac", mcp_rbac.__version__, "core", mcp_rbac_core.__version__)'
-"$OUT/py-app/bin/mcp-rbac-py" check docs/snippets/policy.yaml
+"$OUT/py-app/bin/mcp-rbac-py" check docs/snippets/mcp-rbac.yaml
 
 note "crates.io mcp-rbac-core"
 (cd core && cargo package -p mcp-rbac-core --allow-dirty --target-dir "$OUT/cargo-target" 2>&1 | grep -E "Packaged|Verifying|Finished|error|warning: manifest" || true)

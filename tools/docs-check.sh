@@ -4,7 +4,7 @@
 # docs site builds with no broken links or anchors. Usage: tools/docs-check.sh [--fix]   (exit != 0 on any failure)
 set -uo pipefail
 cd "$(dirname "$0")/.."
-PY=python/.venv/bin/python
+PY=$PWD/python/.venv/bin/python
 fail=0; pass=0
 step() { local name=$1; shift; if "$@"; then echo "ok   $name"; pass=$((pass+1)); else echo "FAIL $name"; fail=$((fail+1)); fi; }
 run_snippet() { # name expected-file command...
@@ -16,13 +16,14 @@ run_snippet() { # name expected-file command...
 step "npm run build" bash -c 'npm run build >/tmp/docs-check-build.log 2>&1'
 step "snippet blocks match files" $PY tools/docs-check/check_docs.py sync ${1:-}
 step "llms.txt links" $PY tools/docs-check/check_docs.py llms
-step "snippet ts/quickstart" run_snippet ts-quickstart docs/snippets/ts/quickstart.expected npx tsx docs/snippets/ts/quickstart.ts
-step "snippet ts/quickstart-v2 (SDK v2)" run_snippet ts-quickstart-v2 docs/snippets/ts/quickstart-v2.expected npx tsx docs/snippets/ts/quickstart-v2.ts
+step "snippet ts/quickstart" run_snippet ts-quickstart docs/snippets/ts/quickstart.expected bash -c "cd docs/snippets && npx tsx ts/quickstart.ts"
+step "snippet ts/quickstart-v2 (SDK v2)" run_snippet ts-quickstart-v2 docs/snippets/ts/quickstart-v2.expected bash -c "cd docs/snippets && npx tsx ts/quickstart-v2.ts"
 step "snippet ts/semantics" run_snippet ts-semantics docs/snippets/ts/semantics.expected npx tsx docs/snippets/ts/semantics.ts
 step "snippet ts/proxy-check" run_snippet ts-proxy docs/snippets/ts/proxy-check.expected npx tsx docs/snippets/ts/proxy-check.ts
-step "snippet py/quickstart" run_snippet py-quickstart docs/snippets/py/quickstart.expected $PY docs/snippets/py/quickstart.py
-step "snippet go/main.go" run_snippet go-quickstart docs/snippets/go/quickstart.expected bash -c 'cd docs/snippets/go && go run .'
-step "mcp-rbac check docs/snippets/policy.yaml" bash -c 'node dist/cli.js check docs/snippets/policy.yaml >/dev/null'
+step "snippet py/quickstart" run_snippet py-quickstart docs/snippets/py/quickstart.expected bash -c "cd docs/snippets && $PY py/quickstart.py"
+step "snippet go/main.go" run_snippet go-quickstart docs/snippets/go/quickstart.expected bash -c 'cd docs/snippets/go && go build -o /tmp/docs-check-go-qs . && cd .. && /tmp/docs-check-go-qs'
+step "mcp-rbac check docs/snippets/mcp-rbac.yaml" bash -c 'node dist/cli.js check docs/snippets/mcp-rbac.yaml >/dev/null'
+step "mcp-rbac demo" bash -c 'node dist/cli.js demo | grep -q "hash chain verified"'
 step "pack resolution TS == Python == Go" $PY tools/docs-check/check_docs.py packs
 step "docs site build (links + anchors)" node tools/docs-site/build.mjs
 echo "docs-check: $pass passed, $fail failed"

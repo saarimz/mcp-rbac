@@ -28,7 +28,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer rt.Close(ctx)
-	policy, err := os.ReadFile("../policy.yaml")
+	policy, err := os.ReadFile("mcp-rbac.yaml") // run from the folder that holds mcp-rbac.yaml
 	if err != nil {
 		log.Fatal(err)
 	}

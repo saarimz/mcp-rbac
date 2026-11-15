@@ -27,7 +27,7 @@ def refund(ticketId: str, amount: float) -> str:  # noqa: N803
 
 # identity(ctx) returns who is calling: from your OAuth/JWT layer in production.
 who = {"id": "dana", "roles": ["staff"]}
-policy = (pathlib.Path(__file__).resolve().parent.parent / "policy.yaml").read_text()
+policy = pathlib.Path("mcp-rbac.yaml").read_text()  # run from the folder that holds mcp-rbac.yaml
 protect_with_core(server, policy, identity=lambda ctx: who)
 
 

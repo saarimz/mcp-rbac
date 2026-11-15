@@ -14,7 +14,7 @@ server.registerTool("refund", { inputSchema: z.object({ ticketId: z.string(), am
 // v2 handlers get ctx: the verified token is authInfoOf(ctx) (ctx.http.authInfo) in production.
 const who = { id: "dana", roles: ["staff"] };
 const { server: guarded } = await protectWithCore(server, {
-  policy: readFileSync(new URL("../policy.yaml", import.meta.url), "utf8"),
+  policy: readFileSync("mcp-rbac.yaml", "utf8"), // run from the folder that holds mcp-rbac.yaml
   identity: () => who,
 });
 

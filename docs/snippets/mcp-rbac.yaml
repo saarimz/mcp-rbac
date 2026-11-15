@@ -1,4 +1,4 @@
-# docs/snippets/policy.yaml: the policy used by the quickstart snippets (TS, Python, Go).
+# mcp-rbac.yaml: the policy used by the quickstart snippets (TS, Python, Go). Run them from the folder that holds it.
 version: 1
 roles:
   owner: {includes: [staff], tools: [refund]}

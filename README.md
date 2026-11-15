@@ -1,40 +1,35 @@
 # mcp-rbac
 
-**Authorization for MCP servers: who may call which tool, with which arguments, how often, how much it can spend,
-and what the result may show.** One policy file, the same decisions in TypeScript, Python, Go and Rust.
+**Decide which agent may call which MCP tool, with which arguments, and keep a tamper-evident record of every
+decision. One YAML file; the same decisions in TypeScript, Python, Go and Rust.**
 
-- **Any server, no code:** `mcp-rbac proxy --preset read-only -- <server command>` hides and blocks write tools,
-  scopes paths and repos, asks a human before risky calls, and keeps an audit trail.
-- **Your own server:** a few lines of middleware for the official TS, Python and Go SDKs and rmcp. Roles, argument
-  limits, approvals bound to the exact arguments, budgets, redaction by role, tenants, delegation that can only
-  narrow, OpenTelemetry and a hash-chained audit log.
-- **Govern by what tools do, not their names:** grant roles side-effect classes (`read`, `write`, `send`, `spend`,
-  `destructive`, `external-comm`) and cap spend in currency. Built-in packs classify Klaviyo (309 tools), GitHub
-  (133) and Stripe (15) from the vendors' own data.
-- **Proven:** one Rust core, 4,128 conformance vectors byte-identical across 6 engines, 140/140 red-team checks,
-  fuzzed. Live runs against Klaviyo's official MCP server and ITM's staging server.
+![mcp-rbac demo: staff denied a refund, rate limit, owner refund needs approval, audit chain verified](docs/demo.gif)
 
-> Status: 0.4.x, **not published yet**. Run it from this repository. The name `mcp-guard` on npm is an unrelated
-> package.
+```bash
+npx mcp-rbac demo
+```
 
-## Start here
+That one command starts an ordinary MCP server in memory (official TypeScript SDK), guards it with the policy below,
+drives it as an agent, and verifies the audit chain. In a clean directory with an empty npm cache the first deny
+printed **2.0-2.5 s** after pressing Enter, npm download included (0.7 s with a warm cache; measured on a
+datacenter connection, so expect longer on home broadband; [docs/launch/fresh-user-test.md](docs/launch/fresh-user-test.md)).
 
-| I want to… | read |
-|---|---|
-| try it in one minute | [docs/quickstart.md](docs/quickstart.md) |
-| guard a server I didn't write | [docs/proxy.md](docs/proxy.md) |
-| write the policy file | [docs/policy-format.md](docs/policy-format.md), [spec/mcp-rbac.schema.json](spec/mcp-rbac.schema.json) |
-| use classes, spend budgets and partner packs | [spec/tool-semantics.md](spec/tool-semantics.md), [packs/](packs/) |
-| use it from TypeScript, Python, Go or Rust | [docs/library.md](docs/library.md), [docs/python.md](docs/python.md), [docs/polyglot.md](docs/polyglot.md) |
-| give several AI agents different limits under one human | [examples/itm-agents](examples/itm-agents/README.md) |
-| check the security claims | [SECURITY.md](SECURITY.md), [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md), [docs/CONFORMANCE.md](docs/CONFORMANCE.md) |
-| compare with alternatives | [docs/MARKET.md](docs/MARKET.md), [bench/competitors/REPORT.md](bench/competitors/REPORT.md) |
-| see where this is going | [docs/STANDARD.md](docs/STANDARD.md), [docs/SEP-tool-semantics.md](docs/SEP-tool-semantics.md) |
-| browse everything | the docs site: `npm run docs:build`, then open `site/index.html` ([docs/README.md](docs/README.md)) |
+> Status: 0.5.0, release candidate. **Not on npm/PyPI yet**: until it is, run from this repository
+> (`npm ci && npm run build:wasm && npm run build`, then `node dist/cli.js demo`).
 
-**Coding agents:** read [AGENTS.md](AGENTS.md). Machine-readable index: [llms.txt](llms.txt).
+## Guard any MCP server, no code
 
-## 30 seconds
+Put `mcp-rbac proxy` in front of the server command in your MCP client config:
+
+```bash
+npx mcp-rbac proxy --preset read-only -- npx -y @modelcontextprotocol/server-filesystem ~/notes
+```
+
+Write tools disappear from `tools/list` and are refused if called anyway. Presets: `read-only`, `no-destructive`,
+`approve-writes`, `approve-destructive`; plus `--paths`, `--repos`, approvals in the client, hosted servers (`--url`),
+and an audit log you can query (`mcp-rbac audit`). Details: [docs/proxy.md](docs/proxy.md).
+
+## Guard your own server
 
 ```yaml
 # mcp-rbac.yaml
@@ -50,30 +45,105 @@ limits:
   - {tool: checkin, max: 3, per: minute}
 ```
 
+**TypeScript** (`npm i mcp-rbac`; official SDK v1 `McpServer` or v2 `@modelcontextprotocol/server`):
+
 ```ts
+import { readFileSync } from "node:fs";
 import { protectWithCore } from "mcp-rbac/core";
-const { server: guarded } = await protectWithCore(server, { policy, identity: (extra) => userFrom(extra.authInfo) });
+
+const { server: guarded } = await protectWithCore(server, {
+  policy: readFileSync("mcp-rbac.yaml", "utf8"),
+  identity: (extra) => userFrom(extra),  // your OAuth/JWT layer: { id, roles }
+  audit: "audit.db",                     // hash-chained SQLite log, written off the main thread
+});
 ```
 
-Staff see `list_events` and `checkin` only. A staff refund is denied, an owner refund of 20 goes through, and an
-owner refund of 250 waits for a human. The same file works with `CoreGuard` in Python and `Engine.Protect` in Go
-([quickstart](docs/quickstart.md#2-your-own-server-one-policy-file-three-languages), tested in CI).
+**Python** (`pip install mcp-rbac`; official SDK `MCPServer`):
 
-## Repository map
+```python
+from mcp_rbac.core_guard import protect_with_core
 
-| path | what |
+protect_with_core(server, open("mcp-rbac.yaml").read(), identity=lambda ctx: user_from(ctx))
+```
+
+Staff see `list_events` and `checkin` only; a staff refund is denied; the 4th check-in in a minute is refused; an
+owner refund of 20 goes through, 250 waits for a human (the approval is bound to those exact arguments), 900 is over
+the limit. Full, runnable versions (tested in CI on every commit): [docs/quickstart.md](docs/quickstart.md).
+
+What 0.5 covers: roles with inheritance, deny-by-default, `tools/list` filtered per caller, argument limits, rate
+limits, approvals bound to exact arguments, OAuth scope checks, resource scoping, redaction by role, the hash-chained
+audit log, OpenTelemetry, side-effect classes (`read`, `write`, `send`, `destructive`, ...) and packs that classify
+the tools of GitHub (133), Klaviyo (309) and Stripe (15). Spend budgets in currency, delegation, multi-tenant
+permission sets and the AuthZEN/Cedar/OpenFGA/Cerbos adapters are in
+[`mcp-rbac/experimental`](docs/experimental/README.md) and may change in a minor release.
+
+## Benchmarks
+
+One allowed `tools/call` (venue `list_events`) over Streamable HTTP, same app code behind every product, closed-loop
+load with unique JSON-RPC ids and every response validated, 2 s warm-up, 10 s per phase, rate limits off, on one
+shared 8-vCPU Linux box. Harness: [bench/competitors](bench/competitors/REPORT.md).
+
+| Target | c=1 p50 ms | c=32 req/s | vs no guard (c=32) | measured |
+|---|---:|---:|---:|---|
+| no guard (same app) | 0.208-0.223 | 5,815-5,845 | 100% | P12, 2 runs |
+| **mcp-rbac 0.5 (defaults)** | **0.225-0.247** | **5,209-5,475** | **89-94%** | P12, 2 runs |
+| agentgateway 1.7.0 | 0.576-0.582 | 7,173-7,290 | 123-125% | P12, 2 runs |
+| mcp-policy-guard | 0.267 | 4,620 | 82% | P10 |
+| MCP TS SDK v2 `requireScopes` (stateless) | 0.529 | 2,261 | 40% | P10 |
+| Cerbos (PDP + adapter) | 1.487 | 2,261 | 40% | P10 |
+| OpenFGA (+ adapter) | 1.781 | 2,157 | 38% | P10 |
+| protect-mcp | 1.222 | 1,430 | 26% | P10 |
+| Pomerium (HTTPS, self-signed) | 5.265 | 1,461 | 26% | P10 |
+
+Caveats, please read them:
+- **mcp-rbac's numbers include writing one hash-chained audit record per decision** (on a worker thread). Other
+  products ran with the configs in `bench/competitors/config`; the report says what each one logs.
+- **P12 rows** are from 15 Nov 2026 (two runs, ranges shown). **P10 rows** were measured earlier the same day with the
+  same harness on the same box but were not re-run; their percentages use the P10 no-guard run (5,604 req/s).
+- **agentgateway beats the unguarded Node server** because it is a multi-threaded Rust proxy and its upstream skips
+  HS256 verification in this setup; that gap is not a guard cost. Its MCP authorization does not see tool arguments.
+- The red-team comparison (59 HTTP authorization checks) was written alongside mcp-rbac, so it exercises features
+  mcp-rbac has; the report marks what each product *cannot express* separately from failures.
+- The box is shared; expect run-to-run noise of a few percent, sometimes ~10%. Raw files:
+  `bench/competitors/results/p12/`, method and profile: [bench/perf/README.md](bench/perf/README.md).
+
+## How it compares to Permit and MCP gateways
+
+- **Gateways** (agentgateway, Pomerium, Kong, Docker, AWS AgentCore, Permit's MCP gateway) govern many servers
+  centrally, with SSO and a UI. Most decide on tool name plus caller; several cannot see arguments, and the strongest
+  approval features are paid or Enterprise-only ([docs/MARKET.md](docs/MARKET.md)). Use one when a security team needs
+  central control over servers it did not write.
+- **Permit** is a hosted policy platform with a no-code editor and SDKs in six languages; human-in-the-loop approvals
+  and on-prem are on its Enterprise tier. In our test its hosted check took 234 ms p50 including Internet round trip
+  ([bench/competitors/REPORT.md](bench/competitors/REPORT.md#hosted-products-not-like-for-like-with-the-local-numbers)).
+- **mcp-rbac** runs inside your server (or as a local proxy), decides on the **arguments** as well as the tool, adds
+  well under a tenth of a millisecond at c=1, keeps the policy in a reviewable file in git (`mcp-rbac diff
+  --fail-on-widen` in CI), and writes its own tamper-evident audit. It does not do SSO, an OAuth authorization
+  server, a UI, or fleet-wide management. They combine: a gateway at the edge for identity, mcp-rbac in the server
+  for what each identity may do with each tool.
+
+## Proof
+
+One Rust core (`#![forbid(unsafe_code)]`) compiled to WASM, PyO3 and a C ABI; 4,128 conformance vectors give
+byte-identical decisions across 6 engines; 140/140 red-team checks; fuzzed; live runs against Klaviyo's official MCP
+server. [SECURITY.md](SECURITY.md) · [THREAT-MODEL](docs/THREAT-MODEL.md) · [CONFORMANCE](docs/CONFORMANCE.md)
+
+## Start here
+
+| I want to… | read |
 |---|---|
-| `src/` | TypeScript library, proxy CLI, pure-TS engine, WASM core guard (`mcp-rbac/core`) |
-| `python/` | Python package `mcp_rbac` (pure engine + `CoreGuard` on PyO3) |
-| `go/` | Go module (core via wazero, go-sdk middleware) |
-| `core/` | Rust core (`mcp-rbac-core`), bindings (wasm, pyo3, C-ABI), rmcp guard, fuzz targets |
-| `spec/` | policy JSON Schema, pack schema, tool-semantics spec |
-| `packs/` | partner packs (Klaviyo, Stripe, GitHub) + `tools/packs/` generators |
-| `conformance/` | the cross-engine corpus and runners |
-| `examples/` | realistic servers, Klaviyo live e2e, ITM agent grants |
-| `docs/` | guides and reference ([index](docs/README.md)) |
+| try it | `npx mcp-rbac demo`, then [docs/quickstart.md](docs/quickstart.md) |
+| guard a server I didn't write | [docs/proxy.md](docs/proxy.md) |
+| write the policy file | [docs/policy-format.md](docs/policy-format.md), [spec/mcp-rbac.schema.json](spec/mcp-rbac.schema.json) |
+| govern by what tools do (classes, packs) | [spec/tool-semantics.md](spec/tool-semantics.md), [packs/](packs/) |
+| use it from TypeScript, Python, Go or Rust | [docs/library.md](docs/library.md), [docs/python.md](docs/python.md), [docs/polyglot.md](docs/polyglot.md) |
+| use the audit log | [docs/AUDIT.md](docs/AUDIT.md) |
+| try experimental features | [docs/experimental/README.md](docs/experimental/README.md) |
+| release it | [docs/RELEASING.md](docs/RELEASING.md) |
 
-Development, tests, benchmarks and limitations: [docs/project.md](docs/project.md). Progress log: [PROGRESS.md](PROGRESS.md).
+**Coding agents:** read [AGENTS.md](AGENTS.md). Machine-readable index: [llms.txt](llms.txt).
+
+Repository map, development and limitations: [docs/project.md](docs/project.md). Changes: [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

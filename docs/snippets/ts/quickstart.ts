@@ -15,7 +15,7 @@ server.registerTool("refund", { inputSchema: { ticketId: z.string(), amount: z.n
 // identity(extra) returns who is calling: from your OAuth/JWT layer in production (extra.authInfo).
 const who = { id: "dana", roles: ["staff"] };
 const { server: guarded } = await protectWithCore(server, {
-  policy: readFileSync(new URL("../policy.yaml", import.meta.url), "utf8"),
+  policy: readFileSync("mcp-rbac.yaml", "utf8"), // run from the folder that holds mcp-rbac.yaml
   identity: () => who,
 });
 

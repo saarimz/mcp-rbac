@@ -12,7 +12,7 @@ repository.
    - Go: `rt.NewEngine(ctx, policy)` then `engine.Protect(server, mcprbac.GuardOptions{Identity: ...})`.
    - Rust (rmcp): `Guarded` in `core/mcp-rbac-rmcp`.
 2. **Write `mcp-rbac.yaml`** (`docs/policy-format.md`, schema `spec/mcp-rbac.schema.json`). Validate it with
-   `mcp-rbac check mcp-rbac.yaml`. Copy the shape of `docs/snippets/policy.yaml`.
+   `mcp-rbac check mcp-rbac.yaml`. Copy the shape of `docs/snippets/mcp-rbac.yaml`.
 3. **Identity must come from verified credentials** (an OAuth/JWT layer, `extra.authInfo` in TS). Never take it from
    tool arguments. Returning `undefined` / `None` / `nil` means unauthenticated, and everything is denied.
 4. **For third-party or fast-changing servers, prefer classes over tool names:** add a `semantics` block, grant roles

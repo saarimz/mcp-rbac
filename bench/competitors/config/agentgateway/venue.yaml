@@ -1,0 +1,52 @@
+# agentgateway 1.7.0 equivalent of examples/policies/venue.yaml. Placeholders: __PORT__ __UPSTREAM__ __JWKS__.
+# Expressible: per-tool roles (mcpAuthorization, also filters tools/list), argument limits and argument-level venue
+# scoping (mcpGuardrails over jwt + arguments). Not expressible here: record-owner checks (needs a DB lookup), approvals,
+# per-day/sum budgets (local rate limits count HTTP requests, docs: not for long windows), jti revocation, max token lifetime.
+binds:
+- port: __PORT__
+  listeners:
+  - routes:
+    - backends:
+      - mcp:
+          targets:
+          - name: venue
+            mcp:
+              host: __UPSTREAM__
+      policies:
+        backendAuth:
+          passthrough: {}
+        jwtAuth:
+          mode: strict
+          issuer: mcp-guard-demo-idp
+          audiences: [venue-mcp]
+          jwks:
+            file: __JWKS__
+        mcpAuthorization:
+          rules:
+          - 'mcp.tool.name in ["list_events", "get_event", "list_tickets", "get_ticket", "list_bookings", "list_vendors", "check_in"] && jwt.roles.exists(r, r in ["owner", "project_manager", "door_staff"] || (has(r.role) && r.role in ["owner", "project_manager", "door_staff"]))'
+          - 'mcp.tool.name == "list_booth_spaces" && jwt.roles.exists(r, r in ["owner", "project_manager", "door_staff", "vendor"] || (has(r.role) && r.role in ["owner", "project_manager", "door_staff", "vendor"]))'
+          - 'mcp.tool.name in ["update_event", "undo_check_in", "cancel_booking", "release_booth_space", "get_sales_report", "create_event", "create_booking", "refund_ticket", "book_booth_space"] && jwt.roles.exists(r, r in ["owner", "project_manager"] || (has(r.role) && r.role in ["owner", "project_manager"]))'
+          - 'mcp.tool.name in ["cancel_event", "export_guest_list"] && jwt.roles.exists(r, r == "owner" || (has(r.role) && r.role == "owner"))'
+          - 'mcp.tool.name == "book_booth_space" && jwt.roles.exists(r, r == "vendor" || (has(r.role) && r.role == "vendor"))'
+        mcpGuardrails:
+          processors:
+          - kind: expression
+            methods: { tools/call: request }
+            condition: 'has(mcp.params.arguments.venue) && has(jwt.rscope) && has(jwt.rscope.venue) && mcp.params.arguments.venue != jwt.rscope.venue'
+            reject: "Denied: venue scope"
+          - kind: expression
+            methods: { tools/call: request }
+            condition: 'mcp.params.name == "refund_ticket" && (!has(mcp.params.arguments.amount) || mcp.params.arguments.amount < 0.01 || mcp.params.arguments.amount > 10000 || (mcp.params.arguments.amount > 500 && !jwt.roles.exists(r, r == "owner" || (has(r.role) && r.role == "owner"))))'
+            reject: "Denied: refund amount"
+          - kind: expression
+            methods: { tools/call: request }
+            condition: 'mcp.params.name == "create_event" && (mcp.params.arguments.capacity < 1 || mcp.params.arguments.capacity > 5000 || size(mcp.params.arguments.title) > 120)'
+            reject: "Denied: create_event limits"
+          - kind: expression
+            methods: { tools/call: request }
+            condition: 'mcp.params.name == "create_booking" && (mcp.params.arguments.party_size < 1 || mcp.params.arguments.party_size > 40)'
+            reject: "Denied: party_size"
+          - kind: expression
+            methods: { tools/call: request }
+            condition: 'mcp.params.name == "book_booth_space" && (!string(mcp.params.arguments.space_id).matches("^B-[0-9]{1,3}$") || (!jwt.roles.exists(r, r in ["owner", "project_manager"] || (has(r.role) && r.role in ["owner", "project_manager"])) && !(mcp.params.arguments.tier in ["standard", "corner"])))'
+            reject: "Denied: booth limits"

@@ -1,0 +1,83 @@
+# Cerbos equivalent of examples/policies/venue.yaml (roles, venue scoping, argument limits). Action = tool name.
+# Not expressible in Cerbos (stateless PDP): approvals, budgets/rate limits, output redaction (see REPORT.md).
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  version: default
+  resource: venue_tool
+  variables:
+    local:
+      # unscoped principal (owner), or no target venue (own scope), or the target is the caller's venue
+      venue_ok: P.attr.venue == "" || !has(R.attr.venue) || R.attr.venue == P.attr.venue
+      a: R.attr.args
+  rules:
+    - actions: [list_events, get_event, list_tickets, get_ticket, list_bookings, list_vendors, check_in]
+      roles: [owner, project_manager, door_staff]
+      effect: EFFECT_ALLOW
+      condition: { match: { expr: V.venue_ok } }
+    - actions: [list_booth_spaces]
+      roles: [owner, project_manager, door_staff, vendor]
+      effect: EFFECT_ALLOW
+      condition: { match: { expr: V.venue_ok } }
+    - actions: [update_event, undo_check_in, cancel_booking, release_booth_space, get_sales_report]
+      roles: [owner, project_manager]
+      effect: EFFECT_ALLOW
+      condition: { match: { expr: V.venue_ok } }
+    - actions: [create_event]
+      roles: [owner, project_manager]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: V.venue_ok
+              - expr: "!has(V.a.capacity) || (V.a.capacity >= 1 && V.a.capacity <= 5000 && double(int(V.a.capacity)) == double(V.a.capacity))"
+              - expr: "!has(V.a.title) || size(V.a.title) <= 120"
+    - actions: [create_booking]
+      roles: [owner, project_manager]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: V.venue_ok
+              - expr: "!has(V.a.party_size) || (V.a.party_size >= 1 && V.a.party_size <= 40)"
+    - actions: [cancel_event, export_guest_list]
+      roles: [owner]
+      effect: EFFECT_ALLOW
+    - actions: [refund_ticket]
+      roles: [owner]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: "!has(V.a.amount) || (V.a.amount >= 0.01 && V.a.amount <= 10000)"
+              - expr: "!has(V.a.reason) || size(V.a.reason) <= 500"
+    - actions: [refund_ticket]
+      roles: [project_manager]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: V.venue_ok
+              - expr: "!has(V.a.amount) || (V.a.amount >= 0.01 && V.a.amount <= 500)"
+              - expr: "!has(V.a.reason) || size(V.a.reason) <= 500"
+    - actions: [book_booth_space]
+      roles: [owner, project_manager]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: V.venue_ok
+              - expr: "!has(V.a.space_id) || V.a.space_id.matches('^B-[0-9]{1,3}$')"
+    - actions: [book_booth_space]
+      roles: [vendor]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: "!has(V.a.space_id) || V.a.space_id.matches('^B-[0-9]{1,3}$')"
+              - expr: "!has(V.a.tier) || V.a.tier in ['standard', 'corner']"

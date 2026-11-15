@@ -1,0 +1,81 @@
+# Cerbos equivalent of examples/policies/marketing.yaml (roles incl. hierarchy, tenant isolation, argument limits).
+# Not expressible in Cerbos (stateless PDP): approvals, budgets/rate limits, output redaction (see REPORT.md).
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  version: default
+  resource: marketing_tool
+  variables:
+    local:
+      tenant_ok: "!has(R.attr.account) || R.attr.account == P.attr.tenant"
+      a: R.attr.args
+  rules:
+    - actions: [profiles.get, profiles.list, lists.list, segments.list, campaigns.list, campaigns.get, flows.list, templates.list, metrics.query]
+      roles: [account_admin, marketer, analyst, support, viewer]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: V.tenant_ok
+              - expr: "!has(V.a.page_size) || (V.a.page_size >= 1 && V.a.page_size <= 100)"
+              - expr: "!has(V.a.days) || (V.a.days >= 1 && V.a.days <= 365)"
+    - actions: [campaigns.list, campaigns.get, profiles.get, profiles.list]
+      roles: [campaign_reviewer]
+      effect: EFFECT_ALLOW
+      condition: { match: { expr: V.tenant_ok } }
+    - actions: [profiles.create, profiles.update, events.track]
+      roles: [account_admin, marketer, support]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: V.tenant_ok
+              - expr: "!has(V.a.email) || (size(V.a.email) <= 254 && V.a.email.matches('^[^@]+@[^@]+[.][A-Za-z]{2,}$'))"
+    - actions: [lists.create, lists.add_profiles, segments.create, campaigns.create, campaigns.update, flows.create, flows.update_status, templates.create]
+      roles: [account_admin, marketer]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: V.tenant_ok
+              - expr: "!has(V.a.name) || size(V.a.name) <= 100"
+              - expr: "!has(V.a.count) || (V.a.count >= 1 && V.a.count <= 1000)"
+              - expr: "!has(V.a.channel) || V.a.channel in ['email', 'sms', 'push']"
+              - expr: "!has(V.a.status) || V.a.status in ['draft', 'manual', 'live']"
+              - expr: "!has(V.a.html) || size(V.a.html) <= 200000"
+    - actions: [profiles.delete, profiles.export]
+      roles: [account_admin]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: V.tenant_ok
+              - expr: "!has(V.a.format) || V.a.format in ['csv', 'json']"
+    - actions: [data_privacy.delete_profile]
+      roles: [account_admin, support]
+      effect: EFFECT_ALLOW
+      condition: { match: { expr: V.tenant_ok } }
+    - actions: [campaigns.send]
+      roles: [account_admin]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: V.tenant_ok
+              - expr: "!has(V.a.recipients) || V.a.recipients >= 1"
+    - actions: [campaigns.send]
+      roles: [marketer]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: V.tenant_ok
+              - expr: "!has(V.a.recipients) || (V.a.recipients >= 1 && V.a.recipients <= 50000)"
+    - actions: [accounts.list]
+      roles: ["*"]
+      effect: EFFECT_ALLOW

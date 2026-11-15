@@ -1,0 +1,52 @@
+# agentgateway 1.7.0 equivalent of examples/policies/marketing.yaml. Placeholders: __PORT__ __UPSTREAM__ __JWKS__.
+# Same expressibility limits as venue.yaml: no record-owner (tenant of a profile id) checks, approvals, budgets, revocation.
+binds:
+- port: __PORT__
+  listeners:
+  - routes:
+    - backends:
+      - mcp:
+          targets:
+          - name: marketing
+            mcp:
+              host: __UPSTREAM__
+      policies:
+        backendAuth:
+          passthrough: {}
+        jwtAuth:
+          mode: strict
+          issuer: mcp-guard-demo-idp
+          audiences: [marketing-mcp]
+          jwks:
+            file: __JWKS__
+        mcpAuthorization:
+          rules:
+          - 'mcp.tool.name in ["profiles.get", "profiles.list", "lists.list", "segments.list", "campaigns.list", "campaigns.get", "flows.list", "templates.list", "metrics.query"] && jwt.roles.exists(r, r in ["account_admin", "marketer", "analyst", "support", "viewer"])'
+          - 'mcp.tool.name in ["campaigns.list", "campaigns.get", "profiles.get", "profiles.list"] && jwt.roles.exists(r, r == "campaign_reviewer")'
+          - 'mcp.tool.name in ["profiles.create", "profiles.update", "events.track"] && jwt.roles.exists(r, r in ["account_admin", "marketer", "support"])'
+          - 'mcp.tool.name in ["lists.create", "lists.add_profiles", "segments.create", "campaigns.create", "campaigns.update", "flows.create", "flows.update_status", "templates.create", "campaigns.send"] && jwt.roles.exists(r, r in ["account_admin", "marketer"])'
+          - 'mcp.tool.name in ["profiles.delete", "profiles.export"] && jwt.roles.exists(r, r == "account_admin")'
+          - 'mcp.tool.name == "data_privacy.delete_profile" && jwt.roles.exists(r, r in ["account_admin", "support"])'
+          - 'mcp.tool.name == "accounts.list"'
+        mcpGuardrails:
+          processors:
+          - kind: expression
+            methods: { tools/call: request }
+            condition: 'has(mcp.params.arguments.account) && (!has(jwt.tenant) || mcp.params.arguments.account != jwt.tenant)'
+            reject: "Denied: cross_tenant"
+          - kind: expression
+            methods: { tools/call: request }
+            condition: 'mcp.params.name == "campaigns.send" && (!has(mcp.params.arguments.recipients) || mcp.params.arguments.recipients < 1 || (mcp.params.arguments.recipients > 50000 && !jwt.roles.exists(r, r == "account_admin")))'
+            reject: "Denied: recipients"
+          - kind: expression
+            methods: { tools/call: request }
+            condition: '(has(mcp.params.arguments.page_size) && (mcp.params.arguments.page_size < 1 || mcp.params.arguments.page_size > 100)) || (has(mcp.params.arguments.days) && (mcp.params.arguments.days < 1 || mcp.params.arguments.days > 365)) || (has(mcp.params.arguments.count) && (mcp.params.arguments.count < 1 || mcp.params.arguments.count > 1000))'
+            reject: "Denied: numeric limits"
+          - kind: expression
+            methods: { tools/call: request }
+            condition: '(has(mcp.params.arguments.channel) && !(mcp.params.arguments.channel in ["email", "sms", "push"])) || (has(mcp.params.arguments.format) && !(mcp.params.arguments.format in ["csv", "json"])) || (has(mcp.params.arguments.status) && !(mcp.params.arguments.status in ["draft", "manual", "live"]))'
+            reject: "Denied: enum limits"
+          - kind: expression
+            methods: { tools/call: request }
+            condition: '(has(mcp.params.arguments.email) && !string(mcp.params.arguments.email).matches("^[^@]+@[^@]+[.][A-Za-z]{2,}$")) || (has(mcp.params.arguments.name) && size(mcp.params.arguments.name) > 100) || (has(mcp.params.arguments.html) && size(mcp.params.arguments.html) > 200000)'
+            reject: "Denied: string limits"

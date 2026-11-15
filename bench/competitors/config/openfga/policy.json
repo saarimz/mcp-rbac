@@ -1,0 +1,44 @@
+{
+  "_doc": "Role x tool grants for OpenFGA (expanded to tuples by setup.mjs). [role] or [role, condition]. '*' = any authenticated user.",
+  "venue": {
+    "hierarchy": { "project_manager": ["owner"], "door_staff": ["project_manager"] },
+    "tenants": ["bk", "qn", "__none__"],
+    "tools": {
+      "list_events": [["door_staff"]], "get_event": [["door_staff"]], "list_tickets": [["door_staff"]], "get_ticket": [["door_staff"]],
+      "list_bookings": [["door_staff"]], "list_vendors": [["door_staff"]], "check_in": [["door_staff"]],
+      "list_booth_spaces": [["door_staff"], ["vendor"]],
+      "update_event": [["project_manager"]], "undo_check_in": [["project_manager"]], "cancel_booking": [["project_manager"]],
+      "release_booth_space": [["project_manager"]], "get_sales_report": [["project_manager"]],
+      "create_event": [["project_manager", "event_limits"]], "create_booking": [["project_manager", "booking_limits"]],
+      "cancel_event": [["owner"]], "export_guest_list": [["owner"]],
+      "refund_ticket": [["owner", "refund_owner"], ["project_manager", "refund_pm"]],
+      "book_booth_space": [["project_manager", "booth_pm"], ["vendor", "booth_vendor"]]
+    }
+  },
+  "marketing": {
+    "hierarchy": { "marketer": ["account_admin"], "analyst": ["marketer"], "support": ["account_admin"] },
+    "tenants": [],
+    "tools": {
+      "profiles.get": [["analyst", "read_limits"], ["support", "read_limits"], ["viewer", "read_limits"], ["campaign_reviewer", "read_limits"]],
+      "profiles.list": [["analyst", "read_limits"], ["support", "read_limits"], ["viewer", "read_limits"], ["campaign_reviewer", "read_limits"]],
+      "campaigns.list": [["analyst", "read_limits"], ["support", "read_limits"], ["viewer", "read_limits"], ["campaign_reviewer", "read_limits"]],
+      "campaigns.get": [["analyst", "read_limits"], ["support", "read_limits"], ["viewer", "read_limits"], ["campaign_reviewer", "read_limits"]],
+      "lists.list": [["analyst", "read_limits"], ["support", "read_limits"], ["viewer", "read_limits"]],
+      "segments.list": [["analyst", "read_limits"], ["support", "read_limits"], ["viewer", "read_limits"]],
+      "flows.list": [["analyst", "read_limits"], ["support", "read_limits"], ["viewer", "read_limits"]],
+      "templates.list": [["analyst", "read_limits"], ["support", "read_limits"], ["viewer", "read_limits"]],
+      "metrics.query": [["analyst", "read_limits"], ["support", "read_limits"], ["viewer", "read_limits"]],
+      "profiles.create": [["marketer", "profile_limits"], ["support", "profile_limits"]],
+      "profiles.update": [["marketer", "profile_limits"], ["support", "profile_limits"]],
+      "events.track": [["marketer", "profile_limits"], ["support", "profile_limits"]],
+      "lists.create": [["marketer", "build_limits"]], "lists.add_profiles": [["marketer", "build_limits"]],
+      "segments.create": [["marketer", "build_limits"]], "campaigns.create": [["marketer", "build_limits"]],
+      "campaigns.update": [["marketer", "build_limits"]], "flows.create": [["marketer", "build_limits"]],
+      "flows.update_status": [["marketer", "build_limits"]], "templates.create": [["marketer", "build_limits"]],
+      "profiles.delete": [["account_admin", "export_limits"]], "profiles.export": [["account_admin", "export_limits"]],
+      "data_privacy.delete_profile": [["account_admin"], ["support"]],
+      "campaigns.send": [["account_admin", "send_admin"], ["marketer", "send_marketer"]],
+      "accounts.list": [["*"]]
+    }
+  }
+}

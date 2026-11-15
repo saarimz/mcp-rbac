@@ -19,6 +19,12 @@ export interface HttpHostOptions {
   /** A fresh guarded server for a new session (share the engine across sessions). */
   newSession: () => Promise<Server>;
   maxBodyBytes?: number;
+  /** Replace bearer verification (bench/competitors: an upstream behind a gateway that already verified the token). */
+  verifyToken?: (token: string) => ReturnType<typeof verify>;
+  /** DNS-rebinding protection (default on). Off only behind a gateway that rewrites Host. */
+  dnsRebindingProtection?: boolean;
+  /** Bind a session to the subject that created it (default true). Benchmarks turn it off when a gateway owns authn. */
+  bindSession?: boolean;
 }
 
 function deny(res: ServerResponse, status: number, error: string, desc: string) {
@@ -51,7 +57,7 @@ export async function serveStreamable(o: HttpHostOptions): Promise<{ url: string
       const auth = req.headers.authorization ?? "";
       const m = /^Bearer ([A-Za-z0-9._-]+)$/.exec(auth);
       if (!m) return deny(res, 401, "invalid_request", "missing bearer token");
-      const v = verify(m[1]!, o.secret, o.audience, o.revoked);
+      const v = o.verifyToken ? o.verifyToken(m[1]!) : verify(m[1]!, o.secret, o.audience, o.revoked);
       if (!v.ok) return deny(res, 401, "invalid_token", v.error);
       const identity = identityOf(v.claims);
       (req as any).auth = { token: m[1], clientId: v.claims.client_id ?? "unknown", scopes: identity.scopes ?? [], expiresAt: v.claims.exp, extra: { identity } };
@@ -62,14 +68,14 @@ export async function serveStreamable(o: HttpHostOptions): Promise<{ url: string
       if (typeof sid === "string") {
         const s = sessions.get(sid);
         if (!s) return deny(res, 404, "unknown_session", "session not found");
-        if (s.sub !== v.claims.sub) return deny(res, 403, "session_binding", "session belongs to another subject");
+        if ((o.bindSession ?? true) && s.sub !== v.claims.sub) return deny(res, 403, "session_binding", "session belongs to another subject");
         return await s.transport.handleRequest(req, res, body);
       }
       if (req.method !== "POST" || !isInitializeRequest(body)) return deny(res, 400, "no_session", "initialize first");
       const server = await o.newSession();
       const transport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
-        enableDnsRebindingProtection: true,
+        enableDnsRebindingProtection: o.dnsRebindingProtection ?? true,
         allowedHosts: [`${host}:${port}`, `localhost:${port}`],
         onsessioninitialized: (id) => { sessions.set(id, { transport, sub: v.claims.sub, server }); },
       });

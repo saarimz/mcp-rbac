@@ -1,0 +1,43 @@
+model
+  schema 1.1
+
+type user
+
+# a role is a userset; role:owner#assignee is also a project_manager etc. (tuples in tuples.json)
+type role
+  relations
+    define assignee: [user, role#assignee]
+
+type org
+  relations
+    define admin: [user]
+
+# venue (venue-ops) and account (marketing) are the tenants; an unscoped principal is org admin of all of them
+type venue
+  relations
+    define org: [org]
+    define member: [user] or admin from org
+
+type account
+  relations
+    define org: [org]
+    define member: [user]
+
+# tools: who may see them (list) and who may call them (with argument conditions)
+type tool
+  relations
+    define viewer: [role#assignee, user:*]
+    define caller: [role#assignee, user:*, role#assignee with refund_owner, role#assignee with refund_pm, role#assignee with booth_pm, role#assignee with booth_vendor, role#assignee with event_limits, role#assignee with booking_limits, role#assignee with send_admin, role#assignee with send_marketer, role#assignee with read_limits, role#assignee with profile_limits, role#assignee with build_limits, role#assignee with export_limits]
+
+condition refund_owner(amount: double, reason_len: int) { amount >= 0.01 && amount <= 10000.0 && reason_len <= 500 }
+condition refund_pm(amount: double, reason_len: int) { amount >= 0.01 && amount <= 500.0 && reason_len <= 500 }
+condition booth_pm(space_id: string) { space_id.matches("^B-[0-9]{1,3}$") }
+condition booth_vendor(space_id: string, tier: string) { space_id.matches("^B-[0-9]{1,3}$") && tier in ["standard", "corner"] }
+condition event_limits(capacity: double, title_len: int) { capacity >= 1.0 && capacity <= 5000.0 && title_len <= 120 }
+condition booking_limits(party_size: double) { party_size >= 1.0 && party_size <= 40.0 }
+condition send_admin(recipients: double) { recipients >= 1.0 }
+condition send_marketer(recipients: double) { recipients >= 1.0 && recipients <= 50000.0 }
+condition read_limits(page_size: double, days: double) { page_size >= 1.0 && page_size <= 100.0 && days >= 1.0 && days <= 365.0 }
+condition profile_limits(email: string) { email == "" || (size(email) <= 254 && email.matches("^[^@]+@[^@]+[.][A-Za-z]{2,}$")) }
+condition build_limits(name_len: int, count: double, channel: string, status: string, html_len: int) { name_len <= 100 && count >= 1.0 && count <= 1000.0 && channel in ["email", "sms", "push", ""] && status in ["draft", "manual", "live", ""] && html_len <= 200000 }
+condition export_limits(format: string) { format in ["csv", "json", ""] }

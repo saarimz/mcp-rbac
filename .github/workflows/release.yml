@@ -166,7 +166,7 @@ jobs:
         run: |
           python3 -m pip install twine
           python3 -m twine check --strict dist/*
-      - name: Publish mcp-rbac-core then mcp-rbac
+      - name: Publish mcp-rbac-core and mcp-rbac (PyPI does not resolve dependencies at upload, so order does not matter)
         if: env.DRY_RUN != 'true'
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
         with:

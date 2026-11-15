@@ -43,8 +43,8 @@ These steps cannot be done from CI and are listed in the order they must happen.
    authentication and disallow tokens".
 3. **PyPI**: for each of `mcp-rbac-core` and `mcp-rbac`, add a *pending* trusted publisher (pypi.org, Account,
    Publishing): owner `mcp-rbac`, repository `mcp-rbac`, workflow `release.yml`, environment `pypi`. A pending
-   publisher creates the project on its first upload, so no manual first upload is needed. Publish
-   `mcp-rbac-core` before (or in the same run as) `mcp-rbac`, since `mcp-rbac` pins it.
+   publisher creates the project on its first upload, so no manual first upload is needed. Both projects are
+   uploaded in the same job; `mcp-rbac` pins `mcp-rbac-core==<version>`, which resolves once that job finishes.
 4. **crates.io**: like npm, trusted publishing is configured on an existing crate, so publish `mcp-rbac-core` once
    by hand (`cargo login`, then `cargo publish -p mcp-rbac-core` from `core/`), then add the trusted publisher
    (crate settings: repository `mcp-rbac/mcp-rbac`, workflow `release.yml`, environment `crates`).

@@ -35,3 +35,10 @@ export { OpenFgaEngine, type OpenFgaEngineOptions, type OpenFgaTuple } from "./e
 //   mcp-rbac/http (Streamable HTTP + OAuth), mcp-rbac/jwt (needs `jose`), mcp-rbac/sqlite (node:sqlite),
 //   mcp-rbac/dashboard, mcp-rbac/proxy (runProxy), mcp-rbac/init (introspection + policy generation),
 //   mcp-rbac/redis (ioredis), mcp-rbac/postgres (pg), mcp-rbac/pdp (AuthZEN server), mcp-rbac/cedar (@cedar-policy/cedar-wasm)
+// ---- portable policies (mcp-rbac.yaml, docs/policy-format.md)
+export {
+  loadPortablePolicy, loadPortablePolicyJson, compilePolicy, checkPortablePolicy, decidePortable, decidePortableJson,
+  visiblePortable, visiblePortableJson, canonical as canonicalPortableJson, PolicyError, type CompiledPolicy, type PortableDecision,
+} from "./portable.js";
+export { summarize as summarizePolicy, diffPolicies, formatDiff, type AccessSummary, type PolicyDiff, type DiffChange } from "./policy-diff.js";
+export { portableEngine, guardOptionsFromPolicy, protectOptionsFromPolicy, rolesFromPolicy, userFromIdentity, exportPolicy, type ExportInput } from "./policy-io.js";

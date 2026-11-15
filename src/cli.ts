@@ -9,6 +9,12 @@ import { createInterface } from "node:readline/promises";
 import { PRESET_MODES, type PresetMode } from "./presets.js";
 import { SqliteStore } from "./store-sqlite.js";
 import { serveDashboard } from "./dashboard.js";
+import { readFileSync } from "node:fs";
+import { resolve as resolvePath } from "node:path";
+import { pathToFileURL } from "node:url";
+import { checkPortablePolicy, decidePortableJson, loadPortablePolicy, visiblePortableJson, PolicyError } from "./portable.js";
+import { diffPolicies, formatDiff } from "./policy-diff.js";
+import { exportPolicy } from "./policy-io.js";
 
 const HELP = `mcp-rbac: authorization for MCP servers
 
@@ -46,6 +52,12 @@ Usage:
   mcp-rbac pdp --policy policy.json [--users users.json] [--port 8181] [--host 127.0.0.1] [--token-env PDP_TOKEN]
                                                 OpenID AuthZEN 1.0 PDP (POST /access/v1/evaluation[s]) for any language
   mcp-rbac audit-verify [--db path] [--export jsonl|otlp] [--out file]   verify the audit hash chain; export it
+  mcp-rbac check <policy.yaml> [--json]          validate a portable policy (exit 1 if invalid)
+  mcp-rbac diff <old.yaml> <new.yaml> [--json] [--tools a,b] [--fail-on-widen]
+                                                effective-access changes per role x tool (exit 2 on widening with --fail-on-widen)
+  mcp-rbac decide <policy.yaml> [--visible]     JSON requests on stdin (one per line) -> canonical decisions on stdout
+  mcp-rbac export --module <file.js> [--export name] [--out mcp-rbac.yaml]
+                                                emit portable yaml from a module exporting the declarative API pieces
   mcp-rbac pending [--watch]                    list (or interactively answer) queued approvals
   mcp-rbac approve <id> [--reason "..."]        approve a queued call
   mcp-rbac deny <id>                            deny a queued call
@@ -90,6 +102,54 @@ export async function main(argv = process.argv.slice(2)) {
     return { url, headers: parseHeaders(all.header ?? []), transport, connectTimeoutMs: num("connect-timeout") !== undefined ? num("connect-timeout")! * 1000 : undefined };
   };
   switch (cmd) {
+    case "check": {
+      const f = pos[0];
+      if (!f) throw new Error("check needs a policy file");
+      const out = checkPortablePolicy(readFileSync(f, "utf8"));
+      const r = JSON.parse(out) as { ok?: boolean; warnings?: string[]; message?: string };
+      if (flags.json) process.stdout.write(out + "\n");
+      else if (r.ok) process.stdout.write(`ok: ${f}${r.warnings!.length ? `\n${r.warnings!.map((w) => `  warning: ${w}`).join("\n")}` : ""}\n`);
+      else process.stderr.write(`invalid: ${f}\n  ${r.message}\n`);
+      if (!r.ok) process.exitCode = 1;
+      return;
+    }
+    case "diff": {
+      const [a, b] = pos;
+      if (!a || !b) throw new Error("diff needs <old.yaml> <new.yaml>");
+      const d = diffPolicies(loadPortablePolicy(readFileSync(a, "utf8")), loadPortablePolicy(readFileSync(b, "utf8")), str(flags.tools)?.split(",").filter(Boolean) ?? []);
+      process.stdout.write(flags.json ? JSON.stringify(d, null, 2) + "\n" : formatDiff(d));
+      if (flags["fail-on-widen"] && d.summary.widens > 0) process.exitCode = 2;
+      return;
+    }
+    case "decide": {
+      const f = pos[0];
+      if (!f) throw new Error("decide needs a policy file");
+      const p = loadPortablePolicy(readFileSync(f, "utf8"));
+      const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
+      for await (const line of rl) {
+        if (!line.trim()) continue;
+        process.stdout.write((flags.visible ? visiblePortableJson(p, line) : decidePortableJson(p, line)) + "\n");
+      }
+      return;
+    }
+    case "export": {
+      const mod = str(flags.module);
+      if (!mod) throw new Error("export needs --module <file.js>");
+      const m = await import(pathToFileURL(resolvePath(mod)).href) as Record<string, unknown>;
+      const input = m[str(flags.export) ?? "default"];
+      if (!input || typeof input !== "object") throw new Error(`${mod} has no export "${str(flags.export) ?? "default"}"`);
+      try {
+        const { yaml, warnings } = exportPolicy(input as never);
+        for (const w of warnings) process.stderr.write(`warning: ${w}\n`);
+        const out = str(flags.out);
+        if (out) { if (existsSync(out) && !flags.force) throw new Error(`${out} exists (use --force)`); writeFileSync(out, yaml); process.stderr.write(`wrote ${out}\n`); }
+        else process.stdout.write(yaml);
+      } catch (e) {
+        if (e instanceof PolicyError) { process.stderr.write(`${e.message}\n`); process.exitCode = 1; return; }
+        throw e;
+      }
+      return;
+    }
     case "proxy": {
       const preset = str(flags.preset) as PresetMode | undefined;
       if (preset && !PRESET_MODES.includes(preset)) throw new Error(`Unknown preset "${preset}". Use: ${PRESET_MODES.join(", ")}`);

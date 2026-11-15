@@ -1,0 +1,744 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mcp-rbac.local/spec/mcp-rbac.schema.json",
+  "title": "mcp-rbac portable policy (version 1)",
+  "description": "Structural schema for mcp-rbac.yaml. Some rules are semantic and only checked by the loaders: unknown/cyclic role references, roleSet references, min<=max, intersection conflicts, portable-regex validity, all-digit map keys anywhere (also flagged here for top-level maps), and the strict YAML subset (no anchors/aliases/tags/merge keys/duplicates).",
+  "type": "object",
+  "required": [
+    "version",
+    "roles"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "tenantKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,63}$"
+    },
+    "roles": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/roleName"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "includes": {
+                "$ref": "#/$defs/strings"
+              },
+              "tools": {
+                "$ref": "#/$defs/entries"
+              },
+              "resources": {
+                "$ref": "#/$defs/entries"
+              },
+              "prompts": {
+                "$ref": "#/$defs/entries"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "roleSets": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/roleName"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/strings"
+      }
+    },
+    "permissionSets": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/setName"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": {
+          "not": {
+            "pattern": "^[0-9]+$"
+          }
+        },
+        "additionalProperties": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "customRoles": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/roleName"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": {
+          "type": "string"
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "propertyNames": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/toolName"
+          },
+          {
+            "not": {
+              "pattern": "^[0-9]+$"
+            }
+          }
+        ]
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "allow": {
+                "oneOf": [
+                  {
+                    "const": "*"
+                  },
+                  {
+                    "$ref": "#/$defs/strings"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "$ref": "#/$defs/constraints"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "limits": {
+                "$ref": "#/$defs/constraints"
+              },
+              "scopes": {
+                "$ref": "#/$defs/scopes"
+              },
+              "labels": {
+                "$ref": "#/$defs/labels"
+              },
+              "approve": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "when"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "when": {
+                        "$ref": "#/$defs/constraints"
+                      }
+                    }
+                  }
+                ]
+              },
+              "redact": {
+                "$ref": "#/$defs/toolRedact"
+              },
+              "toolset": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/setName"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/setName"
+                    }
+                  }
+                ]
+              },
+              "budget": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/toolLimit"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/toolLimit"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "scopes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/scopes"
+          }
+        },
+        "implies": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/scope"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/scopes"
+          }
+        },
+        "writeImpliesRead": {
+          "type": "boolean"
+        }
+      }
+    },
+    "tenants": {
+      "type": "object",
+      "required": [
+        "accounts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "accounts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "groups": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/setName"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/strings"
+          }
+        }
+      }
+    },
+    "approvals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "$ref": "#/$defs/pattern"
+          },
+          "when": {
+            "$ref": "#/$defs/constraints"
+          }
+        }
+      }
+    },
+    "limits": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/globalLimit"
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/labels"
+          }
+        },
+        "labelRules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "labels"
+            ],
+            "anyOf": [
+              {
+                "required": [
+                  "denyRoles"
+                ]
+              },
+              {
+                "required": [
+                  "allowRoles"
+                ]
+              }
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "labels": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/$defs/label"
+                }
+              },
+              "denyRoles": {
+                "$ref": "#/$defs/strings"
+              },
+              "allowRoles": {
+                "$ref": "#/$defs/strings"
+              }
+            }
+          }
+        },
+        "redact": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/globalRedact"
+          }
+        },
+        "unstructuredText": {
+          "enum": [
+            "replace",
+            "keep"
+          ]
+        }
+      }
+    },
+    "toolsets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sets": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/setName"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/pattern"
+            }
+          }
+        },
+        "ungrouped": {
+          "enum": [
+            "show",
+            "hide"
+          ]
+        },
+        "default": {
+          "$ref": "#/$defs/strings"
+        }
+      }
+    },
+    "delegation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actors": {
+          "type": "object",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "tools": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/pattern"
+                }
+              },
+              "scopes": {
+                "$ref": "#/$defs/scopes"
+              }
+            }
+          }
+        },
+        "unknownActors": {
+          "enum": [
+            "deny",
+            "allow"
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "pattern": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^(\\*|(\\*\\*|\\*|[A-Za-z0-9_-]+\\*?)(\\.(\\*\\*|\\*|[A-Za-z0-9_-]+\\*?))*)$"
+    },
+    "toolName": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$"
+    },
+    "roleName": {
+      "type": "string",
+      "pattern": "^[A-Za-z]([A-Za-z0-9_ .:-]{0,62}[A-Za-z0-9_.:-])?$"
+    },
+    "setName": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]{1,64}$"
+    },
+    "label": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{1,64}$"
+    },
+    "scope": {
+      "type": "string",
+      "pattern": "^[\\x21\\x23-\\x5B\\x5D-\\x7E]{1,200}$"
+    },
+    "strings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/scope"
+      }
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/label"
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "integer": {
+          "type": "boolean"
+        },
+        "maxLength": {
+          "type": "number"
+        },
+        "optional": {
+          "type": "boolean"
+        },
+        "in": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "eq": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "pattern": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Portable regex subset, full match (docs/policy-format.md)"
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "propertyNames": {
+        "not": {
+          "enum": [
+            "__proto__",
+            "constructor",
+            "prototype"
+          ]
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/rule"
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/pattern"
+          },
+          {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/pattern"
+              },
+              "limits": {
+                "$ref": "#/$defs/constraints"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "per": {
+      "oneOf": [
+        {
+          "enum": [
+            "minute",
+            "hour",
+            "day"
+          ]
+        },
+        {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        }
+      ]
+    },
+    "redact": {
+      "type": "object",
+      "required": [
+        "fields"
+      ],
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/pattern"
+        },
+        "label": {
+          "$ref": "#/$defs/label"
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_$*-]+(\\.[A-Za-z0-9_$*-]+)*$"
+          }
+        },
+        "unlessRoles": {
+          "$ref": "#/$defs/strings"
+        },
+        "replacement": {}
+      }
+    },
+    "toolLimit": {
+      "type": "object",
+      "required": [
+        "max",
+        "per"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "max": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "per": {
+          "$ref": "#/$defs/per"
+        },
+        "sum": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shared": {
+          "enum": [
+            "delegation",
+            "user",
+            "global",
+            "tenant",
+            "client",
+            "agent"
+          ]
+        },
+        "burst": {
+          "type": "object",
+          "required": [
+            "max",
+            "per"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "max": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "per": {
+              "$ref": "#/$defs/per"
+            }
+          }
+        },
+        "name": {
+          "$ref": "#/$defs/setName"
+        },
+        "kind": {
+          "enum": [
+            "tool",
+            "resource",
+            "prompt"
+          ]
+        }
+      }
+    },
+    "globalLimit": {
+      "type": "object",
+      "required": [
+        "tool",
+        "max",
+        "per"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/pattern"
+        },
+        "max": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "per": {
+          "$ref": "#/$defs/per"
+        },
+        "sum": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shared": {
+          "enum": [
+            "delegation",
+            "user",
+            "global",
+            "tenant",
+            "client",
+            "agent"
+          ]
+        },
+        "burst": {
+          "type": "object",
+          "required": [
+            "max",
+            "per"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "max": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "per": {
+              "$ref": "#/$defs/per"
+            }
+          }
+        },
+        "name": {
+          "$ref": "#/$defs/setName"
+        },
+        "kind": {
+          "enum": [
+            "tool",
+            "resource",
+            "prompt"
+          ]
+        }
+      }
+    },
+    "toolRedact": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/redact"
+        }
+      ],
+      "properties": {
+        "fields": true,
+        "unlessRoles": true,
+        "replacement": true
+      },
+      "additionalProperties": false
+    },
+    "globalRedact": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/redact"
+        }
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "tool"
+          ]
+        },
+        {
+          "required": [
+            "label"
+          ]
+        }
+      ],
+      "properties": {
+        "tool": true,
+        "label": true,
+        "fields": true,
+        "unlessRoles": true,
+        "replacement": true
+      },
+      "additionalProperties": false
+    }
+  }
+}

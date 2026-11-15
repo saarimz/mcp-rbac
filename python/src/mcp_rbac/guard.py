@@ -162,7 +162,7 @@ class Guard(Generic[R]):
     def __init__(self, roles: Mapping[R, Role] | None = None, *, rules: Mapping[str, ToolRule[R]] | None = None,
                  engine: Engine | None = None, store: Store | None = None, scopes: ScopePolicy | None = None,
                  toolsets: Toolsets | None = None, output: OutputPolicy | None = None, limits: Sequence[Limit] = (),
-                 approve: Sequence[str] = (), tenant_key: str = "tenant", delegation: DelegationOptions | None = None,
+                 approve: Sequence[str | tuple[str, Callable[[Mapping[str, Any]], bool] | None]] = (), tenant_key: str = "tenant", delegation: DelegationOptions | None = None,
                  audit: bool = True, audit_retention_s: float | None = None, clock: Callable[[], float] = time.time,
                  on_audit: Callable[[dict[str, Any]], None] | None = None) -> None:
         self.rules: dict[str, ToolRule[R]] = dict(rules or {})
@@ -172,9 +172,18 @@ class Guard(Generic[R]):
         self._base_output = output
         self._toolsets_base = toolsets
         self._limits = list(limits)
-        self._approve = list(approve)
-        for a in self._approve:
-            normalize_pattern(a)
+        self._approve: list[str] = []
+        self._approve_when: list[tuple[str, Callable[[Mapping[str, Any]], bool]]] = []
+        for a in approve:
+            if isinstance(a, tuple):
+                normalize_pattern(a[0])
+                if a[1] is None:
+                    self._approve.append(a[0])
+                else:
+                    self._approve_when.append((a[0], a[1]))
+            else:
+                normalize_pattern(a)
+                self._approve.append(a)
         self.engine_override = engine
         self.store: Store = store or MemoryStore()
         self.tenant_key = tenant_key
@@ -241,22 +250,23 @@ class Guard(Generic[R]):
                 return ("expired", ())
             if c.tools is not None and not any(matches(p, name) for p in c.tools):
                 return ("ceiling", ())
-        required = self.scopes.required_for(name) if self.scopes else []
-        if self.delegation and identity.act:
-            actor = identity.act[-1]
-            pol = self.delegation.actors.get(actor)
-            if pol is None:
-                if self.delegation.unknown_actors != "allow":
-                    return (f"actor_unknown:{actor}", ())
-            else:
-                if pol.tools is not None and not any(matches(p, name) for p in pol.tools):
-                    return (f"actor_ceiling:{actor}", ())
-                if pol.scopes is not None and required and self.scopes and not self.scopes.subset(required, pol.scopes):
-                    return (f"actor_scope_ceiling:{actor}", ())
         if identity.scopes is not None and self.scopes:
             miss = self.scopes.missing(name, identity.scopes)
             if miss:
                 return ("insufficient_scope", tuple(miss))
+        required = self.scopes.required_for(name) if self.scopes else []
+        if self.delegation and identity.act:
+            # every actor in the chain must be known and within its ceiling (same as the TS guard and the core)
+            for actor in identity.act:
+                pol = self.delegation.actors.get(actor)
+                if pol is None:
+                    if self.delegation.unknown_actors != "allow":
+                        return (f"actor_unknown:{actor}", ())
+                    continue
+                if pol.tools is not None and not any(matches(p, name) for p in pol.tools):
+                    return (f"actor_ceiling:{actor}", ())
+                if pol.scopes is not None and required and self.scopes and not self.scopes.subset(required, pol.scopes):
+                    return (f"actor_scope_ceiling:{actor}", ())
         return None
 
     async def visible(self, identity: Identity[Any] | None, name: str, toolsets: Sequence[str] | None = None, kind: Kind = "tool") -> bool:
@@ -278,7 +288,16 @@ class Guard(Generic[R]):
                 return r.approve(args) is not False
             except Exception:
                 return True
-        return any(matches(p, name) for p in self.approve_patterns)
+        if any(matches(p, name) for p in self.approve_patterns):
+            return True
+        for p, when in self._approve_when:
+            if matches(p, name):
+                try:
+                    if when(args) is not False:
+                        return True
+                except Exception:
+                    return True
+        return False
 
     def _limit_items(self, name: str, args: Mapping[str, Any], identity: Identity[Any], tenant: str | None) -> list[tuple[ConsumeItem, str]] | str:
         items: list[tuple[ConsumeItem, str]] = []
@@ -370,6 +389,13 @@ class Guard(Generic[R]):
                 return d
             resource[self.tenant_key] = identity.tenant
         tenant = resource.get(self.tenant_key)
+        labels = tuple(self.output.labels_for(name)) if self.output and kind == "tool" else ()
+        if self.output and labels:
+            ld = self.output.label_denial(labels, set(identity.roles_at(resource)))
+            if ld:
+                d = done(False, ld, tenant=tenant, roles=frozenset(identity.roles_at(resource)), labels=labels)
+                await self._audit(d, identity, args)
+                return d
         try:
             ed = await self.engine.decide(DecisionInput(identity, kind, name, args, resource, identity.agent))
         except Exception:
@@ -387,13 +413,6 @@ class Guard(Generic[R]):
                         d = done(False, f"constraint:{cr}", tenant=tenant, roles=roles)
                         await self._audit(d, identity, args)
                         return d
-        labels = tuple(self.output.labels_for(name)) if self.output else ()
-        if self.output and labels:
-            ld = self.output.label_denial(labels, set(roles))
-            if ld:
-                d = done(False, ld, tenant=tenant, roles=roles, labels=labels)
-                await self._audit(d, identity, args)
-                return d
         items = self._limit_items(name, args, identity, tenant)
         if isinstance(items, str):
             d = done(False, items, tenant=tenant, roles=roles)

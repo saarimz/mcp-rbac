@@ -37,7 +37,7 @@ Design decisions (recorded so a resumed run doesn't re-decide):
 
 | # | Milestone | Status | Evidence |
 |---|-----------|--------|----------|
-| P1 | yaml format + JSON Schema + TS/Python loaders/exporters + CLI check/diff | todo | |
+| P1 | yaml format + JSON Schema + TS/Python loaders/exporters + CLI check/diff | done | spec/mcp-rbac.schema.json; src/portable.ts, policy-diff.ts, policy-io.ts; python portable.py, policy_diff.py, policy_io.py; CLI check/diff/decide/export (TS) + check/diff/decide (py). TS 338/9 skip, py 79. Guard-from-yaml == portable on 600 generated venue requests (TS and Python). TS diff JSON == Python diff JSON. |
 | P2 | Rust core crate (proptest, cargo-fuzz run, clippy -D warnings) | todo | |
 | P3 | conformance corpus + byte-identical runners (TS pure, TS wasm, Py pure, Py pyo3, Rust, Go) + differential fuzz | todo | |
 | P4 | bindings + SDK wrappers + minimal real server per language (TS SDK, Python SDK, rmcp, go-sdk) e2e | todo | |
@@ -45,3 +45,12 @@ Design decisions (recorded so a resumed run doesn't re-decide):
 | P6 | 3 realistic servers (venue, marketing, devops; 15+ tools, SQLite, stdio+HTTP), Inspector CLI, scripted agent, red team | todo | |
 | P7 | docs/MARKET.md sourced competitor matrix | todo | |
 | P8 | robustness (bench, leaks, concurrency, malformed), docs, 0.4.0, clean re-run | todo | |
+
+### P1 findings / fixes (2026-11-15)
+- **Python audit `_num` bug**: used `repr()` (e.g. `1e-05`); JS prints `0.00001`, and ints >= 1e21 printed as digit strings (JS: `1e+21`). Audit hashes over such values diverged from the TS chain. Now an exact ECMAScript Number::toString port (`portable.js_number`), checked against node on 25,002 random doubles (0 mismatches).
+- **Python Guard delegation bug (security)**: only the LAST actor of the act chain was checked; an unknown/over-ceiling intermediate actor slipped through. Now every actor is checked (as in TS). Regression test `test_every_actor_in_the_chain_is_checked`.
+- Python Guard aligned with TS ordering: OAuth scopes before actor ceilings; label rules before the role engine (only affected which reason is reported when two denials applied).
+- Python Guard `approve=` now also accepts `(pattern, when)` tuples (conditional approvals on patterns), needed to import yaml approvals.
+- Python Guard role-step reasons have no `user:` prefix (TS/core: `user:constraint:...`). Kept for API stability; the equivalence test normalizes it. Documented.
+- Python exporter: PyYAML emits YAML 1.1 plain scalars (`1e3`, `0o7` unquoted) that the YAML 1.2 portable loader reads as numbers. Custom representer quotes anything `resolve_plain` would not read back as the same string; both exporters assert a strict round-trip.
+- CLI flag parser quirk: `--json <file>` consumes the file as the flag value; documented usage puts flags after positionals.

@@ -107,12 +107,12 @@ export function loadYaml(src: string): Json {
 
 // ------------------------------------------------------------------ compiled policy
 
-interface Rule { min?: number; max?: number; integer: boolean; maxLength?: number; optional: boolean; in?: (string | number | boolean)[]; eq?: string | number | boolean; pattern?: string }
-type Constraints = [string, Rule][];
+export interface Rule { min?: number; max?: number; integer: boolean; maxLength?: number; optional: boolean; in?: (string | number | boolean)[]; eq?: string | number | boolean; pattern?: string }
+export type Constraints = [string, Rule][];
 interface Pat { raw: string }
-interface Perm { kind: Kind; pattern: string; constraints?: Constraints }
-interface Limit { pattern: string; kind: Kind; max: number; windowMs: number; sum?: string; shared: string; burst?: [number, number]; name?: string }
-interface RedactRule { tool?: string; label?: string; fields: string[]; unlessRoles: string[]; replacement: Json }
+export interface Perm { kind: Kind; pattern: string; constraints?: Constraints }
+export interface Limit { pattern: string; kind: Kind; max: number; windowMs: number; sum?: string; shared: string; burst?: [number, number]; name?: string }
+export interface RedactRule { tool?: string; label?: string; fields: string[]; unlessRoles: string[]; replacement: Json }
 
 export interface CompiledPolicy {
   name?: string;
@@ -834,4 +834,14 @@ export function visiblePortableJson(p: CompiledPolicy, req: string): string {
 export function checkPortablePolicy(src: string): string {
   try { const p = loadPortablePolicy(src); return canonical({ ok: true, warnings: p.warnings }); }
   catch (e) { return canonical({ error: "policy_invalid", message: e instanceof Error ? e.message : String(e) }); }
+}
+
+/** Check portable constraints against arguments: null when they pass, else e.g. "below_min:amount". */
+export function checkPortableConstraints(c: Constraints, args: Record<string, unknown>): string | null {
+  return check(c, args as Obj);
+}
+/** A user's role assignments exactly as the portable evaluator sees them (roles, orgRoles, "@any"); null = unauthenticated. */
+export function portableAssignments(p: CompiledPolicy, identity: unknown): { role: string; scope: Record<string, string> }[] | null {
+  const id = parseIdentity(p, identity as Json);
+  return id ? id.assignments.map((a) => ({ role: a.role, scope: Object.fromEntries(a.scope) })) : null;
 }

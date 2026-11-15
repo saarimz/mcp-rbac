@@ -75,7 +75,7 @@ describe("onDecision", () => {
     inner.registerTool("get_ticket", { inputSchema: { ticketId: z.string() } }, async ({ ticketId }) => ({ content: [{ type: "text" as const, text: ticketId }] }));
     const { server } = await protectWithCore(inner, {
       policy: POLICY, identity: () => DOOR_BK, onDecision: (e) => events.push(e),
-      resource: ({ args }) => (OWNER[String(args.ticketId)] ? { venue: OWNER[String(args.ticketId)] } : {}),
+      resource: ({ args }): Record<string, string> => { const v = OWNER[String(args.ticketId)]; return v ? { venue: v } : {}; },
     });
     const [ct, st] = InMemoryTransport.createLinkedPair();
     await server.connect(st);

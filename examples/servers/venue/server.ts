@@ -45,8 +45,8 @@ export async function main() {
       return false;
     },
   });
-  const audit = (identity: unknown) => (e: { tool: string; decision: CoreDecision }) =>
-    db.prepare("INSERT INTO audit (at, sub, tool, decision, reason) VALUES (?, ?, ?, ?, ?)").run(now(), (identity as any)?.id ?? null, e.tool, e.decision.decision, e.decision.reason);
+  const audit = (e: { tool: string; identity: unknown; decision: CoreDecision }) =>
+    db.prepare("INSERT INTO audit (at, sub, tool, decision, reason) VALUES (?, ?, ?, ?, ?)").run(now(), (e.identity as any)?.id ?? null, e.tool, e.decision.decision, e.decision.reason);
 
   const httpPort = flag("--http");
   if (httpPort !== undefined) {
@@ -55,9 +55,7 @@ export async function main() {
     const h = await serveStreamable({
       port: Number(httpPort), audience: AUDIENCE, secret, revoked,
       newSession: async () => {
-        const id = (extra: any) => extra?.authInfo?.extra?.identity;
-        let last: unknown;
-        const { server } = await protectWithCore(venueTools(db), { ...guardOpts((x) => (last = id(x))), onDecision: (e) => audit(last)(e) });
+        const { server } = await protectWithCore(venueTools(db), { ...guardOpts((extra: any) => extra?.authInfo?.extra?.identity), onDecision: audit });
         return server;
       },
     });
@@ -68,7 +66,7 @@ export async function main() {
     return;
   }
   const identity = process.env.MCP_RBAC_IDENTITY ? JSON.parse(process.env.MCP_RBAC_IDENTITY) : undefined;
-  const { server } = await protectWithCore(venueTools(db), { ...guardOpts(() => identity), onDecision: audit(identity) });
+  const { server } = await protectWithCore(venueTools(db), { ...guardOpts(() => identity), onDecision: audit });
   await server.connect(new StdioServerTransport());
 }
 

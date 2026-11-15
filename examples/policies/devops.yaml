@@ -40,7 +40,7 @@ tools:
     budget: { max: 20, per: day, shared: tenant, name: deploys-per-day }
   deploys.rollback: { allow: [oncall, release_manager], scopes: [deploys:write], limits: { service: { pattern: "[a-z][a-z0-9-]{1,40}" } } }
   builds.trigger: { allow: ["@engineers", ci_bot], scopes: [builds:write], budget: { max: 100, per: hour, shared: user } }
-  builds.logs: { allow: ["@readers", ci_bot], scopes: [builds:read], redact: { fields: ["lines.*.env"], unlessRoles: [sre] } }
+  builds.logs: { allow: ["@readers", ci_bot], scopes: [builds:read], labels: [pii], redact: { fields: ["lines.*.env"], unlessRoles: [sre] } }  # pii: log lines carry user emails
   secrets.list: { allow: ["@engineers"], scopes: [secrets:read] }
   secrets.read:
     allow: [sre, oncall]

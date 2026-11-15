@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = ["mcp-rbac-core"]
+
+[workspace.package]
+version = "0.4.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.85"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3

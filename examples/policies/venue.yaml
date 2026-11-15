@@ -1,0 +1,74 @@
+# Venue / event-ops server (ITM-style). Portable policy: same decisions in TS, Python, Rust and Go.
+version: 1
+name: venue-ops
+$schema: ../../spec/mcp-rbac.schema.json
+tenantKey: venue
+
+roles:
+  owner:
+    description: Runs the company. Everything, every venue.
+    tools: ["*"]
+    includes: [project_manager]
+  project_manager:
+    description: Runs events at their venue(s). Refunds up to $500 (approval over $200).
+    includes: [door_staff]
+  door_staff:
+    description: Checks guests in at the door.
+  vendor:
+    description: Outside vendor; books booth space only.
+
+roleSets:
+  staff: [owner, project_manager, door_staff]
+
+tools:
+  list_events: { allow: ["@staff"], scopes: [events:read] }
+  get_event: { allow: ["@staff"], scopes: [events:read] }
+  create_event: { allow: [project_manager], scopes: [events:write], limits: { capacity: { min: 1, max: 5000, integer: true }, title: { maxLength: 120 } } }
+  update_event: { allow: [project_manager], scopes: [events:write] }
+  cancel_event: { allow: [owner], scopes: [events:write], approve: true }
+  list_tickets: { allow: ["@staff"], scopes: [tickets:read] }
+  get_ticket: { allow: ["@staff"], scopes: [tickets:read], labels: [pii], redact: { fields: [email, phone], unlessRoles: [owner, project_manager] } }
+  check_in:
+    allow: [door_staff]
+    scopes: [tickets:write]
+    budget: { max: 2000, per: hour, shared: tenant, burst: { max: 30, per: 1000 } }
+  undo_check_in: { allow: [project_manager], scopes: [tickets:write] }
+  refund_ticket:
+    allow:
+      project_manager: { amount: { max: 500 } }
+      owner: true
+    limits: { amount: { min: 0.01, max: 10000 }, reason: { maxLength: 500, optional: true } }
+    scopes: [refunds:write]
+    approve: { when: { amount: { min: 200.01 } } }
+    budget: { max: 5000, per: day, sum: amount, shared: tenant, name: refund-dollars }
+  list_bookings: { allow: ["@staff"], scopes: [bookings:read] }
+  create_booking: { allow: [project_manager], scopes: [bookings:write], limits: { party_size: { min: 1, max: 40, integer: true } } }
+  cancel_booking: { allow: [project_manager], scopes: [bookings:write] }
+  list_booth_spaces: { allow: ["@staff", vendor], scopes: [booths:read] }
+  book_booth_space:
+    allow:
+      vendor: { tier: { in: [standard, corner] } }
+      project_manager: true
+    limits: { space_id: { pattern: "B-\\d{1,3}" } }
+    scopes: [booths:write]
+    budget: { max: 3, per: day, shared: user }
+  release_booth_space: { allow: [project_manager], scopes: [booths:write] }
+  list_vendors: { allow: ["@staff"], scopes: [vendors:read], labels: [pii], redact: { fields: ["vendors.*.contact_email"], unlessRoles: [owner] } }
+  export_guest_list: { allow: [project_manager], scopes: [tickets:read], labels: [pii, export] }
+  get_sales_report: { allow: [owner, project_manager], scopes: [reports:read] }
+
+scopes:
+  implies: { "venue:admin": ["events:write", "tickets:write", "refunds:write", "bookings:write", "booths:write", "vendors:read", "reports:read"] }
+
+output:
+  labelRules:
+    - { labels: [export, pii], allowRoles: [owner] }
+
+limits:
+  - { tool: "*", max: 600, per: minute, shared: client, name: per-client }
+
+delegation:
+  actors:
+    claude-desktop: {}
+    door-scanner-app: { tools: [check_in, get_ticket, list_tickets] }
+    finance-agent: { tools: [refund_ticket, get_sales_report, get_ticket], scopes: [refunds:write, reports:read, tickets:read] }

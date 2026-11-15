@@ -1,0 +1,20 @@
+[package]
+name = "mcp-rbac-core"
+description = "Deterministic, side-effect-free decision core for mcp-rbac portable policies (mcp-rbac.yaml v1)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde_json = { version = "1", features = ["arbitrary_precision", "preserve_order"] }
+indexmap = "2"
+regex = "1"
+yaml-rust2 = { version = "0.13", default-features = false }
+ryu-js = "1"
+
+[dev-dependencies]
+proptest = "1"
+
+[lints.rust]
+unsafe_code = "forbid"

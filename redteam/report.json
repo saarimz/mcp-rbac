@@ -1,0 +1,1294 @@
+{
+  "summary": {
+    "privilege_escalation": {
+      "checks": 46,
+      "passed": 46
+    },
+    "confused_deputy": {
+      "checks": 11,
+      "passed": 11
+    },
+    "token_replay": {
+      "checks": 30,
+      "passed": 30
+    },
+    "prompt_injection": {
+      "checks": 6,
+      "passed": 6
+    },
+    "cross_tenant": {
+      "checks": 11,
+      "passed": 11
+    },
+    "budget_exhaustion": {
+      "checks": 6,
+      "passed": 6
+    },
+    "approval_bypass": {
+      "checks": 30,
+      "passed": 30
+    }
+  },
+  "checks": [
+    {
+      "category": "token_replay",
+      "server": "venue",
+      "transport": "http",
+      "name": "valid token accepted (control)",
+      "expected": "200",
+      "observed": "200",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "venue",
+      "transport": "http",
+      "name": "token minted for marketing replayed here",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "venue",
+      "transport": "http",
+      "name": "expired token",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "venue",
+      "transport": "http",
+      "name": "lifetime over 1 h",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "venue",
+      "transport": "http",
+      "name": "not yet valid (nbf in the future)",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "venue",
+      "transport": "http",
+      "name": "revoked jti: live session's next call",
+      "expected": "predicate",
+      "observed": "protocol_error:Server returned an error response",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "venue",
+      "transport": "http",
+      "name": "revoked jti: (control) worked before revoke",
+      "expected": "allowed",
+      "observed": "allowed",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "venue",
+      "transport": "http",
+      "name": "revoked jti: replayed initialize",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "venue",
+      "transport": "http",
+      "name": "another subject's token on a captured session id",
+      "expected": "predicate",
+      "observed": "403",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "venue",
+      "transport": "http",
+      "name": "forged session id",
+      "expected": "predicate",
+      "observed": "404",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "payload roles edited, signature kept",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "alg none",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "alg HS512 header (alg confusion)",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "crit header",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "signed with another key",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "forbidden tool hidden from tools/list (refund_ticket)",
+      "expected": "False",
+      "observed": "False",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "forbidden tool called by name (refund_ticket)",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "tool name case variant",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "homoglyph tool name",
+      "expected": "predicate",
+      "observed": "denied:invalid_tool_name",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "spoofed _meta caller/approval on a forbidden call",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "spoofed _meta doesn't widen an allowed call's data",
+      "expected": "True",
+      "observed": "True",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "identity smuggled in arguments",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "unknown roles in a signed token see only allow-\"*\" tools",
+      "expected": "[]",
+      "observed": "[]",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "http",
+      "name": "unknown roles in a signed token: call denied",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "venue",
+      "transport": "stdio",
+      "name": "spoofed _meta caller on a forbidden call",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "marketing",
+      "transport": "http",
+      "name": "valid token accepted (control)",
+      "expected": "200",
+      "observed": "200",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "marketing",
+      "transport": "http",
+      "name": "token minted for venue replayed here",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "marketing",
+      "transport": "http",
+      "name": "expired token",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "marketing",
+      "transport": "http",
+      "name": "lifetime over 1 h",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "marketing",
+      "transport": "http",
+      "name": "not yet valid (nbf in the future)",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "marketing",
+      "transport": "http",
+      "name": "revoked jti: live session's next call",
+      "expected": "predicate",
+      "observed": "protocol_error:Server returned an error response",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "marketing",
+      "transport": "http",
+      "name": "revoked jti: (control) worked before revoke",
+      "expected": "allowed",
+      "observed": "allowed",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "marketing",
+      "transport": "http",
+      "name": "revoked jti: replayed initialize",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "marketing",
+      "transport": "http",
+      "name": "another subject's token on a captured session id",
+      "expected": "predicate",
+      "observed": "403",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "marketing",
+      "transport": "http",
+      "name": "forged session id",
+      "expected": "predicate",
+      "observed": "404",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "payload roles edited, signature kept",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "alg none",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "alg HS512 header (alg confusion)",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "crit header",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "signed with another key",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "forbidden tool hidden from tools/list (campaigns.send)",
+      "expected": "False",
+      "observed": "False",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "forbidden tool called by name (campaigns.send)",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "tool name case variant",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "homoglyph tool name",
+      "expected": "predicate",
+      "observed": "denied:invalid_tool_name",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "spoofed _meta caller/approval on a forbidden call",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "spoofed _meta doesn't widen an allowed call's data",
+      "expected": "True",
+      "observed": "True",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "identity smuggled in arguments",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "unknown roles in a signed token see only allow-\"*\" tools",
+      "expected": "['accounts.list']",
+      "observed": "['accounts.list']",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "unknown roles: the allow-\"*\" tool reveals only the caller's own tenant",
+      "expected": "predicate",
+      "observed": "{'accounts': ['acme']}",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "http",
+      "name": "unknown roles in a signed token: call denied",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "marketing",
+      "transport": "stdio",
+      "name": "spoofed _meta caller on a forbidden call",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "devops",
+      "transport": "http",
+      "name": "valid token accepted (control)",
+      "expected": "200",
+      "observed": "200",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "devops",
+      "transport": "http",
+      "name": "token minted for venue replayed here",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "devops",
+      "transport": "http",
+      "name": "expired token",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "devops",
+      "transport": "http",
+      "name": "lifetime over 1 h",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "devops",
+      "transport": "http",
+      "name": "not yet valid (nbf in the future)",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "devops",
+      "transport": "http",
+      "name": "revoked jti: live session's next call",
+      "expected": "predicate",
+      "observed": "protocol_error:Server returned an error response",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "devops",
+      "transport": "http",
+      "name": "revoked jti: (control) worked before revoke",
+      "expected": "allowed",
+      "observed": "allowed",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "devops",
+      "transport": "http",
+      "name": "revoked jti: replayed initialize",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "devops",
+      "transport": "http",
+      "name": "another subject's token on a captured session id",
+      "expected": "predicate",
+      "observed": "403",
+      "ok": true
+    },
+    {
+      "category": "token_replay",
+      "server": "devops",
+      "transport": "http",
+      "name": "forged session id",
+      "expected": "predicate",
+      "observed": "404",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "payload roles edited, signature kept",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "alg none",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "alg HS512 header (alg confusion)",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "crit header",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "signed with another key",
+      "expected": "401",
+      "observed": "401",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "forbidden tool hidden from tools/list (secrets.delete)",
+      "expected": "False",
+      "observed": "False",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "forbidden tool called by name (secrets.delete)",
+      "expected": "predicate",
+      "observed": "denied:label_requires_role:secret+destructive",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "tool name case variant",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "homoglyph tool name",
+      "expected": "predicate",
+      "observed": "denied:invalid_tool_name",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "spoofed _meta caller/approval on a forbidden call",
+      "expected": "predicate",
+      "observed": "denied:label_requires_role:secret+destructive",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "spoofed _meta doesn't widen an allowed call's data",
+      "expected": "True",
+      "observed": "True",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "identity smuggled in arguments",
+      "expected": "predicate",
+      "observed": "denied:label_requires_role:secret+destructive",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "unknown roles in a signed token see only allow-\"*\" tools",
+      "expected": "[]",
+      "observed": "[]",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "http",
+      "name": "unknown roles in a signed token: call denied",
+      "expected": "predicate",
+      "observed": "denied:user:no_matching_permission",
+      "ok": true
+    },
+    {
+      "category": "privilege_escalation",
+      "server": "devops",
+      "transport": "stdio",
+      "name": "spoofed _meta caller on a forbidden call",
+      "expected": "predicate",
+      "observed": "denied:label_requires_role:secret+destructive",
+      "ok": true
+    },
+    {
+      "category": "confused_deputy",
+      "server": "venue",
+      "transport": "http",
+      "name": "check_in a qn ticket, claiming venue bk in args",
+      "expected": "denied:*",
+      "observed": "denied:user:out_of_scope",
+      "ok": true
+    },
+    {
+      "category": "confused_deputy",
+      "server": "venue",
+      "transport": "http",
+      "name": "refund a qn ticket from a bk manager",
+      "expected": "denied:*",
+      "observed": "denied:user:out_of_scope",
+      "ok": true
+    },
+    {
+      "category": "confused_deputy",
+      "server": "venue",
+      "transport": "http",
+      "name": "list_events for venue qn",
+      "expected": "denied:*",
+      "observed": "denied:user:out_of_scope",
+      "ok": true
+    },
+    {
+      "category": "confused_deputy",
+      "server": "marketing",
+      "transport": "http",
+      "name": "add a globex profile to an acme list",
+      "expected": "anything but allowed",
+      "observed": "error:Error executing tool lists.add_profiles: No profile P-glx-1",
+      "ok": true
+    },
+    {
+      "category": "confused_deputy",
+      "server": "marketing",
+      "transport": "http",
+      "name": "send an acme campaign to a globex list",
+      "expected": "anything but allowed",
+      "observed": "error:Error executing tool campaigns.send: No list L-glx-all",
+      "ok": true
+    },
+    {
+      "category": "confused_deputy",
+      "server": "marketing",
+      "transport": "http",
+      "name": "understate recipients to dodge the volume budget",
+      "expected": "anything but allowed",
+      "observed": "error:Error executing tool campaigns.send: recipients must equal the list size (3)",
+      "ok": true
+    },
+    {
+      "category": "confused_deputy",
+      "server": "devops",
+      "transport": "http",
+      "name": "roll back a globex service",
+      "expected": "denied:*",
+      "observed": "denied:cross_tenant",
+      "ok": true
+    },
+    {
+      "category": "confused_deputy",
+      "server": "devops",
+      "transport": "http",
+      "name": "query globex logs",
+      "expected": "denied:*",
+      "observed": "denied:cross_tenant",
+      "ok": true
+    },
+    {
+      "category": "confused_deputy",
+      "server": "devops",
+      "transport": "http",
+      "name": "claude-code acting for an SRE calls secrets.read",
+      "expected": "denied:actor_ceiling:claude-code",
+      "observed": "denied:actor_ceiling:claude-code",
+      "ok": true
+    },
+    {
+      "category": "confused_deputy",
+      "server": "devops",
+      "transport": "http",
+      "name": "claude-code acting for an SRE: allowed read (control)",
+      "expected": "allowed",
+      "observed": "allowed",
+      "ok": true
+    },
+    {
+      "category": "confused_deputy",
+      "server": "devops",
+      "transport": "http",
+      "name": "unknown actor",
+      "expected": "denied:actor_unknown:rogue-agent",
+      "observed": "denied:actor_unknown:rogue-agent",
+      "ok": true
+    },
+    {
+      "category": "cross_tenant",
+      "server": "marketing",
+      "transport": "http",
+      "name": "read a globex profile",
+      "expected": "denied:cross_tenant",
+      "observed": "denied:cross_tenant",
+      "ok": true
+    },
+    {
+      "category": "cross_tenant",
+      "server": "marketing",
+      "transport": "http",
+      "name": "update a globex profile",
+      "expected": "denied:cross_tenant",
+      "observed": "denied:cross_tenant",
+      "ok": true
+    },
+    {
+      "category": "cross_tenant",
+      "server": "marketing",
+      "transport": "http",
+      "name": "list profiles naming account globex",
+      "expected": "denied:cross_tenant",
+      "observed": "denied:cross_tenant",
+      "ok": true
+    },
+    {
+      "category": "cross_tenant",
+      "server": "marketing",
+      "transport": "http",
+      "name": "own list never contains other accounts' rows",
+      "expected": "True",
+      "observed": "True",
+      "ok": true
+    },
+    {
+      "category": "cross_tenant",
+      "server": "devops",
+      "transport": "http",
+      "name": "read a globex deploy",
+      "expected": "denied:cross_tenant",
+      "observed": "denied:cross_tenant",
+      "ok": true
+    },
+    {
+      "category": "cross_tenant",
+      "server": "devops",
+      "transport": "http",
+      "name": "ack a globex incident",
+      "expected": "denied:cross_tenant",
+      "observed": "denied:cross_tenant",
+      "ok": true
+    },
+    {
+      "category": "cross_tenant",
+      "server": "devops",
+      "transport": "http",
+      "name": "deploys.list never contains D-4",
+      "expected": "False",
+      "observed": "False",
+      "ok": true
+    },
+    {
+      "category": "cross_tenant",
+      "server": "devops",
+      "transport": "http",
+      "name": "scope says globex, tenant says acme: globex record",
+      "expected": "denied:cross_tenant",
+      "observed": "denied:cross_tenant",
+      "ok": true
+    },
+    {
+      "category": "cross_tenant",
+      "server": "devops",
+      "transport": "http",
+      "name": "audit.read shows only the caller's org",
+      "expected": "True",
+      "observed": "True",
+      "ok": true
+    },
+    {
+      "category": "cross_tenant",
+      "server": "venue",
+      "transport": "http",
+      "name": "door staff's list_events only shows their venue",
+      "expected": "{'bk'}",
+      "observed": "{'bk'}",
+      "ok": true
+    },
+    {
+      "category": "cross_tenant",
+      "server": "venue",
+      "transport": "http",
+      "name": "read a qn ticket",
+      "expected": "denied:*",
+      "observed": "denied:user:out_of_scope",
+      "ok": true
+    },
+    {
+      "category": "prompt_injection",
+      "server": "venue",
+      "transport": "http",
+      "name": "hijacked agent found planted directives",
+      "expected": "True",
+      "observed": "True",
+      "ok": true
+    },
+    {
+      "category": "prompt_injection",
+      "server": "venue",
+      "transport": "http",
+      "name": "injected calls allowed for pat (non-privileged)",
+      "expected": "[]",
+      "observed": "[]",
+      "ok": true
+    },
+    {
+      "category": "prompt_injection",
+      "server": "marketing",
+      "transport": "http",
+      "name": "hijacked agent found planted directives",
+      "expected": "True",
+      "observed": "True",
+      "ok": true
+    },
+    {
+      "category": "prompt_injection",
+      "server": "marketing",
+      "transport": "http",
+      "name": "injected calls allowed for sue (non-privileged)",
+      "expected": "[]",
+      "observed": "[]",
+      "ok": true
+    },
+    {
+      "category": "prompt_injection",
+      "server": "devops",
+      "transport": "http",
+      "name": "hijacked agent found planted directives",
+      "expected": "True",
+      "observed": "True",
+      "ok": true
+    },
+    {
+      "category": "prompt_injection",
+      "server": "devops",
+      "transport": "http",
+      "name": "injected calls allowed for dev (non-privileged)",
+      "expected": "[]",
+      "observed": "[]",
+      "ok": true
+    },
+    {
+      "category": "budget_exhaustion",
+      "server": "venue",
+      "transport": "http",
+      "name": "30 concurrent $200 refunds vs a $5000/day sum budget: rate-limited",
+      "expected": "5",
+      "observed": "5",
+      "ok": true
+    },
+    {
+      "category": "budget_exhaustion",
+      "server": "venue",
+      "transport": "http",
+      "name": "12 concurrent booth bookings vs 3/day per user: passed the guard",
+      "expected": "3",
+      "observed": "3",
+      "ok": true
+    },
+    {
+      "category": "budget_exhaustion",
+      "server": "marketing",
+      "transport": "http",
+      "name": "15 concurrent sends vs 10/day per tenant: rate-limited",
+      "expected": "5",
+      "observed": "5",
+      "ok": true
+    },
+    {
+      "category": "budget_exhaustion",
+      "server": "marketing",
+      "transport": "http",
+      "name": "acme's exhausted budget doesn't touch globex",
+      "expected": "predicate",
+      "observed": "allowed",
+      "ok": true
+    },
+    {
+      "category": "budget_exhaustion",
+      "server": "devops",
+      "transport": "http",
+      "name": "10 concurrent restarts by oz vs 3/h per user: allowed",
+      "expected": "3",
+      "observed": "3",
+      "ok": true
+    },
+    {
+      "category": "budget_exhaustion",
+      "server": "devops",
+      "transport": "http",
+      "name": "10 concurrent restarts by ox vs 3/h per user: allowed",
+      "expected": "3",
+      "observed": "3",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "devops",
+      "transport": "http",
+      "name": "services.scale: first call needs approval (control)",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "devops",
+      "transport": "http",
+      "name": "services.scale: pending (not approved) request doesn't pass",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "devops",
+      "transport": "http",
+      "name": "services.scale: client _meta claiming approval",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "devops",
+      "transport": "http",
+      "name": "services.scale: approver sees the exact arguments",
+      "expected": "True",
+      "observed": "True",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "devops",
+      "transport": "http",
+      "name": "services.scale: another subject reuses the approval",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "devops",
+      "transport": "http",
+      "name": "services.scale: approved subject, different arguments",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "devops",
+      "transport": "http",
+      "name": "services.scale: approved subject, extra argument",
+      "expected": "predicate",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "devops",
+      "transport": "http",
+      "name": "services.scale: one approval, 16 concurrent identical calls \u2192 used once",
+      "expected": "1",
+      "observed": "1",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "devops",
+      "transport": "http",
+      "name": "services.scale: consumed approval replayed",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "devops",
+      "transport": "http",
+      "name": "services.scale: approving a non-existent request id",
+      "expected": "0",
+      "observed": "0",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "venue",
+      "transport": "http",
+      "name": "refund_ticket: first call needs approval (control)",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "venue",
+      "transport": "http",
+      "name": "refund_ticket: pending (not approved) request doesn't pass",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "venue",
+      "transport": "http",
+      "name": "refund_ticket: client _meta claiming approval",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "venue",
+      "transport": "http",
+      "name": "refund_ticket: approver sees the exact arguments",
+      "expected": "True",
+      "observed": "True",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "venue",
+      "transport": "http",
+      "name": "refund_ticket: another subject reuses the approval",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "venue",
+      "transport": "http",
+      "name": "refund_ticket: approved subject, different arguments",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "venue",
+      "transport": "http",
+      "name": "refund_ticket: approved subject, extra argument",
+      "expected": "predicate",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "venue",
+      "transport": "http",
+      "name": "refund_ticket: one approval, 16 concurrent identical calls \u2192 used once",
+      "expected": "1",
+      "observed": "1",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "venue",
+      "transport": "http",
+      "name": "refund_ticket: consumed approval replayed",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "venue",
+      "transport": "http",
+      "name": "refund_ticket: approving a non-existent request id",
+      "expected": "0",
+      "observed": "0",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "marketing",
+      "transport": "http",
+      "name": "profiles.delete: first call needs approval (control)",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "marketing",
+      "transport": "http",
+      "name": "profiles.delete: pending (not approved) request doesn't pass",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "marketing",
+      "transport": "http",
+      "name": "profiles.delete: client _meta claiming approval",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "marketing",
+      "transport": "http",
+      "name": "profiles.delete: approver sees the exact arguments",
+      "expected": "True",
+      "observed": "True",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "marketing",
+      "transport": "http",
+      "name": "profiles.delete: another subject reuses the approval",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "marketing",
+      "transport": "http",
+      "name": "profiles.delete: approved subject, different arguments",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "marketing",
+      "transport": "http",
+      "name": "profiles.delete: approved subject, extra argument",
+      "expected": "predicate",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "marketing",
+      "transport": "http",
+      "name": "profiles.delete: one approval, 16 concurrent identical calls \u2192 used once",
+      "expected": "1",
+      "observed": "1",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "marketing",
+      "transport": "http",
+      "name": "profiles.delete: consumed approval replayed",
+      "expected": "approval_required",
+      "observed": "approval_required",
+      "ok": true
+    },
+    {
+      "category": "approval_bypass",
+      "server": "marketing",
+      "transport": "http",
+      "name": "profiles.delete: approving a non-existent request id",
+      "expected": "0",
+      "observed": "0",
+      "ok": true
+    }
+  ]
+}

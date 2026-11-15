@@ -9,7 +9,8 @@
     "generate-policy": "tsx src/generate-policy.ts",
     "start": "tsx src/server.ts",
     "test:mocked": "tsx src/driver.ts --mode=mock",
-    "test:live": "tsx src/driver.ts --mode=live"
+    "test:live": "tsx src/driver.ts --mode=live",
+    "test:classes": "tsx src/class-run.ts"
   },
   "engines": {
     "node": ">=22.13"

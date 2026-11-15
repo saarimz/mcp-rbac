@@ -1,0 +1,26 @@
+# Class-based mcp-rbac policy for the official Klaviyo MCP server (P10, spec/tool-semantics.md).
+# No tool names: roles are granted side-effect classes, and the built-in klaviyo pack (packs/klaviyo/pack.json,
+# from Klaviyo's own tools page) says which class each of the 309 tools is in. The local package prefixes tool
+# names with klaviyo_, so the pack is loaded with that prefix. A tool the pack does not know is class `unknown`,
+# which no role is granted: new upstream tools are denied until someone classifies them.
+version: 1
+name: klaviyo-classes
+$schema: ../../../spec/mcp-rbac.schema.json
+roles:
+  owner: {includes: [marketer]}
+  marketer: {includes: [analyst]}
+  analyst: {}
+output:
+  labelRules:
+    - {labels: [pii], allowRoles: [owner, marketer]}   # analysts never see profile/event data
+semantics:
+  packs: [{name: klaviyo, prefix: klaviyo_}]
+  grants:
+    analyst: [read]
+    marketer: [write]
+    owner: [send, external-comm, destructive, x-consent, x-discount]
+  rules:
+    - {classes: [send, destructive, x-consent], approve: true}   # a human approves every send, delete and consent change
+    - {classes: [external-comm], allowRoles: [owner]}
+  budgets:
+    - {class: write, max: 2, per: hour, shared: user, name: writes-per-hour}

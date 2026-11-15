@@ -1,5 +1,10 @@
 # Klaviyo MCP e2e (mcp-rbac guard + Better Auth)
 
+> **P10: class-based policy.** `npm run test:classes` (`src/class-run.ts`) runs the official local package behind
+> `protectWithCore` with [`policy/classes.yaml`](policy/classes.yaml), which grants side-effect classes instead of
+> tool names, using the built-in [`klaviyo` pack](../../packs/klaviyo/pack.json). Results:
+> [LIVE-RESULTS-CLASSES.md](LIVE-RESULTS-CLASSES.md).
+
 Local end-to-end harness: **Better Auth** issues sessions for three seeded
 users, **mcp-rbac** sits in front of Klaviyo's official MCP tool catalog, and a
 driver signs in as each role and attempts every tool. OpenTelemetry traces and

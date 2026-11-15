@@ -16,7 +16,7 @@ from .scopes import ScopePolicy, Toolsets, insufficient_scope_challenge, parse_t
 from .stores import ConsumeItem, MemoryStore, PostgresStore, RedisStore
 from .tenants import OrgDirectory, OrgRole, custom_role, org_assignments
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "GENESIS", "LABELS_META_KEY", "ActorPolicy", "ApprovalRequest", "Approver", "Assignment", "AuthZenClient", "AuthZenEngine",

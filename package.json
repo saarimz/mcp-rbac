@@ -1,6 +1,6 @@
 {
   "name": "mcp-rbac",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Authorization for any MCP server: roles, OAuth scopes, tenants, delegation (RFC 8693), approvals (incl. MCP 2026-07-28 MRTR), PII redaction, budgets, tamper-evident audit, OpenTelemetry. TypeScript library, stdio/HTTP proxy, AuthZEN PDP, Python package.",
   "license": "MIT",
   "author": "Saarim Zaman",
@@ -68,6 +68,14 @@
     "./cedar": {
       "types": "./dist/engines/cedar.d.ts",
       "default": "./dist/engines/cedar.js"
+    },
+    "./core": {
+      "types": "./dist/core-guard.d.ts",
+      "default": "./dist/core-guard.js"
+    },
+    "./core-otel": {
+      "types": "./dist/core-otel.d.ts",
+      "default": "./dist/core-otel.js"
     },
     "./package.json": "./package.json"
   },

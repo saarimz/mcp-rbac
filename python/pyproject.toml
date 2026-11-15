@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-rbac"
-version = "0.3.0"
+version = "0.4.0"
 description = "Authorization for Python MCP servers: typed roles, OAuth scopes, tenants, RFC 8693 delegation, approvals (MRTR), budgets, PII redaction, tamper-evident audit, AuthZEN 1.0."
 readme = "README.md"
 requires-python = ">=3.11"

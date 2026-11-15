@@ -256,7 +256,7 @@ export async function discoverAuth(serverUrl: string, fetchFn: typeof fetch = fe
   const probe = await fetchFn(serverUrl, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "mcp-rbac-discovery", version: "0.3.0" } } }),
+    body: JSON.stringify({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "mcp-rbac-discovery", version: "0.4.0" } } }),
   });
   const status = probe.status;
   const wwwAuthenticate = probe.headers.get("www-authenticate") ?? undefined;
@@ -300,7 +300,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Keeps one MCP Client connected to a hosted server across session expiry and drops. */
 export class RemoteUpstream {
-  readonly client = new Client({ name: "mcp-rbac-proxy", version: "0.3.0" });
+  readonly client = new Client({ name: "mcp-rbac-proxy", version: "0.4.0" });
   readonly provider?: FileOAuthProvider;
   kind: "http" | "sse" | undefined;
   private transport?: Transport;

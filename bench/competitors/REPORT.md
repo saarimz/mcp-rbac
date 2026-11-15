@@ -200,3 +200,7 @@ Auth + HTTP).
 - **Home-field caveat:** the red-team suite was written alongside mcp-rbac, so it naturally exercises features mcp-rbac
   has (approvals, budgets, record scope). The "cannot express" column exists so that missing features are not
   counted as security failures.
+
+## Page
+
+The feature grid, charts and verdict are on the Page "mcp-rbac vs the field": https://cursor.com/canvas/store-692e9880-125b-458d-beae-f082c0042b1c/d6662457-c847-4f47-94c7-06e5686764aa. Each grid cell is sourced from docs/MARKET.md, PERMIT-DEEP-DIVE video links, or this benchmark.

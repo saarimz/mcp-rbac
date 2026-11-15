@@ -38,6 +38,37 @@ export function wellFormed(v: unknown, depth = 0): boolean {
 }
 
 /** JSON-aware nesting depth pre-check (same in every language: > 64 → invalid_input). */
+/** Duplicate object keys (compared after unescaping) in already-valid JSON text. Identical scanner in Rust. */
+export function jsonHasDuplicateKeys(s: string): boolean {
+  const stack: (Set<string> | null)[] = [];
+  let expectKey = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === "{") { stack.push(new Set()); expectKey = true; }
+    else if (c === "[") { stack.push(null); expectKey = false; }
+    else if (c === "}" || c === "]") { stack.pop(); expectKey = false; }
+    else if (c === ",") expectKey = stack[stack.length - 1] != null;
+    else if (c === ":") expectKey = false;
+    else if (c === '"') {
+      let j = i + 1;
+      while (s[j] !== '"') j += s[j] === "\\" ? 2 : 1;
+      const top = stack[stack.length - 1];
+      if (expectKey && top) {
+        const k = JSON.parse(s.slice(i, j + 1)) as string;
+        if (top.has(k)) return true;
+        top.add(k);
+      }
+      i = j;
+    }
+  }
+  return false;
+}
+/** JSON.parse that also rejects duplicate object keys (a first-wins/last-wins differential must not decide anything). */
+export function parseJsonStrict(s: string): unknown {
+  const v: unknown = JSON.parse(s);
+  if (jsonHasDuplicateKeys(s)) throw new SyntaxError("duplicate object key");
+  return v;
+}
 export function jsonDepthOk(s: string, max = 64): boolean {
   let d = 0, inStr = false, esc = false;
   for (let i = 0; i < s.length; i++) {
@@ -66,7 +97,26 @@ export function resolvePlain(s: string): Json {
 }
 const radix = (d: string, r: number) => [...d].reduce((acc, c) => acc * r + parseInt(c, r), 0);
 
+/** Portable character set for policy YAML (identical in Rust/TS/Python; parsers disagree outside it — found by
+ * differential fuzzing): printable characters, LF or CRLF line breaks, a BOM only at the very start. Rejected: tabs,
+ * C0/C1 controls, DEL, lone CR, NEL/LS/PS (line breaks in YAML 1.1 but not 1.2), U+FEFF elsewhere, U+FFFE/U+FFFF,
+ * lone surrogates. */
+export function checkYamlChars(src: string): void {
+  if (/\\(?:u[dD][89a-fA-F][0-9a-fA-F]{2}|U0000[dD][89a-fA-F][0-9a-fA-F]{2})/.test(src)) fail("yaml: escaped surrogates (\\uD800-\\uDFFF) are not allowed; write the character itself");
+  let line = 1, i = 0;
+  for (const ch of src) {
+    const c = ch.codePointAt(0)!;
+    if (c === 0x0a) line++;
+    else if (c === 0x09) fail("yaml: tab characters are not allowed in policy YAML (indent with spaces; write \\t inside a double-quoted string)");
+    else if (c === 0x0d) { if (src.charCodeAt(i + 1) !== 0x0a) fail(`yaml: a carriage return must be followed by a line feed (line ${line})`); }
+    else if (c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0x2028 || c === 0x2029 || (c === 0xfeff && i !== 0) || c === 0xfffe || c === 0xffff || (c >= 0xd800 && c <= 0xdfff))
+      fail(`yaml: character U+${c.toString(16).toUpperCase().padStart(4, "0")} is not allowed in policy YAML (line ${line})`);
+    i += ch.length;
+  }
+}
+
 export function loadYaml(src: string): Json {
+  checkYamlChars(src);
   const docs = parseAllDocuments(src, { schema: "failsafe", uniqueKeys: false, merge: false });
   if (!Array.isArray(docs)) fail("yaml: invalid document");
   const list = docs as ReturnType<typeof parseDocument>[];
@@ -84,8 +134,10 @@ export function loadYaml(src: string): Json {
     if (node.tag) fail("yaml: tags are not allowed");
     if (isScalar(n)) {
       const v = String(n.value ?? "");
+      if (n.type === "PLAIN" && (v === "-" || v === "?" || v === ":")) fail("yaml: a plain scalar cannot be just '-', '?' or ':' (quote it)");
       return n.type === "PLAIN" ? resolvePlain(v) : v;
     }
+    if ((isSeq(n) || isMap(n)) && n.flow && n.range && src.slice(n.range[0], n.range[1]).includes("\n")) fail("yaml: flow collections ([...] / {...}) must fit on one line (use block style, or JSON starting with '{')");
     if (isSeq(n)) return n.items.map((x) => conv(x as YNode, depth + 1));
     if (isMap(n)) {
       const out: Obj = {};
@@ -558,14 +610,20 @@ export function compilePolicy(input: unknown): CompiledPolicy {
 }
 
 /** Load a policy from YAML/JSON text. */
+/** A policy document whose first non-whitespace character (after an optional BOM) is "{" is JSON, not YAML. */
+export function isJsonDocument(src: string): boolean {
+  return /^\uFEFF?[ \t\r\n]*\{/.test(src);
+}
+/** Load a policy from YAML text (or JSON text: see isJsonDocument). */
 export function loadPortablePolicy(src: string): CompiledPolicy {
+  if (isJsonDocument(src)) return loadPortablePolicyJson(src.replace(/^\uFEFF/, ""));
   return compilePolicy(loadYaml(src));
 }
 /** Load a policy from JSON text. */
 export function loadPortablePolicyJson(src: string): CompiledPolicy {
   if (!jsonDepthOk(src)) fail("json: nesting too deep");
   let v: unknown;
-  try { v = JSON.parse(src); } catch (e) { fail(`json: ${(e as Error).message}`); }
+  try { v = parseJsonStrict(src); } catch (e) { fail(`json: ${(e as Error).message}`); }
   return compilePolicy(v);
 }
 
@@ -807,7 +865,7 @@ export function decidePortable(p: CompiledPolicy, req: unknown): PortableDecisio
 export function decidePortableJson(p: CompiledPolicy, req: string): string {
   if (!jsonDepthOk(req)) return canonical(denyD("invalid_input"));
   let v: unknown;
-  try { v = JSON.parse(req); } catch { return canonical(denyD("invalid_input")); }
+  try { v = parseJsonStrict(req); } catch { return canonical(denyD("invalid_input")); }
   if (!wellFormed(v)) return canonical(denyD("invalid_input"));
   return canonical(decidePortable(p, v));
 }
@@ -822,7 +880,7 @@ export function visiblePortable(p: CompiledPolicy, identity: unknown, names: str
 export function visiblePortableJson(p: CompiledPolicy, req: string): string {
   if (!jsonDepthOk(req)) return canonical({ error: "invalid_request" });
   let v: unknown;
-  try { v = JSON.parse(req); } catch { return canonical({ error: "invalid_request" }); }
+  try { v = parseJsonStrict(req); } catch { return canonical({ error: "invalid_request" }); }
   if (!wellFormed(v) || !isObj(v)) return canonical({ error: "invalid_request" });
   const names = strList(v, "tools");
   const ts = strList(v, "toolsets");

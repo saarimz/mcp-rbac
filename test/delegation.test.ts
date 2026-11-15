@@ -12,7 +12,8 @@ const code = async (p: Promise<unknown>) => {
 
 describe("delegation grants only narrow", () => {
   it("the sketch's door-bot grant works and produces consent text", async () => {
-    env = setup();
+    // pinned clock: the grant expires at a fixed wall-clock time (this test was a time bomb that failed after 2am ET Nov 15 2026)
+    env = setup({ now: () => Date.parse("2026-11-14T23:00:00Z") });
     const g = await env.guard.grant("tok-maya", {
       agent: "door-bot", can: ["checkin"], scope: { event: "elsewhere-1114" },
       expiresAt: new Date("2026-11-15T07:00:00Z"), // 2am ET

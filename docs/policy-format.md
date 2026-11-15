@@ -16,6 +16,15 @@ Plain YAML 1.2 data: maps, lists, strings, numbers, booleans, null. Anchors/alia
 duplicate keys, non-string map keys and all-digit map keys (`"42"`: JavaScript reorders them) are rejected. Map order is significant where stated (it is preserved
 by every loader). Numbers are IEEE-754 doubles.
 
+Portability restrictions on top of YAML 1.2 (each found by differential fuzzing; real parsers disagree here):
+- **Character set:** printable Unicode only, LF or CRLF line breaks. Rejected anywhere in the file (even inside quotes or
+  comments): tab, other C0 controls, DEL and C1 controls, a CR not followed by LF, U+0085/U+2028/U+2029 (line breaks in
+  YAML 1.1 but not 1.2), U+FEFF except as the very first character, U+FFFE/U+FFFF and lone surrogates. Write `"\t"`
+  (an escape inside a double-quoted string) for a tab in a value. PyYAML, `yaml` (JS) and yaml-rust2 disagree on all
+  of these; 67 of 128 probe documents diverged before this rule.
+- A leading byte-order mark is allowed.
+- A plain (unquoted) scalar may not start with `|`, `>`, `@`, `` ` `` or `%`; block scalars (`|`, `>`) are only valid in block context.
+
 ## Top level
 | key | type | meaning |
 |-----|------|---------|

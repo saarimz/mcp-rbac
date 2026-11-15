@@ -179,14 +179,17 @@ fn parse_limit(v: &Value, tool: Option<&str>, at: &str) -> R<Limit> {
 }
 
 impl Policy {
-    /// Load from YAML (or JSON) text.
+    /// Load from YAML text, or JSON text: a document whose first non-whitespace character (after an optional BOM)
+    /// is `{` is parsed as JSON (identical rule in every language).
     pub fn from_yaml_str(src: &str) -> R<Policy> {
+        let body = src.strip_prefix('\u{feff}').unwrap_or(src);
+        if body.trim_start_matches([' ', '\t', '\r', '\n']).starts_with('{') { return Policy::from_json_str(body) }
         Policy::from_value(&crate::yaml::load(src)?)
     }
     /// Load from JSON text.
     pub fn from_json_str(src: &str) -> R<Policy> {
         if !crate::json::depth_ok(src, 64) { return Err("json: nesting too deep".into()) }
-        let v: Value = serde_json::from_str(src).map_err(|e| format!("json: {e}"))?;
+        let v: Value = crate::json::parse_strict(src).map_err(|e| format!("json: {e}"))?;
         Policy::from_value(&v)
     }
 

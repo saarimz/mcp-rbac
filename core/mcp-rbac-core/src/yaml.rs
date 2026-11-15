@@ -79,17 +79,64 @@ fn finite(x: f64) -> Result<Value, String> {
     if x.is_finite() { Ok(crate::json::number(x)) } else { Err("non-finite numbers are not allowed".into()) }
 }
 
-/// YAML 1.2 forbids a plain scalar from starting with an indicator character (`|`, `>`, `@`, `` ` ``, `%`).
+/// `\uD800`-`\uDFFF` or `\U0000D800`-`\U0000DFFF` anywhere in the source (a lexical rule, identical in every language).
+fn has_escaped_surrogate(src: &str) -> bool {
+    let b = src.as_bytes();
+    let hx = |c: u8| c.is_ascii_hexdigit();
+    let sur = |s: &[u8]| s.len() >= 4 && matches!(s[0], b'd' | b'D') && matches!(s[1], b'8'..=b'9' | b'a'..=b'f' | b'A'..=b'F') && hx(s[2]) && hx(s[3]);
+    (0..b.len()).any(|i| b[i] == b'\\' && match b.get(i + 1) {
+        Some(b'u') => sur(&b[i + 2..]),
+        Some(b'U') => b.len() >= i + 10 && &b[i + 2..i + 6] == b"0000" && sur(&b[i + 6..]),
+        _ => false,
+    })
+}
+
+/// Portable character set for policy YAML (identical in Rust/TS/Python; parsers disagree outside it, found by
+/// differential fuzzing): printable characters, LF or CRLF line breaks, a BOM only at the very start.
+pub fn check_chars(src: &str) -> Result<(), String> {
+    if has_escaped_surrogate(src) { return Err("yaml: escaped surrogates (\\uD800-\\uDFFF) are not allowed; write the character itself".into()) }
+    let mut line = 1;
+    let mut it = src.char_indices().peekable();
+    while let Some((i, ch)) = it.next() {
+        let c = ch as u32;
+        match c {
+            0x0a => line += 1,
+            0x09 => return Err("yaml: tab characters are not allowed in policy YAML (indent with spaces; write \\t inside a double-quoted string)".into()),
+            0x0d => if !matches!(it.peek(), Some((_, '\n'))) { return Err(format!("yaml: a carriage return must be followed by a line feed (line {line})")) },
+            _ if c < 0x20 || (0x7f..=0x9f).contains(&c) || c == 0x2028 || c == 0x2029 || c == 0xfffe || c == 0xffff || (c == 0xfeff && i != 0) =>
+                return Err(format!("yaml: character U+{c:04X} is not allowed in policy YAML (line {line})")),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Token-level portability checks. YAML 1.2 forbids a plain scalar from starting with an indicator character (`|`, `>`, `@`, `` ` ``, `%`).
 /// yaml-rust2 leniently scans e.g. `{a: |\n x}` (a block scalar inside a flow collection) as the plain scalar
 /// "| x"; the TS and Python parsers reject it. Scan tokens and reject, so all three loaders agree
 /// (found by the conformance corpus, vector yaml-00362).
 fn reject_indicator_plain_scalars(src: &str) -> Result<(), String> {
     use yaml_rust2::scanner::{Scanner, TokenType};
+    let mut flow_starts: Vec<usize> = vec![];
     for tok in Scanner::new(src.chars()) {
-        if let TokenType::Scalar(TScalarStyle::Plain, v) = &tok.1 {
-            if v.starts_with(['|', '>', '@', '`', '%']) {
-                return Err(format!("yaml: plain scalar may not start with an indicator (line {})", tok.0.line()));
+        match &tok.1 {
+            TokenType::Scalar(TScalarStyle::Plain, v) => {
+                if v.starts_with(['|', '>', '@', '`', '%']) {
+                    return Err(format!("yaml: plain scalar may not start with an indicator (line {})", tok.0.line()));
+                }
+                if v == "-" || v == "?" || v == ":" {
+                    return Err("yaml: a plain scalar cannot be just '-', '?' or ':' (quote it)".into());
+                }
             }
+            // portable rule: a flow collection must start and end on the same line
+            TokenType::FlowSequenceStart | TokenType::FlowMappingStart => flow_starts.push(tok.0.line()),
+            TokenType::FlowSequenceEnd | TokenType::FlowMappingEnd => {
+                let start_line = flow_starts.pop();
+                if start_line.is_some_and(|l| l != tok.0.line()) {
+                    return Err("yaml: flow collections ([...] / {...}) must fit on one line (use block style, or JSON starting with '{')".into());
+                }
+            }
+            _ => {}
         }
     }
     Ok(())
@@ -103,6 +150,7 @@ enum Frame {
 /// Parse a YAML (or JSON) policy document into a JSON value.
 pub fn load(src: &str) -> Result<Value, String> {
     // a byte-order mark is allowed at the start of a YAML stream (the TS and Python loaders accept it too)
+    check_chars(src)?;
     let src = src.strip_prefix('\u{feff}').unwrap_or(src);
     reject_indicator_plain_scalars(src)?;
     let mut p = Parser::new_from_str(src);

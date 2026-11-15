@@ -115,9 +115,19 @@ def json_depth_ok(s: str, mx: int = 64) -> bool:
     return True
 
 
+def _no_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    d: dict[str, Any] = {}
+    for k, v in pairs:
+        if k in d:
+            raise ValueError(f"duplicate key {json.dumps(k)}")
+        d[k] = v
+    return d
+
+
 def parse_json(s: str) -> Any:
-    """JSON.parse semantics: every number is a double, NaN/Infinity tokens rejected."""
-    return json.loads(s, parse_int=float, parse_float=float, parse_constant=_no_constant)
+    """JSON.parse semantics (every number is a double, NaN/Infinity tokens rejected), except that duplicate object
+    keys are rejected everywhere: a parser differential (first-wins vs last-wins) must not decide which tool runs."""
+    return json.loads(s, parse_int=float, parse_float=float, parse_constant=_no_constant, object_pairs_hook=_no_duplicates)
 
 
 def well_formed(v: Any, depth: int = 0) -> bool:
@@ -220,17 +230,120 @@ class _Map:
         self.has_key = False
 
 
+_ESC_SURROGATE = re.compile(r"\\(?:u[dD][89a-fA-F][0-9a-fA-F]{2}|U0000[dD][89a-fA-F][0-9a-fA-F]{2})")
+
+
+def check_yaml_chars(src: str) -> None:
+    """Portable character set for policy YAML (identical in Rust/TS/Python; see docs/policy-format.md)."""
+    if _ESC_SURROGATE.search(src):
+        _fail("yaml: escaped surrogates (\\uD800-\\uDFFF) are not allowed; write the character itself")
+    line = 1
+    n = len(src)
+    for i, ch in enumerate(src):
+        c = ord(ch)
+        if c == 0x0A:
+            line += 1
+        elif c == 0x09:
+            _fail("yaml: tab characters are not allowed in policy YAML (indent with spaces; write \\t inside a double-quoted string)")
+        elif c == 0x0D:
+            if i + 1 >= n or src[i + 1] != "\n":
+                _fail(f"yaml: a carriage return must be followed by a line feed (line {line})")
+        elif c < 0x20 or 0x7F <= c <= 0x9F or c in (0x2028, 0x2029, 0xFFFE, 0xFFFF) or (c == 0xFEFF and i != 0) or 0xD800 <= c <= 0xDFFF:
+            _fail(f"yaml: character U+{c:04X} is not allowed in policy YAML (line {line})")
+
+
+_YAML12_LOADER: Any = None
+
+
+def _yaml12_loader() -> Any:
+    """PyYAML follows YAML 1.1 in flow context: '?' and ':' are always indicators there and plain scalars stop at '?'.
+    YAML 1.2 (and the TS/Rust loaders) treat them as indicators only before whitespace / flow indicators. These
+    overrides give PyYAML the 1.2 rules (found by differential fuzzing: `[campaig?ns]`, `[?x]`, `{x?: 1}`, `[:x]`)."""
+    global _YAML12_LOADER
+    if _YAML12_LOADER is not None:
+        return _YAML12_LOADER
+    from yaml.parser import Parser
+    from yaml.reader import Reader
+    from yaml.scanner import Scanner
+    from yaml.tokens import ScalarToken
+
+    ws = "\0 \t\r\n\x85\u2028\u2029"
+    flow_ind = ",[]{}"
+
+    class Scanner12(Scanner):  # type: ignore[misc]
+        def check_key(self) -> bool:
+            nxt = self.peek(1)
+            return nxt in ws or (bool(self.flow_level) and nxt in flow_ind)
+
+        def check_value(self) -> bool:
+            nxt = self.peek(1)
+            if not self.flow_level:
+                return nxt in ws
+            if nxt in ws or nxt in flow_ind:
+                return True
+            # JSON-like key: `{"a":b}`, `{'a':b}`, `[[x]:y]` — ':' directly after a quoted scalar or a flow collection
+            return self.pointer > 0 and self.buffer[self.pointer - 1] in "\"']}"
+
+        def check_plain(self) -> bool:
+            ch = self.peek()
+            if ch in "-?:":
+                nxt = self.peek(1)
+                return nxt not in ws and not (bool(self.flow_level) and nxt in flow_ind)
+            return ch not in ws + "-?:,[]{}#&*!|>'\"%@`"
+
+        def scan_plain(self) -> Any:  # PyYAML's scan_plain with the YAML 1.2 flow stop set (no '?')
+            chunks: list[str] = []
+            start_mark = self.get_mark()
+            end_mark = start_mark
+            indent = self.indent + 1
+            spaces: list[str] = []
+            while True:
+                length = 0
+                if self.peek() == "#":
+                    break
+                while True:
+                    ch = self.peek(length)
+                    if ch in ws or (ch == ":" and self.peek(length + 1) in ws + (flow_ind if self.flow_level else "")) or (self.flow_level and ch in flow_ind):
+                        break
+                    length += 1
+                if length == 0:
+                    break
+                self.allow_simple_key = False
+                chunks.extend(spaces)
+                chunks.append(self.prefix(length))
+                self.forward(length)
+                end_mark = self.get_mark()
+                spaces = self.scan_plain_spaces(indent, start_mark)
+                if not spaces or self.peek() == "#" or (not self.flow_level and self.column < indent):
+                    break
+            return ScalarToken("".join(chunks), True, start_mark, end_mark)
+
+    class Loader12(Reader, Scanner12, Parser):  # type: ignore[misc]
+        def __init__(self, stream: str) -> None:
+            Reader.__init__(self, stream)
+            Scanner12.__init__(self)
+            Parser.__init__(self)
+
+        def dispose(self) -> None:
+            pass
+
+    _YAML12_LOADER = Loader12
+    return Loader12
+
+
 def load_yaml(src: str) -> Any:
     """Strict YAML → JSON model. PyYAML is used only as an event parser; plain scalars are resolved by
     ``resolve_plain`` (YAML 1.2 core schema), so results match the Rust and TS loaders."""
     import yaml
 
+    check_yaml_chars(src)
     stack: list[_Seq | _Map] = []
     root: Any = None
     have_root = False
     docs = 0
     try:
-        for ev in yaml.parse(src, Loader=yaml.SafeLoader):
+        flow_lines: list[int | None] = []  # start line of each open collection if flow-style, else None
+        for ev in yaml.parse(src, Loader=_yaml12_loader()):
             if isinstance(ev, (yaml.StreamStartEvent, yaml.StreamEndEvent, yaml.DocumentEndEvent)):
                 continue
             if isinstance(ev, yaml.DocumentStartEvent):
@@ -246,19 +359,26 @@ def load_yaml(src: str) -> Any:
                     _fail("yaml: anchors are not allowed")
                 if ev.tag is not None:
                     _fail("yaml: tags are not allowed")
+                if ev.style is None and ev.value in ("-", "?", ":"):
+                    _fail("yaml: a plain scalar cannot be just '-', '?' or ':' (quote it)")
                 val = resolve_plain(ev.value) if ev.style is None else ev.value
             elif isinstance(ev, (yaml.SequenceStartEvent, yaml.MappingStartEvent)):
                 if ev.anchor or ev.tag is not None:
                     _fail("yaml: anchors/tags are not allowed")
                 stack.append(_Seq() if isinstance(ev, yaml.SequenceStartEvent) else _Map())
+                flow_lines.append(ev.start_mark.line if ev.flow_style else None)
                 if len(stack) > 64:
                     _fail("yaml: nesting too deep")
                 continue
             elif isinstance(ev, yaml.SequenceEndEvent):
+                if (fl := flow_lines.pop()) is not None and ev.end_mark.line != fl:
+                    _fail("yaml: flow collections ([...] / {...}) must fit on one line (use block style, or JSON starting with '{')")
                 fr = stack.pop()
                 assert isinstance(fr, _Seq)
                 val = fr.items
             elif isinstance(ev, yaml.MappingEndEvent):
+                if (fl := flow_lines.pop()) is not None and ev.end_mark.line != fl:
+                    _fail("yaml: flow collections ([...] / {...}) must fit on one line (use block style, or JSON starting with '{')")
                 fm = stack.pop()
                 assert isinstance(fm, _Map)
                 val = fm.items
@@ -282,6 +402,8 @@ def load_yaml(src: str) -> Any:
                 assert top.key is not None
                 top.items[top.key] = val
                 top.key, top.has_key = None, False
+    except ValueError as e:  # e.g. "\\U00110000": PyYAML raises a bare ValueError from chr()
+        _fail(f"yaml: {e}")
     except yaml.YAMLError as e:
         _fail("yaml: " + (str(e).splitlines() or ["invalid"])[0])
     if not have_root:
@@ -1057,7 +1179,15 @@ def compile_policy(doc: Any) -> CompiledPolicy:
                           approvals, limits, labels, label_rules, redact, keep, toolsets, delegation, tool_base, tool_names, warnings, top)
 
 
+def is_json_document(src: str) -> bool:
+    """A policy document whose first non-whitespace character (after an optional BOM) is '{' is JSON, not YAML."""
+    return src.removeprefix("\ufeff").lstrip(" \t\r\n").startswith("{")
+
+
 def load_policy_yaml(src: str) -> CompiledPolicy:
+    """Load a policy from YAML text (or JSON text: see ``is_json_document``)."""
+    if is_json_document(src):
+        return load_policy_json(src.removeprefix("\ufeff"))
     return compile_policy(load_yaml(src))
 
 

@@ -1,6 +1,6 @@
 // TS pure runner: corpus.jsonl -> one result line per vector (same contract as `mcp-rbac-core vectors`).
 import { readFileSync } from "node:fs";
-import { loadPortablePolicy, loadPortablePolicyJson, decidePortableJson, visiblePortableJson, canonical, type CompiledPolicy } from "../src/portable.js";
+import { loadYaml, loadPortablePolicy, loadPortablePolicyJson, decidePortableJson, visiblePortableJson, canonical, type CompiledPolicy } from "../src/portable.js";
 
 const file = process.argv[2] ?? new URL("./corpus.jsonl", import.meta.url).pathname;
 const out: string[] = [];
@@ -8,6 +8,10 @@ const cache = new Map<string, CompiledPolicy | null>();
 for (const line of readFileSync(file, "utf8").split("\n")) {
   if (!line.trim()) continue;
   const v = JSON.parse(line) as Record<string, string>;
+  if (v.yamlDoc !== undefined) {
+    let r: string; try { r = canonical({ doc: loadYaml(v.yamlDoc) }); } catch { r = '{"error":"yaml_invalid"}'; }
+    out.push(r); continue;
+  }
   const key = (v.policyYaml !== undefined ? "y" : "j") + (v.policyYaml ?? v.policyJson);
   let p = cache.get(key);
   if (p === undefined) {

@@ -71,7 +71,7 @@ else:
 decisions: dict[str, int] = {}
 for line in ref:
     o = json.loads(line)
-    k = o.get("decision") or ("policy_invalid" if o.get("error") == "policy_invalid" else ("visible" if "visible" in o else ("check_ok" if o.get("ok") else str(o)[:30])))
+    k = o.get("decision") or o.get("error") or ("yaml_doc" if "doc" in o else ("visible" if "visible" in o else ("check_ok" if o.get("ok") else str(o)[:30])))
     decisions[k] = decisions.get(k, 0) + 1
 print(f"{len(corpus)} vectors x {len(outs)} runners ({', '.join(outs)}); {sum(1 for v in corpus if 'expect' in v)} hand-written expectations; outcomes {decisions}")
 print("CONFORMANCE OK: byte-identical" if not fail else f"CONFORMANCE FAILED: {fail} problem(s)")

@@ -129,6 +129,44 @@ pub fn obj(pairs: Vec<(&str, Value)>) -> Value {
     Value::Object(m)
 }
 
+/// Duplicate object keys (compared after unescaping) in already-valid JSON text. Identical scanner in TS.
+pub fn has_duplicate_keys(s: &str) -> bool {
+    let b = s.as_bytes();
+    let mut stack: Vec<Option<std::collections::HashSet<String>>> = vec![];
+    let mut expect_key = false;
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            b'{' => { stack.push(Some(Default::default())); expect_key = true }
+            b'[' => { stack.push(None); expect_key = false }
+            b'}' | b']' => { stack.pop(); expect_key = false }
+            b',' => expect_key = matches!(stack.last(), Some(Some(_))),
+            b':' => expect_key = false,
+            b'"' => {
+                let mut j = i + 1;
+                while j < b.len() && b[j] != b'"' { j += if b[j] == b'\\' { 2 } else { 1 } }
+                if expect_key {
+                    if let Some(Some(set)) = stack.last_mut() {
+                        let k: String = serde_json::from_str(&s[i..=j.min(b.len() - 1)]).unwrap_or_default();
+                        if !set.insert(k) { return true }
+                    }
+                }
+                i = j;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    false
+}
+
+/// serde_json parse that also rejects duplicate object keys (first-wins vs last-wins must not decide anything).
+pub fn parse_strict(s: &str) -> Result<Value, String> {
+    let v: Value = serde_json::from_str(s).map_err(|e| e.to_string())?;
+    if has_duplicate_keys(s) { return Err("duplicate object key".into()) }
+    Ok(v)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,5 +181,11 @@ mod tests {
     fn canonical_sorts_utf16() {
         let v: Value = serde_json::from_str(r#"{"b":1,"a":[true,null,"x\n"],"\u00e9":0.5,"\ud83d\ude00":1,"\uffff":2}"#).unwrap();
         assert_eq!(canonical(&v), "{\"a\":[true,null,\"x\\n\"],\"b\":1,\"é\":0.5,\"😀\":1,\"\u{ffff}\":2}");
+    }
+    #[test]
+    fn duplicate_keys() {
+        assert!(has_duplicate_keys(r#"{"a":1,"a":2}"#) && has_duplicate_keys(r#"{"a":1,"\u0061":2}"#) && has_duplicate_keys(r#"[{"x":{"a":1,"b":2,"a":3}}]"#));
+        assert!(!has_duplicate_keys(r#"{"a":{"a":1}}"#) && !has_duplicate_keys(r#"[{"a":1},{"a":1}]"#) && !has_duplicate_keys(r#"{"k\"":1,"k":2}"#) && !has_duplicate_keys(r#"{"s":"{\"a\":1,\"a\":2}"}"#));
+        assert!(parse_strict(r#"{"tool":"t","tool":"u"}"#).is_err() && parse_strict(r#"{"tool":"t"}"#).is_ok());
     }
 }

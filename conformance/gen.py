@@ -352,6 +352,38 @@ for c in "|>@`%":
     add("yaml", f"version: 1\nroles:\n  r:\n    tools: [t]\n    description: {c}x\n", REQ, expect=INV)
     add("yaml", f"version: 1\nroles:\n  r:\n    tools: [t]\n    description: 'quoted {c}x'\n", REQ, expect={"decision": A})
     add("yaml", f"version: 1\nroles:\n  r:\n    tools: [t]\n    description: a{c}x\n", REQ, expect={"decision": A})
+# portable character set (docs/policy-format.md): 16 characters x 8 positions; PyYAML / yaml / yaml-rust2 disagreed on 67 of these
+CH_OK = {"\u00a0", "\U0001F600", "\u200b"}
+for pname, tpl in {"plain": "version: 1\nroles:\n  r: {tools: [t], description: a{c}b}\n", "plainblock": "version: 1\nroles:\n  r:\n    tools: [t]\n    description: a{c}b\n",
+                   "single": "version: 1\nroles:\n  r: {tools: [t], description: 'a{c}b'}\n", "double": "version: 1\nroles:\n  r: {tools: [t], description: \"a{c}b\"}\n",
+                   "comment": "version: 1 # x{c}y\nroles:\n  r: {tools: [t]}\n", "linebreak": "version: 1{c}roles:\n  r: {tools: [t]}\n",
+                   "key": "version: 1\nroles:\n  r{c}: {tools: [t]}\n", "literal": "version: 1\nroles:\n  r:\n    tools: [t]\n    description: |\n      a{c}b\n"}.items():
+    for c in ["\x85", "\u2028", "\u2029", "\u00a0", "\r", "\x0b", "\x0c", "\x00", "\x01", "\x7f", "\x9f", "\ufeff", "\ufffe", "\U0001F600", "\u200b", "\x1b", "\t"]:
+        ok = c in CH_OK and pname not in ("linebreak", "key")
+        add("chars", tpl.replace("{c}", c), REQ, expect={"decision": A} if ok else ({"error": "policy_invalid"} if c not in CH_OK else None))
+add("chars", "version: 1\r\nroles:\r\n  r: {tools: [t], description: \"tab\\there\"}\r\n", REQ, expect={"decision": A})
+# YAML loader conformance at the value level: each document's parsed JSON (or yaml_invalid) must be identical
+for d in json.loads((pathlib.Path(__file__).resolve().parent / "yaml_docs.json").read_text()):
+    out.append({"id": f"ydoc-{len(out):05d}", "yamlDoc": d})
+# duplicate object keys are rejected in all JSON (first-wins vs last-wins parser differentials)
+DUPP = "version: 1\nroles:\n  r: {tools: ['*']}\n"
+INVD = {"decision": D, "reason": "invalid_input"}
+for raw, exp in [('{"tool":"t","identity":{"id":"u","roles":["r"]},"tool":"u"}', INVD), ('{"tool":"u","\\u0074ool":"t","identity":{"id":"u","roles":["r"]}}', INVD),
+                 ('{"tool":"t","identity":{"id":"u","roles":["r"],"roles":[]}}', INVD), ('{"tool":"t","identity":{"id":"u","roles":["r"]},"args":{"a":1,"a":1}}', INVD),
+                 ('{"tool":"t","identity":{"id":"u","roles":["r"]},"args":{"x":[{"a":1},{"a":1}]}}', {"decision": A}), ('{"tool":"t","identity":{"id":"u","roles":["r"]},"args":{"a":{"a":{"a":1}}}}', {"decision": A}),
+                 ('{"tool":"t","identity":{"id":"u","roles":["r"]},"args":{"k\\"":1,"k":2}}', {"decision": A}), ('{"tool":"t","identity":{"id":"u","roles":["r"]},"args":{"\\\\":1,"\\u005c":2}}', INVD),
+                 ('{"tool":"t","identity":{"id":"u","roles":["r"]},"args":{"s":"{\\"a\\":1,\\"a\\":2}"}}', {"decision": A})]:
+    add("dupkey", DUPP, raw=raw, expect=exp)
+add("dupkey", DUPP, visible='{"identity":{"id":"u","roles":["r"]},"tools":["t"],"tools":["u"]}', expect={"error": "invalid_request"})
+add("dupkey", '{"version":1,"roles":{"r":{"tools":["t"]}},"version":1}', REQ, json_policy=True, expect={"error": "policy_invalid"})
+add("dupkey", '{"version":1,"roles":{"r":{"tools":["t"],"tools":["*"]}}}', REQ, expect={"error": "policy_invalid"})
+# JSON routing: a policy whose first non-whitespace character (after an optional BOM) is '{' is JSON
+for jdoc, exp in [('{\n  "version": 1,\n  "roles": {"r": {"tools": ["t"]}}\n}\n', {"decision": A}), ('\ufeff{"version":1,"roles":{"r":{"tools":["t"]}}}', {"decision": A}),
+                  (' \t\r\n{"version":1,"roles":{"r":{"tools":["t"]}}}', {"decision": A}), ('{\t"version": 1, "roles": {"r": {"tools": ["t"]}}}', {"decision": A}),
+                  ("{version: 1, roles: {r: {tools: [t]}}}", {"error": "policy_invalid"}), ('{"version":1,"roles":{"r":{"tools":["t"]}},"version":2}', {"error": "policy_invalid"}),
+                  ("version: 1\nroles:\n  r: {tools: [\n    t]}\n", {"error": "policy_invalid"}), ("version: 1\nroles:\n  r: {tools: [t]\n  }\n", {"error": "policy_invalid"}),
+                  ("version: 1\nroles:\n  r:\n    tools: [t, u]\n", {"decision": A}), ('[{"version":1}]', {"error": "policy_invalid"}), ('"{"', {"error": "policy_invalid"})]:
+    add("jroute", jdoc, REQ, expect=exp)
 for j in ['{"version":1,"roles":{"r":{"tools":["t"]}}}', '{"version":1,"roles":{"r":{"tools":["t"]}},"roles":{}}', '{"version":1,"roles":{"r":{"tools":["t"]}}', "[]", '{"version":1e0,"roles":{"r":{"tools":["t"]}}}',
           '{"version":1,"roles":{"r":{"tools":[{"name":"t","limits":{"v":{"max":1e400}}}]}}}', '{"version":1,"roles":{"\\ud800":{}}}', '{"version":1,"roles":{"r":{"tools":["t"]}},"x":' + "[" * 70 + "]" * 70 + "}"]:
     add("json", j, REQ, json_policy=True)

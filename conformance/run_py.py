@@ -4,7 +4,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "python/src"))
-from mcp_rbac.portable import PolicyError, canonical, decide_json, load_policy_json, load_policy_yaml, visible_json  # noqa: E402
+from mcp_rbac.portable import PolicyError, canonical, load_yaml, decide_json, load_policy_json, load_policy_yaml, visible_json  # noqa: E402
 
 path = sys.argv[1] if len(sys.argv) > 1 else str(pathlib.Path(__file__).resolve().parent / "corpus.jsonl")
 cache: dict = {}
@@ -14,6 +14,12 @@ with open(path, encoding="utf-8") as f:
         if not line.strip():
             continue
         v = json.loads(line)
+        if "yamlDoc" in v:
+            try:
+                out.append(canonical({"doc": load_yaml(v["yamlDoc"])}))
+            except PolicyError:
+                out.append('{"error":"yaml_invalid"}')
+            continue
         key = ("y" + v["policyYaml"]) if "policyYaml" in v else ("j" + v["policyJson"])
         if key not in cache:
             try:

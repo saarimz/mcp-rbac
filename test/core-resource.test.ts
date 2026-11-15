@@ -22,7 +22,7 @@ async function session(identity: unknown, resolver: "db" | "throws" | "none" = "
     resource: resolver === "none" ? undefined : ({ args }) => {
       if (resolver === "throws") throw new Error("db down");
       const v = OWNER[String(args.ticketId)];
-      return v ? { venue: v } : {};
+      return v ? { venue: v } : ({} as Record<string, string>);
     },
   });
   const [ct, st] = InMemoryTransport.createLinkedPair();

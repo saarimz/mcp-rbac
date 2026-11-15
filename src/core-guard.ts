@@ -60,8 +60,13 @@ export interface CoreDecision {
 }
 
 export interface CoreGuardOptions {
-  /** Policy text (YAML, or JSON starting with "{"). */
-  policy: string;
+  /** Policy text (YAML, or JSON starting with "{"). Ignored when `engine` is given. */
+  policy?: string;
+  /**
+   * A shared engine (createCoreEngine). Pass the same one to every per-session guard of a multi-session (HTTP) server:
+   * rate limits and budgets live in the engine, so one engine per session would reset them on every new session.
+   */
+  engine?: CoreEngine;
   /** The caller's identity object (docs/policy-format.md "Decision request"), or undefined when unauthenticated. */
   identity: (extra: any) => unknown | Promise<unknown>;
   /** Enabled toolsets for this session (optional). */
@@ -94,7 +99,8 @@ const RESOURCE_UNRESOLVED = JSON.stringify({ decision: "deny", labels: [], limit
 
 /** Wrap an McpServer / Server (or an upstream Client) behind the WASM core. Returns the outer server to connect. */
 export async function protectWithCore(inner: McpServer | Server | Client, opts: CoreGuardOptions): Promise<{ server: Server; engine: CoreEngine }> {
-  const engine = createCoreEngine(opts.policy);
+  if (!opts.engine && opts.policy === undefined) throw new Error("protectWithCore: pass `policy` or `engine`");
+  const engine = opts.engine ?? createCoreEngine(opts.policy!);
   let client: Client;
   if (inner instanceof Client) client = inner;
   else {

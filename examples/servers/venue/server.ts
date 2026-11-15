@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createCoreEngine, protectWithCore, type CoreDecision } from "../../../src/core-guard.js";
 import { openDb } from "./db.js";
-import { argsHash, resolveResource, venueTools } from "./tools.js";
+import { argsHash, canonical, resolveResource, venueTools } from "./tools.js";
 import { serveStreamable } from "../shared/http.js";
 
 export const AUDIENCE = "venue-mcp";
@@ -40,7 +40,7 @@ export async function main() {
         return used.changes === 1; // single use, even under concurrency
       }
       if (!db.prepare("SELECT 1 FROM approvals WHERE sub = ? AND tool = ? AND args_hash = ? AND status = 'pending'").get(sub, tool, h)) {
-        db.prepare("INSERT INTO approvals (sub, tool, args_hash, created_at) VALUES (?, ?, ?, ?)").run(sub, tool, h, now());
+        db.prepare("INSERT INTO approvals (sub, tool, args_hash, args, created_at) VALUES (?, ?, ?, ?, ?)").run(sub, tool, h, canonical(args), now());
       }
       return false;
     },
@@ -73,7 +73,8 @@ export async function main() {
 function admin(db: ReturnType<typeof openDb>) {
   const [cmd, arg] = [process.argv[3], process.argv[4]];
   const out = (v: unknown) => process.stdout.write(JSON.stringify(v, null, 2) + "\n");
-  if (cmd === "pending") out(db.prepare("SELECT id, sub, tool, created_at FROM approvals WHERE status = 'pending'").all());
+  // the approver sees the exact arguments they are approving (an injected call shows its injected arguments)
+  if (cmd === "pending") out((db.prepare("SELECT id, sub, tool, args, created_at FROM approvals WHERE status = 'pending'").all() as any[]).map((r) => ({ ...r, args: JSON.parse(r.args) })));
   else if (cmd === "approve") out({ approved: db.prepare("UPDATE approvals SET status = 'approved' WHERE id = ? AND status = 'pending'").run(Number(arg)).changes });
   else if (cmd === "revoke") out({ revoked: db.prepare("INSERT OR IGNORE INTO revoked_tokens VALUES (?)").run(String(arg)).changes });
   else if (cmd === "audit") out(db.prepare("SELECT * FROM audit ORDER BY id").all());

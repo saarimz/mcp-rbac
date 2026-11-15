@@ -136,7 +136,7 @@ func approver(db *sql.DB) func(context.Context, string, json.RawMessage, any, mc
 		var pending int
 		_ = db.QueryRow("SELECT COUNT(*) FROM approvals WHERE sub = ? AND tool = ? AND args_hash = ? AND status = 'pending'", sub, tool, h).Scan(&pending)
 		if pending == 0 {
-			_, _ = db.Exec("INSERT INTO approvals (sub, tool, args_hash, created_at) VALUES (?, ?, ?, ?)", sub, tool, h, now())
+			_, _ = db.Exec("INSERT INTO approvals (sub, tool, args_hash, args, created_at) VALUES (?, ?, ?, ?, ?)", sub, tool, h, canonicalArgs(args), now())
 		}
 		return false
 	}
@@ -232,9 +232,13 @@ func admin(db *sql.DB, args []string) error {
 	var out any
 	switch args[0] {
 	case "pending":
-		r, err := rows(db, "SELECT id, sub, tool, created_at FROM approvals WHERE status = 'pending' ORDER BY id")
+		// the approver sees the exact arguments they are approving (an injected call shows its injected arguments)
+		r, err := rows(db, "SELECT id, sub, tool, args, created_at FROM approvals WHERE status = 'pending' ORDER BY id")
 		if err != nil {
 			return err
+		}
+		for _, m := range r {
+			m["args"] = json.RawMessage(m["args"].(string))
 		}
 		out = r
 	case "approve":

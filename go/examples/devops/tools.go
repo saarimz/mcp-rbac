@@ -60,6 +60,19 @@ func argsHash(tool string, args json.RawMessage) string {
 	return hex.EncodeToString(s[:])
 }
 
+// canonicalArgs is the arguments as canonical JSON (shown to the human approver).
+func canonicalArgs(args json.RawMessage) string {
+	var v any
+	if len(args) > 0 {
+		_ = json.Unmarshal(args, &v)
+	}
+	if v == nil {
+		return "{}"
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
 var recordOwner = []struct{ arg, query string }{
 	{"deploy_id", "SELECT org FROM deploys WHERE id = ?"},
 	{"build_id", "SELECT org FROM builds WHERE id = ?"},

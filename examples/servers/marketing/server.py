@@ -290,7 +290,8 @@ def build(db: sqlite3.Connection, identity_fn: Any) -> MCPServer:
         if row:
             return db.execute("UPDATE approvals SET used_at = ? WHERE id = ? AND used_at IS NULL", (now(), row["id"])).rowcount == 1
         if not db.execute("SELECT 1 FROM approvals WHERE sub = ? AND tool = ? AND args_hash = ? AND status = 'pending'", (sub, call["tool"], h)).fetchone():
-            db.execute("INSERT INTO approvals (sub, tool, args_hash, created_at) VALUES (?, ?, ?, ?)", (sub, call["tool"], h, now()))
+            db.execute("INSERT INTO approvals (sub, tool, args_hash, args, created_at) VALUES (?, ?, ?, ?, ?)",
+                       (sub, call["tool"], h, json.dumps(call["args"], sort_keys=True, separators=(",", ":")), now()))
         return False
 
     def audit(e: dict[str, Any]) -> None:
@@ -315,7 +316,8 @@ def http_identity(secret: str, db: sqlite3.Connection) -> Any:
 
 def admin(db: sqlite3.Connection, cmd: str, arg: str | None) -> None:
     if cmd == "pending":
-        out: Any = [dict(r) for r in db.execute("SELECT id, sub, tool, created_at FROM approvals WHERE status = 'pending'")]
+        # the approver sees the exact arguments they are approving (an injected call shows its injected arguments)
+        out: Any = [{**dict(r), "args": json.loads(r["args"])} for r in db.execute("SELECT id, sub, tool, args, created_at FROM approvals WHERE status = 'pending'")]
     elif cmd == "approve":
         out = {"approved": db.execute("UPDATE approvals SET status = 'approved' WHERE id = ? AND status = 'pending'", (int(arg or 0),)).rowcount}
     elif cmd == "revoke":

@@ -180,17 +180,20 @@ func TestTenancyResourcesConstraintsAndRedaction(t *testing.T) {
 	// oncall may call secrets.read (metadata, versions) but values are redacted unless SRE; the [secret, destructive]
 	// label rule only matches tools carrying both labels (secrets.delete)
 	on := stdio(t, scoped("oz", "oncall", "acme"), db)
-	if got := call(t, on, "secrets.read", map[string]any{"name": "stripe-key", "env": "prod"}); got.err || got.sc["value"] != "[REDACTED]" || strings.Contains(got.text, "sk_live") ||
-		got.sc["versions"].([]any)[1].(map[string]any)["value"] != "[REDACTED]" {
+	if got := call(t, on, "secrets.read", map[string]any{"name": "db-password", "env": "staging"}); got.err || got.sc["value"] != "[REDACTED]" || strings.Contains(got.text, "acme-staging-pw") ||
+		got.sc["versions"].([]any)[0].(map[string]any)["value"] != "[REDACTED]" {
 		t.Errorf("oncall secrets.read: %+v", got)
 	}
-	if got := call(t, sre, "secrets.read", map[string]any{"name": "stripe-key", "env": "prod"}); got.sc["value"] != "sk_live_acme_CURRENT" {
-		t.Errorf("sre secrets.read: %+v", got)
+	if got := call(t, sre, "secrets.read", map[string]any{"name": "db-password", "env": "staging"}); got.sc["value"] != "acme-staging-pw" {
+		t.Errorf("sre secrets.read staging: %+v", got)
+	}
+	if got := call(t, sre, "secrets.read", map[string]any{"name": "stripe-key", "env": "prod"}); got.text != "Approval required for secrets.read" {
+		t.Errorf("sre prod secrets.read must need approval: %+v", got)
 	}
 	// an unscoped SRE of another org resolving acme's records: cross-tenant is still enforced by the token's tenant
 	gx := stdio(t, map[string]any{"id": "gx", "tenant": "globex", "roles": []any{"sre"}}, db)
-	if got := call(t, gx, "secrets.read", map[string]any{"name": "stripe-key", "env": "prod"}); got.sc["value"] != "sk_live_globex_CURRENT" {
-		t.Errorf("globex sre reads its own secret: %+v", got)
+	if got := call(t, gx, "secrets.list", nil); len(got.sc["secrets"].([]any)) != 1 {
+		t.Errorf("globex sre lists only its own secrets: %+v", got)
 	}
 	if got := call(t, gx, "deploys.rollback", map[string]any{"service": "checkout-api"}); got.text != "Denied: cross_tenant" {
 		t.Errorf("globex sre on acme service: %q", got.text)

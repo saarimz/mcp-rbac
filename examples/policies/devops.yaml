@@ -47,6 +47,7 @@ tools:
     scopes: [secrets:read]
     labels: [secret]
     redact: { fields: [value, "versions.*.value"], unlessRoles: [sre] }
+    approve: { when: { env: { eq: prod } } }  # a prod secret value entering an agent's context needs a human (red team, DX-LOG 28)
   secrets.rotate: { allow: [sre], scopes: [secrets:write], approve: true, labels: [secret] }
   secrets.delete: { allow: [sre], scopes: [secrets:write], approve: true, labels: [secret, destructive] }
   incidents.list: { allow: ["@readers"], scopes: [incidents:read] }

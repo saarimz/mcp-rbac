@@ -7,7 +7,7 @@ One telemetry contract, implemented identically by the four Rust-core bindings:
 | TypeScript (WASM) | `src/core-otel.ts` | `@modelcontextprotocol/sdk` 1.32 | `protectWithCore(inner, { telemetry: true \| options \| CoreTelemetry })` |
 | Python (PyO3) | `mcp_rbac.core_otel` | `mcp` 2.3 | `CoreGuard(..., telemetry=True \| CoreTelemetry(...))` |
 | Go (wazero) | `go/otel.go` | `go-sdk` 1.8 | `GuardOptions{Telemetry: mcprbac.NewTelemetry(...)}` |
-| Rust (rmcp) | `mcp-rbac-rmcp` feature `otel` | `rmcp` 3.10 | `GuardOptions { telemetry: Some(Telemetry::new(...)) }` |
+| Rust (rmcp) | `mcp-rbac-rmcp` feature `otel` | `rmcp` 3.10 | `opts.telemetry = Some(Arc::new(Telemetry::builder().tracer_provider(&tp).meter_provider(&mp).logger_provider(&lp).build()))`; decision records also go to `tracing` target `mcp_rbac.decisions` |
 
 Telemetry is **off by default**. It only uses the OpenTelemetry API, so without an SDK installed every call is a no-op.
 

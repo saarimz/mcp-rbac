@@ -100,7 +100,7 @@ func main() {
 	_ = run(sg)
 	self := float64(total-inner) / float64(time.Microsecond) / float64(rounds*n+1)
 	j, _ := json.Marshal(map[string]any{"binding": "go-wazero", "wall_us_per_call_interleaved": []float64{un1, gu1, un2, gu2},
-		"us_per_call": map[string]float64{"unguarded": min(un1, un2), "guarded": min(gu1, gu2), "overhead": min(gu1, gu2) - min(un1, un2)},
+		"us_per_call":            map[string]float64{"unguarded": min(un1, un2), "guarded": min(gu1, gu2), "overhead": min(gu1, gu2) - min(un1, un2)},
 		"guard_self_us_per_call": self})
 	fmt.Println(string(j))
 }

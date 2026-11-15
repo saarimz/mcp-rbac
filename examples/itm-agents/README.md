@@ -1,0 +1,24 @@
+# ITM as the test ground for mcp-rbac agent grants
+
+Several AI agents act for one ITM human, each limited to different actions. Every agent is always ≤ its human.
+
+- `src/`: a local copy of ITM's MCP surface (SQLite mirror of the Prisma slice: Brand, AdminUser, AdminUserBrand OWNER/ADMIN/AGENT, Moment, TicketTier, Ticket/TicketCheckIn, Plan, PlanBudgetLine, PlanChangeProposal, Venue, BrandAgentEmailSendBatch, plus PROPOSED marketplace quotes).
+  - It has 19 tools named after the real partner-mcp and itm-agent tools. Argument shapes are inferred.
+  - Agent connection grants: `src/grants.ts`. DPoP: `src/dpop.ts`. Consent and OAuth: `src/server.ts`.
+- `policy/mcp-rbac.yaml`: the base policy (humans). Each grant renders its own overlay `mcp-rbac.yaml`.
+- `test/grants.test.ts`: 29 tests over real HTTP and MCP covering:
+  - no escalation and cross-workspace access
+  - argument limits and moment scoping
+  - approvals and per-agent plus per-human budgets
+  - revocation, expiry, pause and demotion mid-session
+  - DPoP isolation, prompt injection, code replay and audit tampering
+- `scripts/demo.ts`: a narrated demo. Output goes to `out/demo-output.txt`, consent screens to `out/consent*.png`.
+- `staging/`: an OAuth 2.1 PKCE client (DCR) for **ITM staging** and a live read-only proxy test (`LIVE-RESULTS.md`). Tokens are stored in `.secrets/` (gitignored). The proxy is staging-only and refuses non-staging hosts and non-read-only tools.
+- `ADOPTION.md`: how ITM's real backend could ship this (Prisma diff, API, UI, non-admin agents).
+
+```bash
+npm test                 # 29 tests (node:test via tsx; uses ../../node_modules)
+npm run demo
+npm run staging:login    # once, opens the ITM staging consent (sandbox brand)
+npm run staging:live     # live read-only run through the mcp-rbac proxy
+```

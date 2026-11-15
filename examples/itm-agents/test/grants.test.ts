@@ -53,6 +53,15 @@ describe("grant creation: no escalation", () => {
     assert.match(html, /value="itm:campaigns:write" disabled/);
     assert.doesNotMatch(html, /value="itm:checkin:write" disabled/);
   });
+  test("unpinned AGENT staffer (today's real behaviour: brand-wide door staff) gets a brand-wide check-in agent, still nothing else", async () => {
+    const rita = await login(o, "rita@harbor.test");
+    const c = await mustConnect(o, rita, { name: "door-any", brand: "brand_harbor", scopes: ["itm:checkin:write"] });
+    assert.equal(app.store.grant(c.grantUid)!.momentUid, null);
+    assert.ok((await call(c.client, "list_moment_guests", { momentUid: "mom_h2" })).ok);
+    assert.equal((await call(c.client, "list_moment_guests", { momentUid: "mom_n1" })).denied, "base:cross_tenant");
+    assert.ok((await mustReject(o, rita, { name: "rita-mail", brand: "brand_harbor", scopes: ["itm:campaigns:write"] })).length > 0);
+    await c.close();
+  });
   test("staffer cannot pin a grant to a different moment", () => {
     assert.throws(() => app.store.createGrant({ grantorAdminUserId: 3, brandUid: "brand_harbor", name: "door-2", scopes: ["itm:checkin:write"], momentUid: "mom_h2", expiresInSec: 3600 }), (e: any) => e instanceof EscalationError && e.reasons.includes("moment_outside_grantor_assignment"));
   });

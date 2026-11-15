@@ -66,7 +66,7 @@ legend{font-weight:600}.muted{color:#777}.no{color:#aaa}.err{background:#fde8e8;
     const mem = memberships.find((m) => m.uid === brandUid) ?? memberships[0];
     const requested = new Set((q.get("scope") ?? "").split(/[ ,]+/).filter(Boolean));
     const ident = mem ? store.humanIdentity({ adminUid: "x", role: mem.role, momentUid: mem.momentUid }, mem.uid) : null;
-    const resource = mem ? (mem.role === "AGENT" ? { brand: mem.uid, moment: mem.momentUid } : { brand: mem.uid }) : {};
+    const resource = mem ? (mem.role === "AGENT" && mem.momentUid ? { brand: mem.uid, moment: mem.momentUid } : { brand: mem.uid }) : {};
     const rows = SCOPES.map(({ scope, label }) => {
       const exp = expandScopes(base, [scope]);
       const tools = TOOLS.filter((t) => { const r = requiredScopes(base, t.name); return r.length && r.every((s) => exp.has(s)); }).map((t) => t.name);

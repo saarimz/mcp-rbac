@@ -68,7 +68,9 @@ export class GrantStore {
     return { m };
   }
   humanIdentity(m: any, brandUid: string, scopes?: string[], clientId?: string) {
-    const scope: Record<string, string> = m.role === "AGENT" ? { brand: brandUid, moment: m.momentUid ?? "-unassigned-" } : { brand: brandUid };
+    // Real ITM: AGENT passes BrandMemberGuard brand-wide (itm-backend src/auth/auth.decorators.ts); per-moment pinning
+    // (AdminUserBrand.momentUid) is the PROPOSED tightening the enum comment describes ("within a single moment").
+    const scope: Record<string, string> = m.role === "AGENT" && m.momentUid ? { brand: brandUid, moment: m.momentUid } : { brand: brandUid };
     return { id: m.adminUid as string, roles: [{ role: String(m.role).toLowerCase(), scope }], tenant: brandUid, ...(scopes ? { scopes } : {}), ...(clientId ? { clientId } : {}) };
   }
   overlayIdentity(g: GrantRow, brandUid: string) {

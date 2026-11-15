@@ -20,6 +20,7 @@ import { exportPolicy } from "./policy-io.js";
 const HELP = `mcp-rbac: authorization for MCP servers
 
 Usage:
+  mcp-rbac demo [--save-policy file] [--keep]    30-second tour: a guarded server in memory, allow/deny/approval/audit
   mcp-rbac proxy [options] -- <server command> [args...]   Guard any stdio MCP server (any language)
   mcp-rbac proxy [options] --url https://host/mcp           Guard a hosted (remote) MCP server
       --preset <mode>        read-only | no-destructive | approve-writes | approve-destructive (default)
@@ -51,7 +52,7 @@ Usage:
   mcp-rbac audit [--db path] [--agent a] [--tool t] [--decision allow|deny] [--limit n]
   mcp-rbac revoke [--db path] <grantId>
   mcp-rbac pdp --policy policy.json [--users users.json] [--port 8181] [--host 127.0.0.1] [--token-env PDP_TOKEN]
-                                                OpenID AuthZEN 1.0 PDP (POST /access/v1/evaluation[s]) for any language
+                                                experimental: OpenID AuthZEN 1.0 PDP (POST /access/v1/evaluation[s])
   mcp-rbac audit-verify [--db path] [--export jsonl|otlp] [--out file]   verify the audit hash chain; export it
   mcp-rbac check <policy.yaml> [--json]          validate a portable policy (exit 1 if invalid)
   mcp-rbac diff <old.yaml> <new.yaml> [--json] [--tools a,b] [--fail-on-widen]
@@ -103,18 +104,24 @@ export async function main(argv = process.argv.slice(2)) {
     return { url, headers: parseHeaders(all.header ?? []), transport, connectTimeoutMs: num("connect-timeout") !== undefined ? num("connect-timeout")! * 1000 : undefined };
   };
   switch (cmd) {
+    case "demo": {
+      const { runDemo } = await import("./demo.js");
+      const r = await runDemo({ color: process.stdout.isTTY && !process.env.NO_COLOR, keep: !!flags.keep, savePolicy: str(flags["save-policy"]), t0: 0 });
+      if (flags["save-policy"]) process.stdout.write(`\nwrote ${str(flags["save-policy"])}; next: docs/quickstart.md (guard your own server with it)\n`);
+      if (!r.ok) process.exitCode = 1;
+      return;
+    }
     case "check": {
       const f = pos[0];
       if (!f) throw new Error("check needs a policy file");
       const out = checkPortablePolicy(readFileSync(f, "utf8"));
       const r = JSON.parse(out) as { ok?: boolean; warnings?: string[]; message?: string };
       if (flags.json) process.stdout.write(out + "\n");
-      else if (r.ok) process.stdout.write(`ok: ${f}${r.warnings!.length ? `\n${r.warnings!.map((w) => `  warning: ${w}`).join("\n")}` : ""}\n`);
-      if (r.ok && !flags.json) {
+      else if (r.ok) {
+        process.stdout.write(`ok: ${f}${r.warnings!.length ? `\n${r.warnings!.map((w) => `  warning: ${w}`).join("\n")}` : ""}\n`);
         const exp = experimentalFeatures(readFileSync(f, "utf8"));
         if (exp.length) process.stderr.write(`  note: uses experimental features (may change in a minor release): ${exp.join(", ")}\n`);
-      }
-      else process.stderr.write(`invalid: ${f}\n  ${r.message}\n`);
+      } else process.stderr.write(`invalid: ${f}\n  ${r.message}\n`);
       if (!r.ok) process.exitCode = 1;
       return;
     }

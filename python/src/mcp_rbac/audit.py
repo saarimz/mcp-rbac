@@ -12,20 +12,18 @@ GENESIS = "0" * 64
 
 
 def _num(v: float | int) -> str:
+    """ECMAScript Number::toString, so audit hashes match the TypeScript chain byte for byte."""
     if isinstance(v, bool):
         return "true" if v else "false"
-    if isinstance(v, int):
-        return str(v)
-    if not math.isfinite(v):
+    try:
+        x = float(v)
+    except OverflowError:
         return "null"
-    if v.is_integer() and abs(v) < 1e21:
-        return str(int(v))
-    r = repr(v)
-    if "e" in r:  # JS: 1e-7, 1.5e+25
-        mant, exp = r.split("e")
-        n = int(exp)
-        r = f"{mant}e{'+' if n > 0 else '-'}{abs(n)}"
-    return r
+    if not math.isfinite(x):
+        return "null"
+    from .portable import js_number
+
+    return js_number(x)
 
 
 _LONE = re.compile("[\ud800-\udfff]")

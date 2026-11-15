@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["mcp-rbac-core", "mcp-rbac-wasm", "mcp-rbac-py", "mcp-rbac-abi"]
+members = ["mcp-rbac-core", "mcp-rbac-wasm", "mcp-rbac-py", "mcp-rbac-abi", "mcp-rbac-rmcp"]
 
 [workspace.package]
 version = "0.4.0"

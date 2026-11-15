@@ -220,7 +220,7 @@ type (
 	logQuery struct {
 		Service string `json:"service"`
 		Query   string `json:"query"`
-		Hours   *int   `json:"hours,omitempty"`
+		Hours   int    `json:"hours,omitempty"` // optional; the policy enforces 1..168 on the raw arguments
 	}
 	flagToggle struct {
 		Flag    string `json:"flag"`

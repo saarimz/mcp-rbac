@@ -178,3 +178,61 @@ All 5 targets ran in parallel on HEAD d3b58e6 (libFuzzer, nightly, no sanitizer,
 | off-thread audit (opt-in) | done | src/audit-worker.ts, `mcp-rbac/audit-worker` export, verified from the packed tarball |
 | before/after load | done | 3,049 -> 4,778-5,114 req/s (c=32), p50 0.39 -> 0.26 ms; results/p11/ |
 | open: make in-place + worker the defaults, SDK v2 port of in-place, Python/Go equivalents | todo | |
+
+# P12 / v0.5.0: v0.1 execution status (owner pt249u "execute this thoroughly", started 17:09 ET)
+
+Local only. Nothing pushed, published, reserved, created or posted. Every number below is from a real run on this box on 2026-11-15.
+
+| # | Item | Status | Commits / evidence |
+|---|------|--------|--------------------|
+| 1 | Scope cut to v0.5.0 | done | ab534fb (tenants, delegation, engine adapters move to `mcp-rbac/experimental` / `mcp_rbac.experimental`; spend budgets marked experimental) |
+| 2 | TS SDK v2 support | done | 1967627 (`@modelcontextprotocol/server`/`client` 2.4.0, v1 1.32.2 still supported; v2 tests incl. HTTP) |
+| 3 | In-place guard + worker audit as defaults, red team + bench re-run | done, one open finding | 1967627, d1395b0, 2e4be47; red team 140/140; bench below; **open:** Python venue soak RSS check fails in in-place mode (see below) |
+| 4 | CI + release workflow (actionlint) | done | 5d1459b, 3ac3f08, 9124446, 7c7660b; actionlint 1.7.12 clean, shellcheck clean |
+| 5 | Package metadata + dry runs | done | 0b236d2, 6eae415; `tools/release-dry-run.sh` passes (npm pack, python -m build + twine check --strict, cargo package + publish --dry-run) |
+| 6 | Launch README (GIF, one-command quickstart + TTFD, benchmark table + caveats, vs Permit/gateways) | done | 2a9df35 (`mcp-rbac demo`), 7df2a46, be6f5b5, e7d3046; `docs/demo.gif`, `docs/demo-quickstart.cast` |
+| 7 | Fresh-user test | done | `docs/launch/fresh-user-test.md` |
+| 8 | Launch kit drafts (files only) | done | 67135ec, `docs/launch/*.md` |
+| 9 | PROGRESS, CHANGELOG, Page status | done | 9e8fc7f (CHANGELOG 0.5.0, AGENTS.md, llms.txt), this section |
+
+## Full matrix (one sequential run, 18:13-18:22 ET, logs /tmp/p12-final-*.log)
+
+| Suite | Result |
+|---|---|
+| tsc --noEmit | ok |
+| vitest, defaults (in place) | 412 passed, 19 skipped (40 files + 2 skipped) |
+| vitest, `MCP_RBAC_TEST_HOP=1` | 412 passed, 19 skipped |
+| Python pytest | 130 passed, **1 failed** (`test_malformed_servers.py` venue soak), 10 skipped (Redis/Postgres not running) |
+| mypy --strict | clean |
+| Go (wazero) + devops example | ok |
+| Rust `cargo test --release --all-features` | 48 passed |
+| clippy `-D warnings` | failed on a pre-existing `result_unit_err` lint, fixed in 7c7660b, then clean |
+| conformance | 4128 vectors x 6 runners, byte-identical |
+| red team | 140 checks, 0 failed |
+| docs-check | 13 passed, 0 failed; docs site 40 pages, links + anchors ok |
+| examples/itm-agents npm test | 33 passed |
+| actionlint | clean |
+
+## Bench, 0.5 defaults (P12, two quiet runs, 17:36-17:41 ET)
+
+Defaults: 5,209 / 5,475 req/s at c=32 (89-94% of the unguarded baseline 5,845 / 5,815), c=1 p50 0.247 / 0.225 ms vs 0.208 / 0.223 baseline. That is 1.7-1.8x the P11 "before" (3,019 / 3,046). 0 errors. Raw: `bench/competitors/results/p12/`.
+
+## Fresh-user time to first deny
+
+`npx mcp-rbac demo` from a cold npm cache: 2.47 / 2.02 / 2.11 s (warm 0.70 s; 0.21-0.23 s inside the process). TS quickstart from an empty folder 3.63 s; Python quickstart (venv + pip) 7.71 s. Local tarball/wheels stood in for the registries.
+
+## Open finding: in-place venue soak RSS
+
+`python/tests/test_malformed_servers.py` limits RSS growth to <12 MiB. The venue server in in-place mode (the 0.5 default) grew +21.5 MiB over 500 sessions, +34.9 MiB over 1,500 sessions and +26.3 MiB over 4,000 sessions. Hop mode grew +8 / +5.6 MiB. All sessions succeeded, with no crash under the 96 MB heap cap.
+
+Isolation (2,000 McpServer + protectWithCore sessions over InMemoryTransport, forced gc): heapUsed +679 KiB in place vs +353 KiB hop, external +6.9 MiB in both. That is about 0.3 KiB/session, and it does not grow linearly with sessions. So this looks like bounded heap/allocator headroom rather than a per-session leak. It is not proven yet. The test is left failing on purpose; the threshold has not been changed.
+
+## Blocked / not done
+
+- Go module not publishable yet (the go:embed'ed wasm is gitignored; it needs the repo).
+- mcp-rbac-rmcp is not packaged.
+- No security contact (use GitHub private vulnerability reporting once the repo exists).
+- The OTel install footprint (15 of 48 MB) is not reduced.
+- The esbuild allowScripts warning remains.
+- The vercel mcp-handler example is untested.
+- The soak finding above.

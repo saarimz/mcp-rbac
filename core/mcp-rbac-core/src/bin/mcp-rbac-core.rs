@@ -17,6 +17,7 @@ fn main() {
             let src = std::fs::read_to_string(a.get(2).expect("policy path")).expect("read policy");
             let r = check_policy(&src);
             writeln!(out, "{r}").ok();
+            out.flush().ok(); // process::exit skips destructors: flush the BufWriter first
             std::process::exit(if r.contains("\"ok\":true") { 0 } else { 1 });
         }
         "decide" => {
@@ -50,6 +51,7 @@ pub fn run_vector(line: &str) -> String {
     let p = match policy { Ok(p) => p, Err(_) => return "{\"error\":\"policy_invalid\"}".to_string() };
     if let Some(r) = v.get("requestJson").and_then(Value::as_str) { return p.decide_json(r) }
     if let Some(r) = v.get("request") { return p.decide_json(&r.to_string()) }
+    if let Some(r) = v.get("visibleJson").and_then(Value::as_str) { return p.visible_json(r) }
     if let Some(r) = v.get("visible") { return p.visible_json(&r.to_string()) }
     json::canonical(&json::obj(vec![("ok", Value::Bool(true)), ("warnings", Value::Array(p.warnings.iter().cloned().map(Value::String).collect()))]))
 }

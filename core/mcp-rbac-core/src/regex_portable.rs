@@ -144,9 +144,10 @@ impl P {
         if matches!(self.peek(), Some('*' | '+' | '?' | '{')) {
             return Err("stacked quantifiers are not portable".into());
         }
+        // star height <= 1: a group containing a quantifier may only be optional ("?", "{0,1}", "{1}")
         if let Node::Group(inner) = &atom {
-            if has_repeat(inner) {
-                return Err("quantified group containing a quantifier (star height > 1)".into());
+            if has_repeat(inner) && !matches!(max, Some(m) if m <= 1) {
+                return Err("quantified group containing a quantifier (star height > 1); only an optional group (x+)? is allowed".into());
             }
         }
         Ok(Node::Repeat { node: Box::new(atom), min, max })
@@ -181,8 +182,14 @@ impl P {
                 }
                 _ => {}
             }
+            // a literal '-' is portable as the first member or right before ']' (JS u-mode, Python, Rust, RE2 agree)
+            if self.peek() == Some('-') && (items.is_empty() || self.c.get(self.i + 1) == Some(&']')) {
+                self.i += 1;
+                items.push(ClassItem::Ch('-'));
+                continue;
+            }
             let a = self.class_char()?;
-            if self.peek() == Some('-') {
+            if self.peek() == Some('-') && self.c.get(self.i + 1) != Some(&']') {
                 self.i += 1;
                 let b = self.class_char()?;
                 match (a, b) {

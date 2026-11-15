@@ -1,0 +1,45 @@
+[package]
+name = "mcp-rbac-core-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+mcp-rbac-core = { path = "../mcp-rbac-core" }
+serde_json = { version = "1", features = ["arbitrary_precision", "preserve_order"] }
+
+[workspace]
+
+[[bin]]
+name = "policy_yaml"
+path = "fuzz_targets/policy_yaml.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "decide_json"
+path = "fuzz_targets/decide_json.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "policy_and_request"
+path = "fuzz_targets/policy_and_request.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "regex_portable"
+path = "fuzz_targets/regex_portable.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "redact"
+path = "fuzz_targets/redact.rs"
+test = false
+doc = false

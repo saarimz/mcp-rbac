@@ -1,0 +1,83 @@
+# Dev-tools / ops: deploys, secrets, incidents. Roles are scoped by environment and service.
+version: 1
+name: devops
+$schema: ../../spec/mcp-rbac.schema.json
+tenantKey: org
+
+roles:
+  sre:
+    description: Production operator. Can read secret values and rotate them (with approval).
+    includes: [oncall, developer]
+  oncall:
+    description: Handles incidents; can roll back and restart services.
+    includes: [auditor]
+  developer:
+    description: Ships to staging; prod deploys need a release manager or approval.
+  release_manager:
+    description: Approves and runs production deploys.
+    includes: [developer]
+  auditor:
+    description: Read-only access to audit logs, incidents and deploy history.
+  ci_bot:
+    description: The CI system. Builds and staging deploys only.
+
+roleSets:
+  engineers: [sre, oncall, developer, release_manager]
+  readers: [sre, oncall, developer, release_manager, auditor]
+
+tools:
+  deploys.list: { allow: ["@readers", ci_bot], scopes: [deploys:read] }
+  deploys.get: { allow: ["@readers", ci_bot], scopes: [deploys:read] }
+  deploys.create:
+    allow:
+      developer: { env: { eq: staging } }
+      ci_bot: { env: { eq: staging } }
+      release_manager: true
+      sre: true
+    limits: { env: { in: [staging, prod] }, service: { pattern: "[a-z][a-z0-9-]{1,40}" }, version: { pattern: "v\\d+\\.\\d+\\.\\d+(-[a-z0-9.]+)?" } }
+    scopes: [deploys:write]
+    approve: { when: { env: { eq: prod } } }
+    budget: { max: 20, per: day, shared: tenant, name: deploys-per-day }
+  deploys.rollback: { allow: [oncall, release_manager], scopes: [deploys:write], limits: { service: { pattern: "[a-z][a-z0-9-]{1,40}" } } }
+  builds.trigger: { allow: ["@engineers", ci_bot], scopes: [builds:write], budget: { max: 100, per: hour, shared: user } }
+  builds.logs: { allow: ["@readers", ci_bot], scopes: [builds:read], redact: { fields: ["lines.*.env"], unlessRoles: [sre] } }
+  secrets.list: { allow: ["@engineers"], scopes: [secrets:read] }
+  secrets.read:
+    allow: [sre, oncall]
+    scopes: [secrets:read]
+    labels: [secret]
+    redact: { fields: [value, "versions.*.value"], unlessRoles: [sre] }
+  secrets.rotate: { allow: [sre], scopes: [secrets:write], approve: true, labels: [secret] }
+  secrets.delete: { allow: [sre], scopes: [secrets:write], approve: true, labels: [secret, destructive] }
+  incidents.list: { allow: ["@readers"], scopes: [incidents:read] }
+  incidents.get: { allow: ["@readers"], scopes: [incidents:read] }
+  incidents.create: { allow: ["@engineers"], scopes: [incidents:write], limits: { severity: { in: [sev1, sev2, sev3, sev4] }, title: { maxLength: 200 } } }
+  incidents.ack: { allow: [oncall], scopes: [incidents:write] }
+  incidents.resolve: { allow: [oncall], scopes: [incidents:write], limits: { summary: { maxLength: 4000 } } }
+  incidents.escalate: { allow: [oncall], scopes: [incidents:write], budget: { max: 10, per: hour, shared: tenant } }
+  services.restart: { allow: [oncall], scopes: [services:write], approve: { when: { env: { eq: prod } } }, budget: { max: 3, per: hour, shared: user, name: restarts } }
+  services.scale: { allow: [sre], scopes: [services:write], limits: { replicas: { min: 0, max: 50, integer: true } }, approve: { when: { replicas: { min: 21 } } } }
+  logs.query: { allow: ["@readers"], scopes: [logs:read], labels: [pii], limits: { query: { maxLength: 2000 }, hours: { min: 1, max: 168, integer: true, optional: true } } }
+  flags.toggle: { allow: [developer, sre], scopes: [flags:write], limits: { env: { in: [staging, prod] } }, approve: { when: { env: { eq: prod } } } }
+  audit.read: { allow: [auditor, sre], scopes: [audit:read] }
+
+scopes:
+  implies:
+    "ops:admin": [deploys:write, secrets:write, services:write, incidents:write, flags:write, builds:write, audit:read]
+    "secrets:write": [secrets:read]
+
+output:
+  labelRules:
+    - { labels: [secret, destructive], allowRoles: [sre] }
+  redact:
+    - { label: pii, fields: [user_email, "lines.*.user_email"], unlessRoles: [sre, auditor] }
+
+delegation:
+  actors:
+    github-actions: { tools: [builds.*, deploys.list, deploys.get, deploys.create], scopes: [builds:write, builds:read, deploys:write, deploys:read] }
+    claude-code: { tools: ["*.list", "*.get", logs.query, builds.logs, incidents.create] }
+    pager-bot: { tools: [incidents.*] }
+  unknownActors: deny
+
+limits:
+  - { tool: "*", max: 3000, per: minute, shared: client, name: per-client }

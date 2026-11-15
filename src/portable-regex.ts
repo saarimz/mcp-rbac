@@ -82,7 +82,8 @@ export function parsePortableRegex(p: string): RNode {
     } else return a;
     eat("?");
     if (i < c.length && "*+?{".includes(peek()!)) throw new Error("stacked quantifiers are not portable");
-    if (a.t === "group" && hasRepeat(a.n)) throw new Error("quantified group containing a quantifier (star height > 1)");
+    // star height <= 1: a group containing a quantifier may only be optional ("?", "{0,1}", "{1}")
+    if (a.t === "group" && hasRepeat(a.n) && !(max !== null && max <= 1)) throw new Error("quantified group containing a quantifier (star height > 1); only an optional group (x+)? is allowed");
     return { t: "repeat", n: a, min, max };
   };
   const classChar = (): { t: "ch"; c: string } | { t: "digit" } | { t: "word" } => {
@@ -105,8 +106,10 @@ export function parsePortableRegex(p: string): RNode {
     for (;;) {
       if (i >= c.length) throw new Error("unclosed class");
       if (peek() === "]") { i++; break; }
+      // a literal '-' is portable as the first member or right before ']' (JS u-mode, Python, Rust, RE2 agree)
+      if (peek() === "-" && (items.length === 0 || c[i + 1] === "]")) { i++; items.push({ t: "ch", c: "-" }); continue; }
       const a = classChar();
-      if (peek() === "-") {
+      if (peek() === "-" && c[i + 1] !== "]") {
         i++;
         const b = classChar();
         if (a.t !== "ch" || b.t !== "ch") throw new Error("class range endpoints must be characters");

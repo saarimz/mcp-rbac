@@ -206,8 +206,9 @@ def parse(p: str) -> RNode:
         eat("?")
         if i < len(c) and c[i] in "*+?{":
             raise PortableRegexError("stacked quantifiers are not portable")
-        if isinstance(a, Group) and _has_repeat(a.n):
-            raise PortableRegexError("quantified group containing a quantifier (star height > 1)")
+        # star height <= 1: a group containing a quantifier may only be optional ("?", "{0,1}", "{1}")
+        if isinstance(a, Group) and _has_repeat(a.n) and not (mx is not None and mx <= 1):
+            raise PortableRegexError("quantified group containing a quantifier (star height > 1); only an optional group (x+)? is allowed")
         return Repeat(a, mn, mx)
 
     def class_char() -> Ch | Digit | Word:
@@ -242,8 +243,13 @@ def parse(p: str) -> RNode:
             if peek() == "]":
                 i += 1
                 break
+            # a literal '-' is portable as the first member or right before ']' (JS u-mode, Python, Rust, RE2 agree)
+            if peek() == "-" and (not items or (i + 1 < len(c) and c[i + 1] == "]")):
+                i += 1
+                items.append(Ch("-"))
+                continue
             a = class_char()
-            if peek() == "-":
+            if peek() == "-" and not (i + 1 < len(c) and c[i + 1] == "]"):
                 i += 1
                 b = class_char()
                 if not isinstance(a, Ch) or not isinstance(b, Ch):

@@ -75,10 +75,13 @@ missing (absent; skipped when `optional`) → `missing:<arg>`; numeric rules (an
 ### Portable regex
 Full match (anchored). Allowed: literals, escaped metacharacters `\. \* \+ \? \( \) \[ \] \{ \} \| \\ \^ \$ \/ \-`,
 `\d` (= `[0-9]`), `\w` (= `[A-Za-z0-9_]`), `.` (any code point except `\n \r \u2028 \u2029`), classes `[...]`/`[^...]`
-with literal chars, ranges and `\d \w`, groups `(...)` and `(?:...)`, alternation `|`, quantifiers `* + ? {n} {n,} {n,m}`
+with literal chars, ranges and `\d \w` (a literal `-` is allowed as the first member or right before `]`; `[`, `^` and
+any other `-` must be escaped), groups `(...)` and `(?:...)`, alternation `|`, quantifiers `* + ? {n} {n,} {n,m}`
 (n,m ≤ 1000) with optional lazy `?`. Rejected: everything else (anchors, `\b`, `\s`, backreferences, lookaround,
-named groups, flags, `\p{}`), and quantified groups containing a quantifier (star height ≤ 1, which rules out
-catastrophic backtracking in backtracking engines). ≤ 500 chars.
+named groups, flags, `\p{}`), and a quantified group containing a quantifier unless the outer quantifier allows at most
+one repetition (`(-[a-z]+)?`, `{0,1}`, `{1}` are fine; `(a+)*`, `(a+){2}` are not). This keeps star height ≤ 1, which
+rules out exponential backtracking in backtracking engines (JS, Python). Polynomial backtracking (`a+a+a+c`) is still
+possible there; pair every `pattern` with a `maxLength` (Rust and Go evaluate in linear time). ≤ 500 chars.
 
 ### Limit
 `{tool: pattern, kind?: tool|resource|prompt, max: >0, per: minute|hour|day|<ms integer > 0>, sum?: arg,

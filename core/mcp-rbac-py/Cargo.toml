@@ -1,0 +1,16 @@
+[package]
+name = "mcp-rbac-py"
+description = "PyO3 binding of mcp-rbac-core (module mcp_rbac_core)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+name = "mcp_rbac_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+mcp-rbac-core = { path = "../mcp-rbac-core" }
+pyo3 = { version = "0.27", features = ["extension-module", "abi3-py39"] }

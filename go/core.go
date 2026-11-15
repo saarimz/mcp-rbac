@@ -27,6 +27,7 @@ const (
 	opWarnings          = 6
 	opCheck             = 7
 	opYAMLToJSON        = 8
+	opYAMLToJSONOrdered = 12
 	opVersion           = 9
 	opAccount           = 10
 	opCost              = 11
@@ -153,6 +154,12 @@ func (r *Runtime) Check(ctx context.Context, policy string) (string, error) {
 // YAMLToJSON parses one document of the portable YAML profile: {"doc":...} or {"error":"yaml_invalid"}.
 func (r *Runtime) YAMLToJSON(ctx context.Context, doc string) (string, error) {
 	return r.util.do(ctx, 0, opYAMLToJSON, doc, "", 0)
+}
+
+// yamlToJSONOrdered is YAMLToJSON with mapping order preserved (not canonical); pack resolution needs it because
+// semantics.tools order is first-match precedence.
+func (r *Runtime) yamlToJSONOrdered(ctx context.Context, doc string) (string, error) {
+	return r.util.do(ctx, 0, opYAMLToJSONOrdered, doc, "", 0)
 }
 
 // Redact applies a decision's redaction to a tool result (both JSON).

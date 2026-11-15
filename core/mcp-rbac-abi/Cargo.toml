@@ -12,3 +12,4 @@ crate-type = ["cdylib", "rlib"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 mcp-rbac-core = { path = "../mcp-rbac-core" }
+serde_json = { version = "1", features = ["arbitrary_precision", "preserve_order"] }

@@ -80,6 +80,11 @@ func TestResolvePacksOrderPrefixErrors(t *testing.T) {
 	if !strings.Contains(out, want) {
 		t.Fatalf("got %s", out)
 	}
+	// inline YAML order is first-match precedence: it must survive resolution (regression: canonical YAML→JSON sorted it)
+	ord, err := rt.ResolvePacks(ctx, "version: 1\nroles: {r: {}}\nsemantics:\n  tools:\n    \"zz*\": {classes: [write]}\n    \"a*\": {classes: [read]}\n  packs: [one]\n", o)
+	if err != nil || !strings.HasPrefix(ord, `{"version":1,"roles"`) || !strings.Contains(ord, `"tools":{"zz*":{"classes":["write"]},"a*":`) {
+		t.Fatalf("order not preserved: %v %s", err, ord)
+	}
 	y := "version: 1\nroles: {r: {}}\n"
 	if got, _ := rt.ResolvePacks(ctx, y, PackOptions{}); got != y {
 		t.Fatal("no packs: text must be unchanged")

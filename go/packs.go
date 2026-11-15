@@ -302,7 +302,7 @@ func (r *Runtime) ResolvePacks(ctx context.Context, policy string, o PackOptions
 	if isJSONDocument(policy) {
 		docJSON = []byte(strings.TrimPrefix(policy, "\ufeff"))
 	} else {
-		raw, err := r.YAMLToJSON(ctx, policy)
+		raw, err := r.yamlToJSONOrdered(ctx, policy)
 		if err != nil {
 			return "", err
 		}

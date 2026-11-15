@@ -98,7 +98,18 @@ def resolve_packs_doc(doc: Any, base_dir: Optional[pathlib.Path] = None, search_
 def resolve_packs(policy_text: str, base_dir: Optional[pathlib.Path] = None, search_paths: Optional[list[str]] = None, packs: Optional[dict[str, Any]] = None) -> str:
     doc = parse_json(policy_text.removeprefix("\ufeff")) if is_json_document(policy_text) else load_yaml(policy_text)
     out = resolve_packs_doc(doc, base_dir, search_paths, packs)
-    return policy_text if out is doc else json.dumps(out)
+    return policy_text if out is doc else json.dumps(_ints(out))
+
+
+def _ints(v: Any) -> Any:
+    """The JSON model reads every number as a float; write integral ones as integers (1, not 1.0) like TS and Go."""
+    if isinstance(v, float) and v.is_integer() and abs(v) < 2**53:
+        return int(v)
+    if isinstance(v, dict):
+        return {k: _ints(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_ints(x) for x in v]
+    return v
 
 
 def load_policy_with_packs(path: str | os.PathLike[str], search_paths: Optional[list[str]] = None) -> str:

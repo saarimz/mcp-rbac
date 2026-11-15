@@ -68,7 +68,8 @@ Reproduce: `python -m bench.competitors.load baseline mcp-rbac-nocache mcp-rbac 
 0.5.0 makes the P11 fixes the defaults where they are safe: `protectWithCore` guards an `McpServer` (TS SDK v1) or a
 v2 server **in place**, the decision cache stays on, and the venue example opens its audit with `openAuditSink`
 (**worker** by default, batched fallback). Same harness and box as P11, Sunday 15 Nov 2026 (ET), two back-to-back runs
-on a quiet box (17:36-17:46 ET). Raw: `bench/competitors/results/p12/run{1,2}.txt` and `run{1,2}/*.json`. Targets:
+(17:36-17:41 ET; the only work of mine overlapping them was a ~2 s `tsc --noEmit` during run 1, and other agents
+may share the box). Raw: `bench/competitors/results/p12/run{1,2}.txt` and `run{1,2}/*.json`. Targets:
 `mcp-rbac` = the 0.5 defaults (in place + cache + worker audit); `-batched` = batched audit on the main thread;
 `-hop-batched-nocache` = the P11 "before" configuration; `-noaudit` = diagnostic ceiling.
 

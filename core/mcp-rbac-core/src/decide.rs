@@ -37,7 +37,10 @@ impl Outcome {
 #[derive(Debug, Clone)]
 pub struct LimitItem { pub index: usize, pub name: String, pub key: String, pub amount: f64, pub max: f64, pub window_ms: f64, pub burst: Option<(String, f64, f64)>,
     /// Steady-counter total after this call consumed it (set only by `Engine::authorize*` on allow). Never part of `decide`.
-    pub used: Option<f64> }
+    pub used: Option<f64>,
+    /// The amount is only known after the call (post-call cost from the result): consumes 0 now, requires room
+    /// (`used < max`), and is charged by `Engine::account`.
+    pub deferred: bool }
 
 #[derive(Debug, Clone)]
 pub struct Decision {
@@ -51,16 +54,18 @@ pub struct Decision {
     pub withhold_text: bool,
     pub limits: Vec<LimitItem>,
     pub tenant: Option<String>,
+    /// Effective tool semantics: None = the policy has no `semantics` block (key omitted); Some(None) = not resolved.
+    pub sem: Option<Option<Value>>,
 }
 
 impl Decision {
     fn deny(reason: &str) -> Decision {
-        Decision { outcome: Outcome::Deny, reason: reason.into(), rule: None, required_scopes: vec![], missing_scopes: vec![], labels: vec![], redact: vec![], withhold_text: false, limits: vec![], tenant: None }
+        Decision { outcome: Outcome::Deny, reason: reason.into(), rule: None, required_scopes: vec![], missing_scopes: vec![], labels: vec![], redact: vec![], withhold_text: false, limits: vec![], tenant: None, sem: None }
     }
     pub fn allowed(&self) -> bool { self.outcome != Outcome::Deny }
     pub fn to_value(&self) -> Value {
         let s = |v: &[String]| Value::Array(v.iter().map(|x| Value::String(x.clone())).collect());
-        obj(vec![
+        let mut v = obj(vec![
             ("decision", Value::String(self.outcome.as_str().into())),
             ("reason", Value::String(self.reason.clone())),
             ("rule", self.rule.clone().map(Value::String).unwrap_or(Value::Null)),
@@ -76,10 +81,13 @@ impl Decision {
                     ("burst", l.burst.as_ref().map(|(k, m, w)| obj(vec![("key", Value::String(k.clone())), ("max", number(*m)), ("windowMs", number(*w))])).unwrap_or(Value::Null)),
                 ];
                 if let Some(u) = l.used { f.push(("used", number(u))) }
+                if l.deferred { f.push(("deferred", Value::Bool(true))) }
                 obj(f)
             }).collect())),
             ("tenant", self.tenant.clone().map(Value::String).unwrap_or(Value::Null)),
-        ])
+        ]);
+        if let (Some(s), Value::Object(m)) = (&self.sem, &mut v) { m.insert("semantics".into(), s.clone().unwrap_or(Value::Null)); }
+        v
     }
     pub fn to_json(&self) -> String { canonical(&self.to_value()) }
 }
@@ -279,6 +287,12 @@ impl Policy {
 
     /// Decide a parsed request.
     pub fn decide(&self, req: &Value) -> Decision {
+        let mut d = self.decide_inner(req);
+        if self.semantics.is_some() && d.sem.is_none() { d.sem = Some(None) }
+        d
+    }
+
+    fn decide_inner(&self, req: &Value) -> Decision {
         // 1. request shape
         let Some(r) = req.as_object() else { return Decision::deny("invalid_request") };
         let Some(Value::String(name)) = r.get("tool") else { return Decision::deny("invalid_request") };
@@ -314,16 +328,31 @@ impl Policy {
             }
         }
         d.tenant = resource.iter().find(|(k, _)| k == tk).map(|(_, v)| v.clone());
-        // 7. labels
+        // 6b. tool semantics (policy packs / inline entries merged with the server's declared _meta and annotations)
+        let eff = match (&self.semantics, kind) {
+            (Some(sem), Kind::Tool) => match sem.resolve(name, r.get("toolMeta"), args) {
+                Ok(e) => { d.sem = Some(Some(e.to_value())); Some(e) }
+                Err(()) => { d.reason = "invalid_tool_meta".into(); return d }
+            },
+            _ => None,
+        };
+        // 7. labels (+ semantic sensitivity), then class rules
         let roles_at: Vec<&str> = id.assignments.iter().filter(|a| scope_allows(&a.scope, &resource)).map(|a| a.role.as_str()).collect();
+        let mut class_approve = false;
         if kind == Kind::Tool {
             d.labels = self.labels_for(name);
+            if let Some(e) = &eff { for l in &e.sensitivity { if !d.labels.contains(l) { d.labels.push(l.clone()) } } }
             if !d.labels.is_empty() {
                 for lr in &self.label_rules {
                     if !lr.labels.iter().all(|l| d.labels.contains(l)) { continue }
                     if lr.deny_roles.as_ref().is_some_and(|x| x.iter().any(|r| roles_at.contains(&r.as_str()))) { d.reason = format!("label_denied:{}", lr.labels.join("+")); return d }
                     if lr.allow_roles.as_ref().is_some_and(|x| !x.iter().any(|r| roles_at.contains(&r.as_str()))) { d.reason = format!("label_requires_role:{}", lr.labels.join("+")); return d }
                 }
+            }
+            if let (Some(sem), Some(e)) = (&self.semantics, &eff) {
+                let (deny, approve) = sem.check_rules(&e.classes, &roles_at);
+                if let Some(reason) = deny { d.reason = reason; return d }
+                class_approve = approve;
             }
         }
         // 8. roles
@@ -345,15 +374,37 @@ impl Policy {
                 rule = Some(format!("{}@{}:{}{}", a.role, fmt_scope(&a.scope), kind.prefix(), p.pattern.raw));
                 break 'outer;
             }
+            if let (Some(sem), Some(e)) = (&self.semantics, &eff) {
+                if sem.grants(&a.role, &e.classes) {
+                    if let Some(b) = self.tool_base.get(name.as_str()) {
+                        if let Some(cr) = constraints::check(b, args) { last = format!("constraint:{cr}"); continue }
+                    }
+                    rule = Some(format!("{}@{}:class:{}", a.role, fmt_scope(&a.scope), e.classes.join("+")));
+                    break 'outer;
+                }
+            }
         }
         let Some(rule) = rule else { d.reason = format!("user:{last}"); return d };
         d.rule = Some(rule);
         // 9. limits
         for (i, l) in self.limits.iter().enumerate() {
             if l.kind != kind || !l.pattern.matches(name) { continue }
-            let amount = match &l.sum {
-                None => 1.0,
-                Some(s) => match args.get(s).and_then(finite) { Some(x) if x >= 0.0 => x, _ => { d.reason = format!("limit_{i}:unbudgetable_argument"); d.limits.clear(); return d } },
+            if let Some(c) = &l.class { if !eff.as_ref().is_some_and(|e| e.classes.contains(c)) { continue } }
+            let mut deferred = false;
+            let amount = if let Some(cur) = &l.spend {
+                let fail = |d: &mut Decision, why: &str| { d.reason = format!("limit_{i}:{why}"); d.limits.clear(); };
+                let Some(e) = eff.as_ref().filter(|e| e.spend.is_some()) else { fail(&mut d, "unknown_spend"); return d };
+                if e.currency.as_deref() != Some(cur.as_str()) { fail(&mut d, "currency_mismatch"); return d }
+                match e.amount {
+                    None => { deferred = true; 0.0 }
+                    Some(Ok(x)) => x,
+                    Some(Err(())) => { fail(&mut d, "unbudgetable_spend"); return d }
+                }
+            } else {
+                match &l.sum {
+                    None => 1.0,
+                    Some(s) => match args.get(s).and_then(finite) { Some(x) if x >= 0.0 => x, _ => { d.reason = format!("limit_{i}:unbudgetable_argument"); d.limits.clear(); return d } },
+                }
             };
             let t = d.tenant.as_ref().map(|t| format!("t:{t}|")).unwrap_or_default();
             let who = match l.shared.as_str() {
@@ -365,11 +416,11 @@ impl Policy {
             };
             let key = format!("limit|{i}|{who}");
             let burst = l.burst.map(|(m, w)| (format!("{key}|burst"), m, w));
-            d.limits.push(LimitItem { index: i, name: l.name.clone().unwrap_or_else(|| format!("l{i}")), key, amount, max: l.max, window_ms: l.window_ms, burst, used: None });
+            d.limits.push(LimitItem { index: i, name: l.name.clone().unwrap_or_else(|| format!("l{i}")), key, amount, max: l.max, window_ms: l.window_ms, burst, used: None, deferred });
         }
         // 10. approval
         d.outcome = Outcome::Allow;
-        if kind == Kind::Tool && self.approvals.iter().any(|a| a.pattern.matches(name) && a.when.as_ref().is_none_or(|w| constraints::check(w, args).is_none())) {
+        if kind == Kind::Tool && (class_approve || self.approvals.iter().any(|a| a.pattern.matches(name) && a.when.as_ref().is_none_or(|w| constraints::check(w, args).is_none()))) {
             d.outcome = Outcome::NeedsApproval;
         }
         d.reason = "ok".into();
@@ -388,10 +439,25 @@ impl Policy {
 
     /// Which of `names` a caller may see in tools/list (canonical JSON `{"visible":[...]}`).
     pub fn visible(&self, identity: &Value, names: &[String], toolsets: &Option<Vec<String>>) -> Vec<String> {
+        self.visible_meta(identity, names, toolsets, None)
+    }
+
+    /// tools/list filtering with tool semantics: `meta` maps a tool name to its tools/list entry.
+    pub fn visible_meta(&self, identity: &Value, names: &[String], toolsets: &Option<Vec<String>>, meta: Option<&Map<String, Value>>) -> Vec<String> {
         let Some(id) = parse_identity(self, identity) else { return vec![] };
+        let empty = Map::new();
+        let all_roles: Vec<&str> = id.assignments.iter().map(|a| a.role.as_str()).collect();
         names.iter().filter(|n| {
-            valid_tool_name(n) && self.gate(&id, Kind::Tool, n, toolsets).is_none()
-                && id.assignments.iter().any(|a| self.roles.get(&a.role).is_some_and(|ps| ps.iter().any(|p| p.kind == Kind::Tool && p.pattern.matches(n))))
+            if !valid_tool_name(n) || self.gate(&id, Kind::Tool, n, toolsets).is_some() { return false }
+            let eff = match &self.semantics {
+                None => None,
+                Some(sem) => match sem.resolve(n, meta.and_then(|m| m.get(n.as_str())), &empty) {
+                    Ok(e) => { if sem.check_rules(&e.classes, &all_roles).0.is_some() { return false } Some(e) }
+                    Err(()) => return false,
+                },
+            };
+            id.assignments.iter().any(|a| self.roles.get(&a.role).is_some_and(|ps| ps.iter().any(|p| p.kind == Kind::Tool && p.pattern.matches(n)))
+                || matches!((&self.semantics, &eff), (Some(sem), Some(e)) if sem.grants(&a.role, &e.classes)))
         }).cloned().collect()
     }
 
@@ -402,7 +468,8 @@ impl Policy {
             let m = v.as_object()?;
             let names = str_list(m.get("tools"))??;
             let ts = str_list(m.get("toolsets"))?;
-            Some(self.visible(m.get("identity").unwrap_or(&Value::Null), &names, &ts))
+            let meta = match m.get("toolMeta") { None => None, Some(Value::Object(x)) => Some(x), Some(_) => return None };
+            Some(self.visible_meta(m.get("identity").unwrap_or(&Value::Null), &names, &ts, meta))
         })();
         match out {
             Some(l) => canonical(&obj(vec![("visible", Value::Array(l.into_iter().map(Value::String).collect()))])),

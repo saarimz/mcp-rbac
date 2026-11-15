@@ -1,7 +1,7 @@
 //! JSON-in/JSON-out facade shared by every binding (WASM, PyO3, C-ABI/Go, native). A binding is a thin shell around
 //! these four calls, so decisions, rate limiting and redaction are the same code in every language.
 
-use crate::budget::{enforce, MemoryStore};
+use crate::budget::{enforce, CounterStore, MemoryStore};
 use crate::decide::{Decision, LimitItem, Outcome};
 use crate::json::canonical;
 use crate::policy::Policy;
@@ -64,6 +64,32 @@ impl Engine {
     /// Apply a decision's redaction plan and labels (`decision_json` = output of decide/authorize) to an MCP
     /// CallToolResult. Returns canonical JSON, or `{"error":"invalid_result"}` / `{"error":"invalid_decision"}`.
     pub fn redact(&self, result_json: &str, decision_json: &str) -> String { redact_json(result_json, decision_json) }
+
+    /// Post-call cost accounting for an allowed call (`decision_json` = its authorize output): read the cost from the
+    /// CallToolResult via the decision's `semantics.spend` and charge it to every deferred budget. A cost that cannot be
+    /// read charges the budget's full `max` (fail-closed: the budget is exhausted until its window ends).
+    /// `{"cost":…,"charged":[{"key","amount","used"}],"error"?}` or `{"error":"invalid_request"}`.
+    pub fn account(&self, decision_json: &str, result_json: &str, now_ms: f64) -> String {
+        let bad = || r#"{"error":"invalid_request"}"#.to_string();
+        if !now_ms.is_finite() || !crate::json::depth_ok(decision_json, 64) || !crate::json::depth_ok(result_json, 64) { return bad() }
+        let (Ok(d), Ok(r)) = (crate::json::parse_strict(decision_json), crate::json::parse_strict(result_json)) else { return bad() };
+        if !d.is_object() || !r.is_object() { return bad() }
+        let c = crate::semantics::cost_value(&d, &r);
+        let amount = c.get("cost").and_then(|x| x.get("amount")).and_then(crate::json::finite);
+        let mut charged = vec![];
+        if d.get("decision").and_then(Value::as_str) == Some("allow") {
+            for l in d.get("limits").and_then(Value::as_array).into_iter().flatten() {
+                if l.get("deferred") != Some(&Value::Bool(true)) { continue }
+                let (Some(key), Some(max), Some(w)) = (l.get("key").and_then(Value::as_str), l.get("max").and_then(crate::json::finite), l.get("windowMs").and_then(crate::json::finite).filter(|w| *w > 0.0)) else { return bad() };
+                let a = amount.unwrap_or(max);
+                let used = self.store.charge(key, a, w, now_ms);
+                charged.push(crate::json::obj(vec![("key", Value::String(key.into())), ("amount", crate::json::number(a)), ("used", crate::json::number(used))]));
+            }
+        }
+        let mut out = c;
+        if let Value::Object(m) = &mut out { m.insert("charged".into(), Value::Array(charged)); }
+        canonical(&out)
+    }
 }
 
 /// Parse YAML with the portable loader: `{"doc":<value>}` or `{"error":"yaml_invalid"}` (conformance `yamlDoc` vectors).
@@ -103,6 +129,7 @@ pub fn decision_from_json(s: &str) -> Option<Decision> {
         withhold_text: m.get("withholdText")?.as_bool()?,
         limits: Vec::<LimitItem>::new(),
         tenant: m.get("tenant").and_then(Value::as_str).map(String::from),
+        sem: None,
     })
 }
 

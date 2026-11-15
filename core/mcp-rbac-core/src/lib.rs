@@ -22,6 +22,7 @@ pub mod pattern;
 pub mod policy;
 pub mod redact;
 pub mod regex_portable;
+pub mod semantics;
 pub mod yaml;
 
 pub use decide::{Decision, Outcome};

@@ -7,21 +7,25 @@ use std::sync::Mutex;
 
 /// One counter consumption: key, amount, max per window, window length.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Consume { pub key: String, pub amount: f64, pub max: f64, pub window_ms: f64 }
+pub struct Consume { pub key: String, pub amount: f64, pub max: f64, pub window_ms: f64,
+    /// Deferred (post-call) spend: consumes `amount` (0) but requires `used < max`, so an exhausted budget denies.
+    pub strict: bool }
 
 /// A fixed-window counter store. `consume_many` must be atomic: all items or none.
 pub trait CounterStore {
     /// Ok(totals after incrementing, in item order) if every counter had room (and all were incremented),
     /// Err(index of the first full counter) otherwise.
     fn consume_many(&self, items: &[Consume], now_ms: f64) -> Result<Vec<f64>, usize>;
+    /// Add `amount` to a counter unconditionally (post-call cost accounting); returns the new total.
+    fn charge(&self, key: &str, amount: f64, window_ms: f64, now_ms: f64) -> f64;
 }
 
 /// Counters a decision needs (steady + burst), in order.
 pub fn counters(d: &Decision) -> Vec<(Consume, &LimitItem)> {
     let mut out = vec![];
     for l in &d.limits {
-        out.push((Consume { key: l.key.clone(), amount: l.amount, max: l.max, window_ms: l.window_ms }, l));
-        if let Some((k, m, w)) = &l.burst { out.push((Consume { key: k.clone(), amount: l.amount, max: *m, window_ms: *w }, l)); }
+        out.push((Consume { key: l.key.clone(), amount: l.amount, max: l.max, window_ms: l.window_ms, strict: l.deferred }, l));
+        if let Some((k, m, w)) = &l.burst { out.push((Consume { key: k.clone(), amount: l.amount, max: *m, window_ms: *w, strict: l.deferred }, l)); }
     }
     out
 }
@@ -66,7 +70,8 @@ impl CounterStore for MemoryStore {
         let used = |m: &HashMap<String, (i64, f64, f64)>, c: &Consume| match m.get(&c.key) { Some((w, n, _)) if *w == win(c) => *n, _ => 0.0 };
         let m = &mut g.map;
         for (i, c) in items.iter().enumerate() {
-            if used(m, c) + c.amount > c.max { return Err(i) }
+            let u = used(m, c);
+            if u + c.amount > c.max || (c.strict && u >= c.max) { return Err(i) }
         }
         let mut totals = Vec::with_capacity(items.len());
         for c in items {
@@ -80,6 +85,13 @@ impl CounterStore for MemoryStore {
         }
         Ok(totals)
     }
+    fn charge(&self, key: &str, amount: f64, window_ms: f64, now_ms: f64) -> f64 {
+        let mut g = self.m.lock().unwrap_or_else(|e| e.into_inner());
+        let w = (now_ms / window_ms).floor() as i64;
+        let n = match g.map.get(key) { Some((cw, n, _)) if *cw == w => *n, _ => 0.0 } + amount;
+        g.map.insert(key.to_string(), (w, n, (w + 1) as f64 * window_ms));
+        n
+    }
 }
 
 #[cfg(test)]
@@ -88,8 +100,8 @@ mod tests {
     #[test]
     fn atomic_and_windowed() {
         let s = MemoryStore::default();
-        let a = Consume { key: "a".into(), amount: 1.0, max: 2.0, window_ms: 1000.0 };
-        let b = Consume { key: "b".into(), amount: 1.0, max: 1.0, window_ms: 1000.0 };
+        let a = Consume { key: "a".into(), amount: 1.0, max: 2.0, window_ms: 1000.0, strict: false };
+        let b = Consume { key: "b".into(), amount: 1.0, max: 1.0, window_ms: 1000.0, strict: false };
         assert_eq!(s.consume_many(&[a.clone(), b.clone()], 0.0), Ok(vec![1.0, 1.0]));
         assert_eq!(s.consume_many(&[a.clone(), b.clone()], 10.0), Err(1));
         assert_eq!(s.consume_many(std::slice::from_ref(&a), 20.0), Ok(vec![2.0])); // a wasn't consumed by the failed batch
@@ -101,11 +113,11 @@ mod tests {
     fn sweeps_expired_keys_but_never_live_ones() {
         let s = MemoryStore::default();
         let day = 86_400_000.0;
-        let v = Consume { key: "victim".into(), amount: 1.0, max: 5.0, window_ms: day };
+        let v = Consume { key: "victim".into(), amount: 1.0, max: 5.0, window_ms: day, strict: false };
         for _ in 0..5 { assert!(s.consume_many(std::slice::from_ref(&v), 0.0).is_ok()) }
         let mut peak = 0;
         for i in 0..200_000u32 { // 100 new callers per 1 s window; the victim's daily window stays live throughout
-            let c = Consume { key: format!("c{i}"), amount: 1.0, max: 9.0, window_ms: 1000.0 };
+            let c = Consume { key: format!("c{i}"), amount: 1.0, max: 9.0, window_ms: 1000.0, strict: false };
             s.consume_many(&[c], i as f64 * 10.0).unwrap();
             peak = peak.max(s.len());
         }

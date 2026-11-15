@@ -51,6 +51,7 @@ pub fn run_vector(line: &str) -> String {
         // YAML loader conformance: the parsed document as canonical JSON
         return match mcp_rbac_core::yaml::load(y) { Ok(d) => json::canonical(&json::obj(vec![("doc", d)])), Err(_) => "{\"error\":\"yaml_invalid\"}".to_string() };
     }
+    if let Some(c) = v.get("costJson").and_then(Value::as_str) { return mcp_rbac_core::semantics::cost_json(c) }
     let policy = if let Some(y) = v.get("policyYaml").and_then(Value::as_str) { Policy::from_yaml_str(y) } else if let Some(j) = v.get("policyJson").and_then(Value::as_str) { Policy::from_json_str(j) } else { Policy::from_value(v.get("policy").unwrap_or(&Value::Null)) };
     let p = match policy { Ok(p) => p, Err(_) => return "{\"error\":\"policy_invalid\"}".to_string() };
     if let Some(r) = v.get("requestJson").and_then(Value::as_str) { return p.decide_json(r) }

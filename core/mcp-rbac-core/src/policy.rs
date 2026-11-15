@@ -24,6 +24,10 @@ pub struct Perm { pub kind: Kind, pub pattern: Pattern, pub constraints: Option<
 pub struct Limit {
     pub pattern: Pattern, pub kind: Kind, pub max: f64, pub window_ms: f64, pub sum: Option<String>,
     pub shared: String, pub burst: Option<(f64, f64)>, pub name: Option<String>,
+    /// `semantics.budgets`: applies to calls whose effective classes include this class.
+    pub class: Option<String>,
+    /// `semantics.budgets` with a currency: the amount is the call's spend in this denomination.
+    pub spend: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +73,8 @@ pub struct Policy {
     pub tool_names: Vec<String>,
     /// Non-fatal findings from `check` (e.g. limits bypassed by a role grant).
     pub warnings: Vec<String>,
+    /// Tool semantics (spec/tool-semantics.md); None when the policy has no `semantics` block.
+    pub semantics: Option<crate::semantics::Semantics>,
 }
 
 pub type R<T> = Result<T, String>;
@@ -175,7 +181,7 @@ fn parse_limit(v: &Value, tool: Option<&str>, at: &str) -> R<Limit> {
         }
     };
     let name = match m.get("name") { None => None, Some(n) => Some(n.as_str().filter(|s| is_set_name(s)).ok_or_else(|| format!("{at}: invalid name"))?.to_string()) };
-    Ok(Limit { pattern, kind, max, window_ms, sum, shared, burst, name })
+    Ok(Limit { pattern, kind, max, window_ms, sum, shared, burst, name, class: None, spend: None })
 }
 
 impl Policy {
@@ -209,7 +215,7 @@ impl Policy {
         }
         digit_keys(v, "policy")?;
         let top = obj(v, "policy")?;
-        keys_ok(top, &["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation"], "policy")?;
+        keys_ok(top, &["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation", "semantics"], "policy")?;
         match top.get("version").and_then(crate::json::finite) {
             Some(1.0) => {}
             _ => return Err("version: unsupported policy version (expected 1)".into()),
@@ -519,6 +525,36 @@ impl Policy {
             delegation = Some(Delegation { actors, unknown_deny });
         }
 
+        // ---- tool semantics (+ class budgets, appended after every other limit so existing indices never move)
+        let semantics = match top.get("semantics") {
+            None => None,
+            Some(sv) => {
+                let includes: IndexMap<String, Vec<String>> = own.iter().map(|(k, (_, inc))| (k.clone(), inc.clone())).collect();
+                let names: Vec<String> = own.keys().chain(custom.keys()).cloned().collect();
+                let sem = crate::semantics::Semantics::parse(sv, &names, &includes)?;
+                if let Some(b) = sv.get("budgets") {
+                    let a = b.as_array().ok_or("semantics.budgets: must be a list")?;
+                    for (i, x) in a.iter().enumerate() {
+                        let at = format!("semantics.budgets[{i}]");
+                        let m = obj(x, &at)?;
+                        keys_ok(m, &["class", "tool", "max", "per", "currency", "shared", "burst", "name"], &at)?;
+                        let class = m.get("class").map(|c| c.as_str().filter(|c| crate::semantics::is_class(c)).map(String::from).ok_or_else(|| format!("{at}.class: unknown class"))).transpose()?;
+                        if class.is_none() && !m.contains_key("tool") { return Err(format!("{at}: needs class or tool")) }
+                        let spend = m.get("currency").map(|c| c.as_str().filter(|c| !c.is_empty() && c.len() <= 32 && c.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')).map(String::from).ok_or_else(|| format!("{at}.currency: must be a short code like USD"))).transpose()?;
+                        let mut rest = m.clone();
+                        rest.remove("class");
+                        rest.remove("currency");
+                        if !rest.contains_key("tool") { rest.insert("tool".into(), Value::String("*".into())); }
+                        let mut l = parse_limit(&Value::Object(rest), None, &at)?;
+                        l.class = class;
+                        l.spend = spend;
+                        limits.push(l);
+                    }
+                }
+                Some(sem)
+            }
+        };
+
         // ---- lint
         for (rn, perms) in &roles {
             if rn != "@any" && perms.is_empty() { warnings.push(format!("roles.{rn}: grants nothing")); }
@@ -527,7 +563,7 @@ impl Policy {
         Ok(Policy {
             name: top.get("name").and_then(Value::as_str).map(String::from),
             tenant_key, roles, required, implies, write_implies_read, accounts, groups, approvals, limits, labels, label_rules, redact,
-            unstructured_keep, toolsets, delegation, tool_base, tool_names, warnings,
+            unstructured_keep, toolsets, delegation, tool_base, tool_names, warnings, semantics,
         })
     }
 }

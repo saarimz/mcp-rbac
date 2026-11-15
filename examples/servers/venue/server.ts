@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createCoreEngine, protectWithCore, type CoreDecision } from "../../../src/core-guard.js";
 import { SqliteAuditSink, auditRecordFromDecision, type AuditMode } from "../../../src/audit-sink.js";
+import { WorkerAuditSink } from "../../../src/audit-worker.js";
 import { openDb } from "./db.js";
 import { argsHash, canonical, resolveResource, venueTools } from "./tools.js";
 import { serveStreamable } from "../shared/http.js";
@@ -50,7 +51,9 @@ export async function main() {
     },
   });
   // Hash-chained decision audit; batched group commit by default (MCP_RBAC_AUDIT_MODE=sync commits before the call proceeds).
-  const sink = new SqliteAuditSink(dbPath, { mode: (process.env.MCP_RBAC_AUDIT_MODE as AuditMode | undefined) ?? "batched" });
+  // MCP_RBAC_AUDIT_WORKER=1 (P11): same chain/table, hashing + commit on a worker thread (src/audit-worker.ts)
+  const sink = process.env.MCP_RBAC_AUDIT_WORKER === "1" ? new WorkerAuditSink(dbPath)
+    : new SqliteAuditSink(dbPath, { mode: (process.env.MCP_RBAC_AUDIT_MODE as AuditMode | undefined) ?? "batched" });
   const audit = (e: Parameters<typeof auditRecordFromDecision>[0]) => sink.write(auditRecordFromDecision(e));
   // authz-end
 
@@ -61,7 +64,9 @@ export async function main() {
     const h = await serveStreamable({
       port: Number(httpPort), audience: AUDIENCE, secret, revoked,
       newSession: async () => {
-        const { server } = await protectWithCore(venueTools(db), { ...guardOpts((extra: any) => extra?.authInfo?.extra?.identity), onDecision: process.env.MCP_RBAC_BENCH_NO_AUDIT ? undefined : audit });  // env: diagnostic-only (bench/competitors/load.py)
+        // env knobs (bench/competitors/load.py): NO_AUDIT is diagnostic-only; INPLACE / DECISION_CACHE=0 select the P11 variants
+        const { server } = await protectWithCore(venueTools(db), { ...guardOpts((extra: any) => extra?.authInfo?.extra?.identity), onDecision: process.env.MCP_RBAC_BENCH_NO_AUDIT ? undefined : audit,
+          inPlace: process.env.MCP_RBAC_GUARD_INPLACE === "1", decisionCache: process.env.MCP_RBAC_DECISION_CACHE === "0" ? false : undefined });
         return server;
       },
     });

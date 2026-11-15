@@ -77,6 +77,10 @@
       "types": "./dist/core-guard.d.ts",
       "default": "./dist/core-guard.js"
     },
+    "./audit-worker": {
+      "types": "./dist/audit-worker.d.ts",
+      "default": "./dist/audit-worker.js"
+    },
     "./core-otel": {
       "types": "./dist/core-otel.d.ts",
       "default": "./dist/core-otel.js"

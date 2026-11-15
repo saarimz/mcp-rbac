@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased (P11 perf, local only)
+
+- **Decision cache** (`protectWithCore({ decisionCache })`, default on, 4096 entries): decisions that consulted no rate
+  limits or budgets and need no approval are pure in (policy, exact request JSON), so repeats skip the WASM call.
+  Decisions with limits, approvals or deferred spend are never cached (tested). `decisionCache: false` turns it off.
+- **In-place guard** (`protectWithCore(mcpServer, { inPlace: true })`, opt-in): wraps the McpServer's own tools/list and
+  tools/call handlers instead of an in-memory client/server hop. Same decisions, same trusted caller `_meta`, still
+  fail-closed for resources/prompts/completion (removed). The full TS suite (393 tests) and the 140-check red team pass
+  with it on. Uses SDK 1.x `Protocol#_requestHandlers` (feature-detected; throws if absent).
+- **Off-thread audit** (`mcp-rbac/audit-worker`, `WorkerAuditSink`): same table and hash chain as `SqliteAuditSink`
+  batched mode, with hashing, canonical JSON and SQLite commits on a worker thread. `flush()`/`close()`/exit/signals block
+  until the worker has committed. Verified with `verifyAuditTable`, from source and from the packed tarball.
+- Venue load (c=32, `list_events`), median of runs on this box: 3,049 req/s before -> 4,778-5,114 req/s with all three
+  (no-guard baseline about 6,000). Numbers and method: bench/perf/README.md.
+
 ## 0.4.0 (unreleased, local only)
 
 One Rust policy core, every language. Real servers, red-teamed. OpenTelemetry throughout.

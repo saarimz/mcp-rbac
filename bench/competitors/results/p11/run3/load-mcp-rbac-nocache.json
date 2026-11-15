@@ -1,0 +1,35 @@
+{
+ "target": "mcp-rbac-nocache",
+ "tool": "list_events",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10,
+  "ok": 22070,
+  "errors": 0,
+  "rps": 2207,
+  "p50_ms": 0.401,
+  "p90_ms": 0.6,
+  "p99_ms": 0.898,
+  "max_ms": 10.551,
+  "mean_ms": 0.451
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.017,
+  "ok": 29956,
+  "errors": 0,
+  "rps": 2990.5,
+  "p50_ms": 9.725,
+  "p90_ms": 15.141,
+  "p99_ms": 21.208,
+  "max_ms": 33.669,
+  "mean_ms": 10.686
+ },
+ "peak_rss_mb": {
+  "app+guard": 368.9
+ },
+ "peak_rss_total_mb": 368.9,
+ "measured_at": "2026-11-15T16:47:05-0500",
+ "cpu": 8
+}

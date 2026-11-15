@@ -1,0 +1,35 @@
+{
+ "target": "baseline",
+ "tool": "list_events",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10,
+  "ok": 38198,
+  "errors": 0,
+  "rps": 3819.8,
+  "p50_ms": 0.212,
+  "p90_ms": 0.358,
+  "p99_ms": 0.612,
+  "max_ms": 109.216,
+  "mean_ms": 0.26
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.004,
+  "ok": 61016,
+  "errors": 0,
+  "rps": 6099.2,
+  "p50_ms": 4.586,
+  "p90_ms": 8.991,
+  "p99_ms": 11.734,
+  "max_ms": 26.05,
+  "mean_ms": 5.244
+ },
+ "peak_rss_mb": {
+  "app": 350.4
+ },
+ "peak_rss_total_mb": 350.4,
+ "measured_at": "2026-11-15T16:45:49-0500",
+ "cpu": 8
+}

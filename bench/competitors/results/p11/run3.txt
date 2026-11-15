@@ -1,0 +1,8 @@
+mcp-rbac-inplace-noaudit c1 p50 0.218 p99 0.632 ms (0 err) | c32 5454.3 rps p50 4.993 p99 13.623 (0 err) | rss 359.2 MB
+mcp-rbac-inplace-worker c1 p50 0.263 p99 0.659 ms (0 err) | c32 4778.1 rps p50 5.869 p99 14.274 (0 err) | rss 391.0 MB
+agentgateway   c1 p50 0.581 p99 1.485 ms (0 err) | c32 7093.6 rps p50 3.881 p99 10.187 (0 err) | rss 427.0 MB
+baseline       c1 p50 0.212 p99 0.612 ms (0 err) | c32 6099.2 rps p50 4.586 p99 11.734 (0 err) | rss 350.4 MB
+mcp-rbac-inplace c1 p50 0.256 p99 0.69 ms (0 err) | c32 4743.7 rps p50 6.037 p99 15.487 (0 err) | rss 364.9 MB
+mcp-rbac       c1 p50 0.312 p99 0.742 ms (0 err) | c32 4007.3 rps p50 7.15 p99 16.719 (0 err) | rss 368.9 MB
+mcp-rbac-nocache c1 p50 0.401 p99 0.898 ms (0 err) | c32 2990.5 rps p50 9.725 p99 21.208 (0 err) | rss 368.9 MB
+done

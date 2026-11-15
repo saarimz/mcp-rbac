@@ -1,0 +1,6 @@
+mcp-rbac-nocache c1 p50 0.383 p99 0.788 ms (0 err) | c32 3152.3 rps p50 9.284 p99 19.59 (0 err) | rss 369.3 MB
+mcp-rbac       c1 p50 0.301 p99 0.705 ms (0 err) | c32 4031.6 rps p50 7.029 p99 16.987 (0 err) | rss 372.4 MB
+mcp-rbac-inplace c1 p50 0.276 p99 0.759 ms (0 err) | c32 4655.8 rps p50 6.236 p99 15.122 (0 err) | rss 366.5 MB
+mcp-rbac-inplace-noaudit c1 p50 0.221 p99 0.636 ms (0 err) | c32 5656.2 rps p50 4.932 p99 12.128 (0 err) | rss 361.3 MB
+baseline       c1 p50 0.206 p99 0.586 ms (0 err) | c32 6220.9 rps p50 4.519 p99 11.734 (0 err) | rss 354.1 MB
+done

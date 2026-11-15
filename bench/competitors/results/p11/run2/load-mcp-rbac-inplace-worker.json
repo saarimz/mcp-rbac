@@ -1,0 +1,35 @@
+{
+ "target": "mcp-rbac-inplace-worker",
+ "tool": "list_events",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10,
+  "ok": 33789,
+  "errors": 0,
+  "rps": 3378.9,
+  "p50_ms": 0.253,
+  "p90_ms": 0.366,
+  "p99_ms": 0.655,
+  "max_ms": 11.431,
+  "mean_ms": 0.294
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.005,
+  "ok": 51164,
+  "errors": 0,
+  "rps": 5113.8,
+  "p50_ms": 5.561,
+  "p90_ms": 8.773,
+  "p99_ms": 14.029,
+  "max_ms": 78.317,
+  "mean_ms": 6.254
+ },
+ "peak_rss_mb": {
+  "app+guard": 389.6
+ },
+ "peak_rss_total_mb": 389.6,
+ "measured_at": "2026-11-15T16:41:19-0500",
+ "cpu": 8
+}

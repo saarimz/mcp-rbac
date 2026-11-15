@@ -260,3 +260,10 @@ Auth + HTTP).
 ## Page
 
 The feature grid, charts and verdict are on the Page "mcp-rbac vs the field": https://cursor.com/canvas/store-692e9880-125b-458d-beae-f082c0042b1c/d6662457-c847-4f47-94c7-06e5686764aa. Each grid cell is sourced from docs/MARKET.md, PERMIT-DEEP-DIVE video links, or this benchmark.
+
+## P11 update: perf fixes (2026-11-15)
+
+The §2 tables above are the P10 runs and are unchanged. P11 profiled the gap and added a decision cache (default on),
+an in-place guard and an off-thread audit sink. With all three, venue c=32 throughput went from a median of 3,049 to
+4,778-5,114 req/s and c=1 p50 from 0.39 to 0.26 ms on this box. Method, profile, all runs and caveats:
+`bench/perf/README.md`; raw results: `results/p11/`.

@@ -116,6 +116,21 @@ export interface CoreGuardOptions {
   telemetry?: CoreTelemetry | CoreTelemetryOptions | boolean;
   /** Upstream request timeout (default 10 minutes). */
   forwardTimeoutMs?: number;
+  /**
+   * Guard an in-process McpServer in place instead of behind an in-memory MCP client/server hop (P11 perf). The
+   * guarded tools/list and tools/call handlers replace the McpServer's own and call its original handlers directly, so
+   * there is no second JSON-RPC round trip or result re-validation. Fail-closed like the hop: the server's
+   * resources/prompts/completion handlers are removed (the hop never proxied them either). Register every tool before
+   * calling. Ignored for an upstream Client or a low-level Server. Default false.
+   */
+  inPlace?: boolean;
+  /**
+   * Memoize core decisions that carry no rate limits or budgets (P11). Such a decision is a pure function of the
+   * (immutable) policy and the exact request JSON, so a repeat of the same request text gets the same answer without
+   * crossing into WASM. Decisions with limits, approvals or deferred spend are never cached. Number = max entries
+   * (default 4096; the map is cleared when full), 0 or false = off.
+   */
+  decisionCache?: number | false;
 }
 
 export const DENIAL_META_KEY = "mcp-rbac/denial";
@@ -129,19 +144,55 @@ const RESOURCE_UNRESOLVED = JSON.stringify({ decision: "deny", labels: [], limit
 export async function protectWithCore(inner: McpServer | Server | Client, opts: CoreGuardOptions): Promise<{ server: Server; engine: CoreEngine }> {
   if (!opts.engine && opts.policy === undefined) throw new Error("protectWithCore: pass `policy` or `engine`");
   const engine = opts.engine ?? createCoreEngine(opts.policy!);
-  let client: Client;
-  if (inner instanceof Client) client = inner;
-  else {
-    const [ct, st] = InMemoryTransport.createLinkedPair();
-    await inner.connect(st);
-    client = new Client({ name: "mcp-rbac-core", version: loadCoreWasm().version() });
-    await client.connect(ct);
+  const timeout = opts.forwardTimeoutMs ?? 600_000;
+  type Fwd = (params: Record<string, unknown>, extra: any) => Promise<any>;
+  type ListRes = { tools: { name: string; annotations?: unknown; _meta?: unknown }[]; nextCursor?: string; [k: string]: unknown };
+  let callInner: Fwd, listInner: (params: Record<string, unknown>, extra: any) => Promise<ListRes>;
+  let outer: Server;
+  let hasTools: boolean;
+  const mcpInner = !(inner instanceof Client) && !(inner instanceof Server) ? inner as McpServer : undefined;
+  // MCP_RBAC_TEST_INPLACE=1: run a whole test suite with in-place as the default (parity check; tests only)
+  if ((opts.inPlace ?? process.env.MCP_RBAC_TEST_INPLACE === "1") && mcpInner) {
+    // in place: wrap the McpServer's own handlers (SDK 1.x keeps them in Protocol#_requestHandlers; feature-detected)
+    outer = mcpInner.server;
+    const handlers = (outer as unknown as { _requestHandlers?: Map<string, (req: any, extra: any) => Promise<any>> })._requestHandlers;
+    const ic = handlers?.get("tools/call"), il = handlers?.get("tools/list");
+    if (!handlers || !ic || !il) throw new Error("protectWithCore(inPlace): register the server's tools first (no tools/call handler found)");
+    for (const m of [...handlers.keys()]) if (/^(resources|prompts|completion)\//.test(m)) handlers.delete(m);
+    // the forwarded _meta is only ours: a client-supplied mcp-rbac/caller never reaches the tool (same as the hop)
+    callInner = (params, extra) => ic({ method: "tools/call", params }, { ...extra, _meta: params._meta });
+    listInner = (params, extra) => il({ method: "tools/list", params }, { ...extra, _meta: undefined });
+    hasTools = true;
+  } else {
+    let client: Client;
+    if (inner instanceof Client) client = inner;
+    else {
+      const [ct, st] = InMemoryTransport.createLinkedPair();
+      await inner.connect(st);
+      client = new Client({ name: "mcp-rbac-core", version: loadCoreWasm().version() });
+      await client.connect(ct);
+    }
+    const caps = client.getServerCapabilities() ?? {};
+    outer = new Server(client.getServerVersion() ?? { name: "guarded-server", version: "0.0.0" }, {
+      capabilities: caps.tools ? { tools: { listChanged: !!caps.tools.listChanged } } : {},
+      instructions: client.getInstructions(),
+    });
+    callInner = (params, extra) => client.request({ method: "tools/call", params: params as any }, CallToolResultSchema, { signal: extra.signal, timeout });
+    listInner = (params, extra) => client.request({ method: "tools/list", params: params as any }, ListToolsResultSchema, { signal: extra.signal, timeout });
+    hasTools = !!caps.tools;
   }
-  const caps = client.getServerCapabilities() ?? {};
-  const outer = new Server(client.getServerVersion() ?? { name: "guarded-server", version: "0.0.0" }, {
-    capabilities: caps.tools ? { tools: { listChanged: !!caps.tools.listChanged } } : {},
-    instructions: client.getInstructions(),
-  });
+  const cacheMax = opts.decisionCache === false ? 0 : opts.decisionCache ?? 4096;
+  const cache = new Map<string, string>();
+  const authorize = (reqJson: string, nowMs: number): string => {
+    if (cacheMax > 0) { const hit = cache.get(reqJson); if (hit !== undefined) return hit; }
+    const raw = engine.authorize(reqJson, nowMs);
+    // cacheable = no counters/budgets were consulted and no approval/deferred step follows (pure in policy + request)
+    if (cacheMax > 0 && raw.includes('"limits":[]') && !raw.includes('"needs_approval"')) {
+      if (cache.size >= cacheMax) cache.clear();
+      cache.set(reqJson, raw);
+    }
+    return raw;
+  };
   // TS SDK 1.32 does not expose the negotiated protocol version: capture it from the initialize result (feature-detected;
   // without the hook the attribute is simply omitted). Needed for the mcp.protocol.version span attribute.
   let protocolVersion: string | undefined;
@@ -158,8 +209,7 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
   const now = opts.now ?? Date.now;
   const tel = opts.telemetry instanceof CoreTelemetry ? opts.telemetry
     : opts.telemetry ? new CoreTelemetry(opts.telemetry === true ? {} : opts.telemetry) : undefined;
-  const timeout = opts.forwardTimeoutMs ?? 600_000;
-  if (!caps.tools) return { server: outer, engine };
+  if (!hasTools) return { server: outer, engine };
   // Tool semantics (spec/tool-semantics.md): only when the policy has a `semantics` block (an invalid request's denial
   // then carries a `semantics` key). The server's tools/list entries (annotations, _meta) feed the engine as `toolMeta`.
   const semanticsOn = (() => { try { return "semantics" in JSON.parse(engine.decide("{}")); } catch { return false; } })();
@@ -174,7 +224,7 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
     if (!metaLoaded || !toolMeta.has(tool)) {
       let cursor: string | undefined;
       for (let page = 0; page < 50; page++) { // follow pagination (bounded)
-        const res = await client.request({ method: "tools/list", params: cursor ? { cursor } : {} }, ListToolsResultSchema, { signal: extra.signal, timeout });
+        const res = await listInner(cursor ? { cursor } : {}, extra);
         remember(res.tools);
         cursor = res.nextCursor;
         if (!cursor) break;
@@ -185,7 +235,7 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
 
   outer.setRequestHandler(ListToolsRequestSchema, async (req, extra) => {
     const run = async () => {
-      const res = await client.request({ method: "tools/list", params: req.params ?? {} }, ListToolsResultSchema, { signal: extra.signal, timeout });
+      const res = await listInner(req.params ?? {}, extra);
       if (semanticsOn) remember(res.tools);
       const identity = await opts.identity(extra);
       if (identity === undefined) return { ...res, tools: [] };
@@ -215,7 +265,7 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
       const reqJson = JSON.stringify({ tool, args, ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}), ...(resource ? { resource } : {}), ...(meta !== undefined ? { toolMeta: meta } : {}) });
       const authSpan = tel?.startAuthorize(tool);
       let e0 = performance.now();
-      let raw = unresolved ? RESOURCE_UNRESOLVED : engine.authorize(reqJson, now());
+      let raw = unresolved ? RESOURCE_UNRESOLVED : authorize(reqJson, now());
       let engineMs = performance.now() - e0;
       let d = JSON.parse(raw) as CoreDecision;
       let approved = false;
@@ -240,7 +290,7 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
       // The inner server is trusted and in-process: tell it who is calling (client _meta is never forwarded, so this
       // key cannot be spoofed) so it can scope its own queries to the caller's tenant.
       const caller = { identity, tenant: d.tenant, rule: d.rule, ...(resource ? { resource } : {}) };
-      const result = await client.request({ method: "tools/call", params: { name: tool, arguments: args, _meta: { [CORE_CALLER_META_KEY]: caller } } }, CallToolResultSchema, { signal: extra.signal, timeout });
+      const result = await callInner({ name: tool, arguments: args, _meta: { [CORE_CALLER_META_KEY]: caller } }, extra);
       if (d.limits.some((l) => (l as { deferred?: boolean }).deferred)) {
         // post-call spend (tool semantics): read the cost from the result and charge the deferred budgets; an
         // unreadable cost charges each budget's max (fail-closed), so the next call is denied until the window ends

@@ -70,19 +70,26 @@ def start(target: str, tmp: str) -> tuple[str, str, dict[str, int], list[Any], b
     """-> (mcp url, bearer token, {component: root pid}, processes to stop, insecure TLS)"""
     db = f"{tmp}/venue.db"
     procs: list[Any] = []
-    if target in ("mcp-rbac", "mcp-rbac-sync", "mcp-rbac-noaudit"):  # -sync: audit committed per decision; -noaudit: diagnostic only
+    if target.startswith("mcp-rbac") and "@" not in target:
+        # -sync: audit committed per decision; -noaudit: diagnostic only (P9); P11 suffixes: -nocache (decision cache off),
+        # -inplace (guard wraps the McpServer's own handlers, no in-memory hop); combinable, e.g. mcp-rbac-inplace-noaudit
         pol = pathlib.Path(tmp) / "venue-nolimits.yaml"
         txt = (ROOT / "examples/policies/venue.yaml").read_text()
         pol.write_text(re.sub(r"\nlimits:\n(  - .*\n)+", "\n", txt))
         assert "per-client" not in pol.read_text()
         os.environ["MCP_RBAC_POLICY_FILE"] = str(pol)
-        if target.endswith("noaudit"):
-            os.environ["MCP_RBAC_BENCH_NO_AUDIT"] = "1"
-        os.environ["MCP_RBAC_AUDIT_MODE"] = "sync" if target.endswith("-sync") else "batched"
+        knobs = {"MCP_RBAC_BENCH_NO_AUDIT": "1" if "-noaudit" in target else None,
+                 "MCP_RBAC_AUDIT_MODE": "sync" if "-sync" in target else "batched",
+                 "MCP_RBAC_AUDIT_WORKER": "1" if "-worker" in target else None,
+                 "MCP_RBAC_GUARD_INPLACE": "1" if "-inplace" in target else None,
+                 "MCP_RBAC_DECISION_CACHE": "0" if "-nocache" in target else None}
+        for k, v in knobs.items():
+            if v is not None:
+                os.environ[k] = v
         url, p = servers.start_http("venue", db)
         del os.environ["MCP_RBAC_POLICY_FILE"]
-        os.environ.pop("MCP_RBAC_BENCH_NO_AUDIT", None)
-        os.environ.pop("MCP_RBAC_AUDIT_MODE", None)
+        for k in knobs:
+            os.environ.pop(k, None)
         return url, servers.token("venue", **OWNER), {"app+guard": p.pid}, [p], False
     if target in ("baseline", "cerbos", "openfga", "policy-guard"):
         roots: dict[str, int] = {}

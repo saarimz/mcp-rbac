@@ -165,3 +165,16 @@ All 5 targets ran in parallel on HEAD d3b58e6 (libFuzzer, nightly, no sanitizer,
 
 0.4.0 is complete.
 
+
+---
+
+# P11: ship-readiness + perf (owner voice note 2026-11-15, started 16:24 ET)
+
+| item | status | evidence |
+|---|---|---|
+| profile the 2.9k vs 6.7k gap | done | bench/perf/README.md §1 (CPU profile; engine ~10 µs/decision; hop + audit dominate) |
+| decision cache (default on) | done | src/core-guard.ts; test/p11-perf.test.ts |
+| in-place guard (opt-in) | done | src/core-guard.ts `inPlace`; TS suite 393/19 skip with `MCP_RBAC_TEST_INPLACE=1`; red team 140/140 in place |
+| off-thread audit (opt-in) | done | src/audit-worker.ts, `mcp-rbac/audit-worker` export, verified from the packed tarball |
+| before/after load | done | 3,049 -> 4,778-5,114 req/s (c=32), p50 0.39 -> 0.26 ms; results/p11/ |
+| open: make in-place + worker the defaults, SDK v2 port of in-place, Python/Go equivalents | todo | |

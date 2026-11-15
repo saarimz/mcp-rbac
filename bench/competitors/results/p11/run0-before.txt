@@ -1,0 +1,5 @@
+baseline       c1 p50 0.223 p99 0.715 ms (0 err) | c32 5740.3 rps p50 4.694 p99 15.034 (0 err) | rss 370.7 MB
+mcp-rbac-noaudit c1 p50 0.349 p99 0.74 ms (0 err) | c32 3517.1 rps p50 7.966 p99 19.207 (0 err) | rss 363.5 MB
+mcp-rbac       c1 p50 0.388 p99 0.802 ms (0 err) | c32 3106.1 rps p50 9.323 p99 20.046 (0 err) | rss 368.6 MB
+agentgateway   c1 p50 0.523 p99 1.074 ms (0 err) | c32 7380.9 rps p50 3.716 p99 9.853 (0 err) | rss 428.4 MB
+done

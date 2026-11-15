@@ -39,10 +39,10 @@ const json = (res: ServerResponse, status: number, v: unknown, h: Record<string,
 const cookie = (req: IncomingMessage, name: string) => (req.headers.cookie ?? "").split(/;\s*/).map((c) => c.split("=")).find(([k]) => k === name)?.[1];
 const okRedirect = (u: string) => { try { const x = new URL(u); return (x.protocol === "http:" && (x.hostname === "127.0.0.1" || x.hostname === "localhost")) || x.protocol === "https:"; } catch { return false; } };
 
-export function createApp(opts: { db?: DatabaseSync; now?: () => number } = {}): App {
+export function createApp(opts: { db?: DatabaseSync; now?: () => number; momentPinning?: boolean } = {}): App {
   const db = opts.db ?? (() => { const d = openDb(); seed(d); return d; })();
   const base = loadPortablePolicy(readFileSync(BASE_POLICY_PATH, "utf8"));
-  const store = new GrantStore(db, base, TOOLS.map((t) => t.name), opts.now);
+  const store = new GrantStore(db, base, TOOLS.map((t) => t.name), opts.now, { momentPinning: opts.momentPinning ?? false });
   const csrfKey = randomBytes(32);
   const csrf = (sess: string) => createHmac("sha256", csrfKey).update(sess).digest("base64url");
   let origin = "";
@@ -66,7 +66,8 @@ legend{font-weight:600}.muted{color:#777}.no{color:#aaa}.err{background:#fde8e8;
     const mem = memberships.find((m) => m.uid === brandUid) ?? memberships[0];
     const requested = new Set((q.get("scope") ?? "").split(/[ ,]+/).filter(Boolean));
     const ident = mem ? store.humanIdentity({ adminUid: "x", role: mem.role, momentUid: mem.momentUid }, mem.uid) : null;
-    const resource = mem ? (mem.role === "AGENT" && mem.momentUid ? { brand: mem.uid, moment: mem.momentUid } : { brand: mem.uid }) : {};
+    const pin = mem ? store.pinnedMoment(mem) : null;
+    const resource = mem ? (pin ? { brand: mem.uid, moment: pin } : { brand: mem.uid }) : {};
     const rows = SCOPES.map(({ scope, label }) => {
       const exp = expandScopes(base, [scope]);
       const tools = TOOLS.filter((t) => { const r = requiredScopes(base, t.name); return r.length && r.every((s) => exp.has(s)); }).map((t) => t.name);
@@ -81,7 +82,7 @@ legend{font-weight:600}.muted{color:#777}.no{color:#aaa}.err{background:#fde8e8;
 ${errors.length ? `<div class="err"><b>Not created:</b><ul>${errors.map((e) => `<li><code>${esc(e)}</code></li>`).join("")}</ul></div>` : ""}
 <form method="post" action="/oauth/consent">${hidden}<input type="hidden" name="csrf" value="${csrf(user.sess)}">
 <fieldset><legend>Agent</legend><label>Connection name <input name="name" value="${esc(q.get("agent_name") ?? "")}" pattern="[a-z0-9][a-z0-9-]{1,40}" required></label></fieldset>
-<fieldset><legend>Workspace</legend>${memberships.map((m) => `<label><input type="radio" name="brand" value="${esc(m.uid)}" ${m.uid === mem?.uid ? "checked" : ""}> ${esc(m.name)} <span class="muted">(your role: ${esc(m.role)}${m.momentUid ? `, moment ${esc(m.momentUid)}` : ""})</span></label>`).join("")}
+<fieldset><legend>Workspace</legend>${memberships.map((m) => `<label><input type="radio" name="brand" value="${esc(m.uid)}" ${m.uid === mem?.uid ? "checked" : ""}> ${esc(m.name)} <span class="muted">(your role: ${esc(m.role)}${store.pinnedMoment(m) ? `, moment ${esc(m.momentUid)}` : ""})</span></label>`).join("")}
 <p class="muted">One workspace per connection.</p></fieldset>
 <fieldset><legend>What this agent may do</legend>${rows.map((r) => `<label class="${r.held ? "" : "no"}"><input type="checkbox" name="scope" value="${r.scope}" ${r.held ? "" : "disabled"} ${r.held && requested.has(r.scope) ? "checked" : ""}> ${esc(r.label)} <span class="chip">${r.scope}</span>${r.held ? "" : " — your role doesn't have this"}</label><div class="tools">${r.tools.join(", ")}</div>`).join("")}</fieldset>
 <fieldset><legend>Limits</legend>
@@ -213,6 +214,6 @@ export async function listen(app: App, port = 0): Promise<string> {
 }
 
 if (process.argv[1]?.endsWith("server.ts")) {
-  const app = createApp({ db: (() => { const d = openDb(process.env.ITM_DB ?? ":memory:"); try { seed(d); } catch { /* already seeded */ } return d; })() });
+  const app = createApp({ momentPinning: process.env.ITM_MOMENT_PINNING === "1", db: (() => { const d = openDb(process.env.ITM_DB ?? ":memory:"); try { seed(d); } catch { /* already seeded */ } return d; })() });
   listen(app, Number(process.env.PORT ?? 8787)).then((o) => console.log(`itm-local MCP on ${o}/mcp  (sign in at ${o}/login)`));
 }

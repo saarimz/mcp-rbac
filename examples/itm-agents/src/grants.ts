@@ -51,7 +51,14 @@ export interface Decision { decision: "allow" | "deny" | "needs_approval"; reaso
 
 export class GrantStore {
   private overlayCache = new Map<string, CompiledPolicy>();
-  constructor(readonly db: DatabaseSync, readonly base: CompiledPolicy, readonly toolNames: string[], readonly now: () => number = () => Date.now()) {}
+  /**
+   * @param opts.momentPinning  OFF by default (Saarim 2026-11-15: AGENT staff stay brand-wide, matching today's
+   *   BrandMemberGuard). When ON, an AGENT member with AdminUserBrand.momentUid set is limited to that moment, and so
+   *   are the agents they create (optional/future knob, see ADOPTION.md).
+   */
+  constructor(readonly db: DatabaseSync, readonly base: CompiledPolicy, readonly toolNames: string[], readonly now: () => number = () => Date.now(), readonly opts: { momentPinning?: boolean } = {}) {}
+  /** The moment an AGENT member is pinned to, or null (always null unless the momentPinning knob is on). */
+  pinnedMoment(m: { role: string; momentUid?: string | null }): string | null { return this.opts.momentPinning && m.role === "AGENT" && m.momentUid ? m.momentUid : null; }
   private iso(offsetMs = 0) { return new Date(this.now() + offsetMs).toISOString(); }
 
   // ----------------------------------------------------------------- lookups
@@ -68,9 +75,10 @@ export class GrantStore {
     return { m };
   }
   humanIdentity(m: any, brandUid: string, scopes?: string[], clientId?: string) {
-    // Real ITM: AGENT passes BrandMemberGuard brand-wide (itm-backend src/auth/auth.decorators.ts); per-moment pinning
-    // (AdminUserBrand.momentUid) is the PROPOSED tightening the enum comment describes ("within a single moment").
-    const scope: Record<string, string> = m.role === "AGENT" && m.momentUid ? { brand: brandUid, moment: m.momentUid } : { brand: brandUid };
+    // Real ITM: AGENT passes BrandMemberGuard brand-wide (itm-backend src/auth/auth.decorators.ts). That is the default
+    // here too; per-moment pinning is the optional, off-by-default knob (opts.momentPinning).
+    const pin = this.pinnedMoment(m);
+    const scope: Record<string, string> = pin ? { brand: brandUid, moment: pin } : { brand: brandUid };
     return { id: m.adminUid as string, roles: [{ role: String(m.role).toLowerCase(), scope }], tenant: brandUid, ...(scopes ? { scopes } : {}), ...(clientId ? { clientId } : {}) };
   }
   overlayIdentity(g: GrantRow, brandUid: string) {
@@ -109,10 +117,11 @@ export class GrantStore {
     if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(req.name)) reasons.push("bad_name");
     if (!(req.expiresInSec > 0 && req.expiresInSec <= MAX_GRANT_SECONDS)) reasons.push("bad_expiry");
     let momentUid: string | null = null;
-    if (m.role === "AGENT") {
-      if (req.momentUid && req.momentUid !== m.momentUid) reasons.push("moment_outside_grantor_assignment");
-      momentUid = m.momentUid;
-    } else if (req.momentUid) {
+    const pin = this.pinnedMoment(m);
+    if (pin) {
+      if (req.momentUid && req.momentUid !== pin) reasons.push("moment_outside_grantor_assignment");
+      momentUid = pin;
+    } else if (req.momentUid) { // anyone may voluntarily narrow a grant to one moment of their brand
       const mo = this.db.prepare("SELECT 1 FROM Moment WHERE uid = ? AND brandId = ?").get(req.momentUid, brand.id);
       if (!mo) reasons.push("moment_not_in_brand"); else momentUid = req.momentUid;
     }
@@ -264,7 +273,7 @@ export class GrantStore {
     const am = this.activeMembership(g.grantorAdminUserId, g.brandId);
     if ("error" in am) throw new AuthError(`grantor_${am.error}`, 403);
     if (am.m.authorizationVersion !== g.grantorAuthorizationVersion) throw new AuthError("grantor_authorization_changed", 403);
-    return { grant: g, brandUid: brand.uid, human: { id: g.grantorAdminUserId, uid: am.m.adminUid, email: am.m.email }, role: am.m.role, membershipMomentUid: am.m.momentUid, overlay: this.overlayOf(g), scopes: JSON.parse(g.scopes) };
+    return { grant: g, brandUid: brand.uid, human: { id: g.grantorAdminUserId, uid: am.m.adminUid, email: am.m.email }, role: am.m.role, membershipMomentUid: this.pinnedMoment(am.m), overlay: this.overlayOf(g), scopes: JSON.parse(g.scopes) };
   }
 
   /** tools/list for this connection: visible in the base policy as the human AND in the overlay. */

@@ -6,9 +6,9 @@ Several AI agents act for one ITM human, each limited to different actions. Ever
   - It has 19 tools named after the real partner-mcp and itm-agent tools. Argument shapes are inferred.
   - Agent connection grants: `src/grants.ts`. DPoP: `src/dpop.ts`. Consent and OAuth: `src/server.ts`.
 - `policy/mcp-rbac.yaml`: the base policy (humans). Each grant renders its own overlay `mcp-rbac.yaml`.
-- `test/grants.test.ts`: 29 tests over real HTTP and MCP covering:
+- `test/grants.test.ts`: 30 tests over real HTTP and MCP covering:
   - no escalation and cross-workspace access
-  - argument limits and moment scoping
+  - argument limits; AGENT staff brand-wide by default, with optional moment pinning (`momentPinning`, off by default) tested separately
   - approvals and per-agent plus per-human budgets
   - revocation, expiry, pause and demotion mid-session
   - DPoP isolation, prompt injection, code replay and audit tampering
@@ -17,7 +17,7 @@ Several AI agents act for one ITM human, each limited to different actions. Ever
 - `ADOPTION.md`: how ITM's real backend could ship this (Prisma diff, API, UI, non-admin agents).
 
 ```bash
-npm test                 # 29 tests (node:test via tsx; uses ../../node_modules)
+npm test                 # 30 tests (node:test via tsx; uses ../../node_modules)
 npm run demo
 npm run staging:login    # once, opens the ITM staging consent (sandbox brand)
 npm run staging:live     # live read-only run through the mcp-rbac proxy

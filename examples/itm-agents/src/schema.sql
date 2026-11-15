@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS Brand (id INTEGER PRIMARY KEY, uid TEXT UNIQUE NOT NU
 CREATE TABLE IF NOT EXISTS AdminUser (id INTEGER PRIMARY KEY, uid TEXT UNIQUE NOT NULL, email TEXT UNIQUE NOT NULL, password TEXT NOT NULL, revokedAt TEXT);
 -- enum AdminBrandRole { OWNER ADMIN AGENT }; model AdminUserBrand (@@unique([adminUserId, brandId])).
 -- authorizationVersion: described in itm-backend docs/partner-mcp-oauth.md (bumped on access loss); not in our schema copy.
--- momentUid: PROPOSED/OPEN QUESTION - how an AGENT (check-in staffer) is limited to one moment is not on AdminUserBrand.
+-- momentUid: OPTIONAL/FUTURE knob (off by default). Today AGENT staff are brand-wide (BrandMemberGuard); only read when momentPinning is on.
 CREATE TABLE IF NOT EXISTS AdminUserBrand (
   id INTEGER PRIMARY KEY, uid TEXT UNIQUE NOT NULL, adminUserId INTEGER NOT NULL REFERENCES AdminUser(id), brandId INTEGER NOT NULL REFERENCES Brand(id),
   role TEXT NOT NULL CHECK (role IN ('OWNER','ADMIN','AGENT')), revokedAt TEXT, scheduledDeactivationAt TEXT,

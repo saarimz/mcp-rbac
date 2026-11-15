@@ -31,7 +31,7 @@ await conn(adam, { name: "greedy-bot", brand: "brand_harbor", scopes: ["itm:book
 await conn(adam, { name: "spy-bot", brand: "brand_northside", scopes: ["itm:events:read"] });
 await conn(adam, { name: "blast-bot", brand: "brand_harbor", scopes: ["itm:campaigns:write"], max_recipients: 500 });
 
-say("\n== 2. Sam (AGENT = check-in staffer at Rooftop Sessions) connects a door agent; can't grant more");
+say("\n== 2. Sam (AGENT = brand-wide check-in staffer, as in today's ITM) connects a door agent; can't grant more");
 const door = (await conn(sam, { name: "door-bot", brand: "brand_harbor", scopes: ["itm:checkin:write"] }))!;
 await conn(sam, { name: "sam-email-bot", brand: "brand_harbor", scopes: ["itm:campaigns:write"] });
 
@@ -43,6 +43,7 @@ await show("finance-bot", finance, "read_plan", { planUid: "plan_h1" });
 await show("finance-bot", finance, "read_plan", { planUid: "plan_n1" });
 await show("door-bot", door, "check_in_ticket", { ticketUid: "tkt_h1_1" });
 await show("door-bot", door, "list_moment_guests", { momentUid: "mom_h2" });
+await show("door-bot", door, "list_moment_guests", { momentUid: "mom_n1" });
 
 say("\n== 4. Approval + budget: booking-bot accepts booth quotes until its own $1,500/day budget stops it");
 for (const l of ["lst_1", "lst_2", "lst_3"]) {

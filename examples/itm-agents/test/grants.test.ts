@@ -43,9 +43,9 @@ describe("grant creation: no escalation", () => {
       assert.ok(errs.some((e) => e.startsWith("scope_exceeds_grantor:") || e.startsWith("tool_exceeds_grantor:")), `${s}: ${errs}`);
     }
   });
-  test("AGENT staffer CAN create a check-in agent; it is pinned to their one moment", async () => {
+  test("AGENT staffer CAN create a check-in agent; by default it is brand-wide like the staffer (today's BrandMemberGuard)", async () => {
     const c = await mustConnect(o, sam, { name: "door-bot", brand: "brand_harbor", scopes: ["itm:checkin:write"] });
-    assert.equal(app.store.grant(c.grantUid)!.momentUid, "mom_h1");
+    assert.equal(app.store.grant(c.grantUid)!.momentUid, null);
     await c.close();
   });
   test("consent screen disables scopes the human doesn't hold", async () => {
@@ -61,9 +61,6 @@ describe("grant creation: no escalation", () => {
     assert.equal((await call(c.client, "list_moment_guests", { momentUid: "mom_n1" })).denied, "base:cross_tenant");
     assert.ok((await mustReject(o, rita, { name: "rita-mail", brand: "brand_harbor", scopes: ["itm:campaigns:write"] })).length > 0);
     await c.close();
-  });
-  test("staffer cannot pin a grant to a different moment", () => {
-    assert.throws(() => app.store.createGrant({ grantorAdminUserId: 3, brandUid: "brand_harbor", name: "door-2", scopes: ["itm:checkin:write"], momentUid: "mom_h2", expiresInSec: 3600 }), (e: any) => e instanceof EscalationError && e.reasons.includes("moment_outside_grantor_assignment"));
   });
   test("admin cannot grant into a workspace they don't belong to", async () => {
     const errs = await mustReject(o, adam, { name: "spy-bot", brand: "brand_northside", scopes: ["itm:events:read"] });
@@ -131,9 +128,10 @@ describe("runtime enforcement", () => {
     assert.equal((await call(planner.client, "read_plan", { planUid: "plan_h1", brandUid: "brand_northside" })).denied, "invalid_arguments");
     assert.equal((await call(planner.client, "read_plan", { planUid: "plan_nope" })).denied, "resource_not_found");
   });
-  test("moment scoping: the staffer's agent checks in at their moment only", async () => {
+  test("staffer's door agent works across the staffer's brand (default, brand-wide) but never another brand", async () => {
     assert.equal((await call(door.client, "check_in_ticket", { ticketUid: "tkt_h1_1" })).data.checkedIn, true);
-    assert.equal((await call(door.client, "list_moment_guests", { momentUid: "mom_h2" })).denied, "base:user:out_of_scope");
+    assert.ok((await call(door.client, "list_moment_guests", { momentUid: "mom_h2" })).ok);
+    assert.equal((await call(door.client, "list_moment_guests", { momentUid: "mom_n1" })).denied, "base:cross_tenant");
   });
   test("approvals: bound to the exact input, single use, decided only by someone who could act", async () => {
     const args = { to: ["a@example.com", "b@example.com"], subject: "Winter Market", body: "Doors at 11" };
@@ -241,7 +239,7 @@ describe("lifecycle mid-session", () => {
     const c = await mustConnect(o, adam, { name: "demote-bot", brand: "brand_harbor", scopes: ["itm:events:read", "itm:plans:read"] });
     assert.ok((await call(c.client, "search_plans")).ok);
     app.db.prepare("UPDATE AdminUserBrand SET role = 'AGENT', momentUid = 'mom_h1' WHERE uid = 'aub_2'").run();
-    assert.equal((await call(c.client, "search_plans")).denied, "base:user:out_of_scope");
+    assert.equal((await call(c.client, "search_plans")).denied, "base:user:no_matching_permission");
     app.db.prepare("UPDATE AdminUserBrand SET role = 'ADMIN', momentUid = NULL WHERE uid = 'aub_2'").run();
     assert.ok((await call(c.client, "search_plans")).ok);
   });
@@ -264,5 +262,27 @@ describe("lifecycle mid-session", () => {
     const g2 = app.store.createGrant({ grantorAdminUserId: 2, brandUid: "brand_harbor", name: "pkce-bot", scopes: ["itm:events:read"], expiresInSec: 3600 });
     const code2 = app.store.issueCode(g2.uid, "wrong-challenge", "http://127.0.0.1:9/cb", key.jkt);
     assert.throws(() => app.store.exchangeCode(code2, "v".repeat(43), "http://127.0.0.1:9/cb", proof(key, "POST", `${o}/oauth/token`), `${o}/oauth/token`), /invalid_grant_pkce/);
+  });
+});
+
+describe("optional knob: moment pinning (off by default)", () => {
+  let app: App, o: string, sam: string, adam: string;
+  before(async () => { app = createApp({ momentPinning: true }); o = await listen(app); sam = await login(o, "sam@harbor.test"); adam = await login(o, "adam@harbor.test"); });
+  after(() => app.close());
+  test("with the knob on, a staffer with an assigned moment can only create agents pinned to it", async () => {
+    const c = await mustConnect(o, sam, { name: "door-bot", brand: "brand_harbor", scopes: ["itm:checkin:write"] });
+    assert.equal(app.store.grant(c.grantUid)!.momentUid, "mom_h1");
+    assert.equal((await call(c.client, "check_in_ticket", { ticketUid: "tkt_h1_1" })).data.checkedIn, true);
+    assert.equal((await call(c.client, "list_moment_guests", { momentUid: "mom_h2" })).denied, "base:user:out_of_scope");
+    assert.throws(() => app.store.createGrant({ grantorAdminUserId: 3, brandUid: "brand_harbor", name: "door-2", scopes: ["itm:checkin:write"], momentUid: "mom_h2", expiresInSec: 3600 }), (e: any) => e instanceof EscalationError && e.reasons.includes("moment_outside_grantor_assignment"));
+    await c.close();
+  });
+  test("with the knob on, a staffer without an assignment stays brand-wide; admins are never pinned", async () => {
+    const rita = await login(o, "rita@harbor.test");
+    const r = await mustConnect(o, rita, { name: "door-any", brand: "brand_harbor", scopes: ["itm:checkin:write"] });
+    assert.ok((await call(r.client, "list_moment_guests", { momentUid: "mom_h2" })).ok);
+    const a = await mustConnect(o, adam, { name: "events-bot", brand: "brand_harbor", scopes: ["itm:events:read"] });
+    assert.equal(app.store.grant(a.grantUid)!.momentUid, null);
+    await r.close(); await a.close();
   });
 });

@@ -1,7 +1,7 @@
 {
  "target": "sdk2",
  "label": "MCP TS SDK v2 2.4.0 requireScopes (venue)",
- "seconds": 15.6,
+ "seconds": 16.1,
  "notes": [
   "venue: stdio transport not part of the competitor run",
   "marketing: stdio transport not part of the competitor run"
@@ -103,8 +103,8 @@
    "expected": "predicate",
    "observed": "200",
    "ok": false,
-   "status": "shared_auth",
-   "why": "checked by the shared demo JWT front, not by this product"
+   "status": "n/a",
+   "why": "SDK v2 stateless transport: no sessions, so session ids are ignored and each request is authenticated by its own bearer token"
   },
   {
    "category": "token_replay",
@@ -114,8 +114,8 @@
    "expected": "predicate",
    "observed": "200",
    "ok": false,
-   "status": "shared_auth",
-   "why": "checked by the shared demo JWT front, not by this product"
+   "status": "n/a",
+   "why": "SDK v2 stateless transport: no sessions, so session ids are ignored and each request is authenticated by its own bearer token"
   },
   {
    "category": "privilege_escalation",
@@ -368,7 +368,7 @@
    "observed": "403",
    "ok": true,
    "status": "n/a",
-   "why": "the TS SDK built-in applies to the TS server; the Python server is scored with FastMCP"
+   "why": "SDK v2 stateless transport: no sessions, so session ids are ignored and each request is authenticated by its own bearer token"
   },
   {
    "category": "token_replay",
@@ -379,7 +379,7 @@
    "observed": "404",
    "ok": true,
    "status": "n/a",
-   "why": "the TS SDK built-in applies to the TS server; the Python server is scored with FastMCP"
+   "why": "SDK v2 stateless transport: no sessions, so session ids are ignored and each request is authenticated by its own bearer token"
   },
   {
    "category": "privilege_escalation",

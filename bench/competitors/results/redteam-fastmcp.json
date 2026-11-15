@@ -1,7 +1,7 @@
 {
  "target": "fastmcp",
  "label": "FastMCP 3.4.11 require_scopes (marketing)",
- "seconds": 14.6,
+ "seconds": 15.5,
  "notes": [
   "venue: stdio transport not part of the competitor run",
   "marketing: stdio transport not part of the competitor run"
@@ -367,8 +367,8 @@
    "expected": "predicate",
    "observed": "200",
    "ok": false,
-   "status": "shared_auth",
-   "why": "checked by the shared demo JWT front, not by this product"
+   "status": "fail",
+   "why": "session handling is the product's own transport"
   },
   {
    "category": "token_replay",
@@ -378,8 +378,8 @@
    "expected": "predicate",
    "observed": "404",
    "ok": true,
-   "status": "shared_auth",
-   "why": "checked by the shared demo JWT front, not by this product"
+   "status": "pass",
+   "why": "session handling is the product's own transport"
   },
   {
    "category": "privilege_escalation",
@@ -1028,9 +1028,9 @@
   "authz_pass_raw": 17,
   "cannot_express": 17,
   "authn_total": 30,
-  "authn_scored_by_product": 0,
-  "authn_pass": 0,
+  "authn_scored_by_product": 2,
+  "authn_pass": 1,
   "authn_cannot_express": 0,
-  "authn_shared_pass": 14
+  "authn_shared_pass": 13
  }
 }

@@ -73,6 +73,9 @@ TARGETS: dict[str, dict[str, Any]] = {
              "servers_why": "the TS SDK built-in applies to the TS server; the Python server is scored with FastMCP",
              # an insufficient_scope challenge reaches a 2025-era client as an HTTP 403, i.e. a JSON-RPC error response
              "deny_errors": ["Server returned an error response"],
+             # session handling belongs to the SDK's transport, not to the shared JWT verify; v2 legacy-stateless keeps no
+             # sessions at all, so session ids are ignored and every request is authenticated by its own token
+             "na": [(lambda c: "session id" in c["name"], "SDK v2 stateless transport: no sessions, so session ids are ignored and each request is authenticated by its own bearer token")],
              "cannot": [(APPROVAL, "no approval primitive (scopes only)"),
                         (BUDGET, "no counters/rate limits"),
                         (lambda c: c["name"] in RECORD_OWNER, "a scope cannot depend on the record's owner"),
@@ -83,6 +86,8 @@ TARGETS: dict[str, dict[str, Any]] = {
                 "servers_why": "FastMCP is Python; the TS server is scored with the TS SDK v2",
                 # an unauthorized tool is hidden: calling it returns "Unknown tool: '<name>'"
                 "deny_text": ["Unknown tool: "],
+                # FastMCP's own streamable-HTTP session manager owns sessions, so session binding is scored on FastMCP
+                "product_authn": lambda c: "session id" in c["name"],
                 "cannot": [(APPROVAL, "no approval primitive (scopes only)"),
                            (BUDGET, "no counters/rate limits"),
                            (lambda c: c["name"] in RECORD_OWNER, "a scope cannot depend on the record's owner"),
@@ -330,6 +335,8 @@ async def run_target(target: str) -> dict[str, Any]:
             d["status"], d["why"] = "n/a", na
         elif c.server not in t.get("servers", ["venue", "marketing"]):
             d["status"], d["why"] = "n/a", t.get("servers_why", "library is TypeScript-only; the marketing server is Python")
+        elif authn and t.get("product_authn") and t["product_authn"](d):
+            d["status"], d["why"] = ("pass" if c.ok else "fail"), "session handling is the product's own transport"
         elif authn and t["front"] == "shared":
             d["status"], d["why"] = "shared_auth", "checked by the shared demo JWT front, not by this product"
         else:

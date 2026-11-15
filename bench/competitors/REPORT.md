@@ -49,8 +49,8 @@ early, its unreached checks still count, so every target has the same denominato
 | agentgateway 1.7.0 | **30 / 30** | 29 | 31 / 59 | 22 / 30 (+6 cannot) | 4 |
 | Pomerium 0.34.1 (MCP route) | **19 / 19** | 40 | 24 / 59 | 10 / 20 (+6 cannot) | 14 |
 | protect-mcp 0.32.4 | 0 / 0 | 43 | — | cannot express (static token) | 48 |
-| MCP TS SDK v2 2.4.0 `requireScopes` (venue only) | **7 / 7** | 21 | 9 / 28 | shared front (15/15) | 49 |
-| FastMCP 3.4.11 `require_scopes` (marketing only) | **14 / 14** | 17 | 17 / 31 | shared front (15/15) | 46 |
+| MCP TS SDK v2 2.4.0 `requireScopes` (venue only) | **7 / 7** | 21 | 9 / 28 | shared JWT verify (13/13); 2 session checks n/a (stateless) | 49 |
+| FastMCP 3.4.11 `require_scopes` (marketing only) | **14 / 14** | 17 | 17 / 31 | 1 / 2 session checks (product) + shared JWT verify (14/14) | 46 |
 
 *mcp-rbac also passes the 2 stdio checks (61/61 overall). "Raw" counts a check as passed even when it is marked
 cannot-express, which happens when the app's own business code rejected the call.*
@@ -78,6 +78,12 @@ What each product **cannot express** (from `results/redteam-*.json`):
     - record-owner scope (2);
     - counters (2).
   - Nothing they could express failed. Their raw counts include checks that the app's own business code rejected.
+  - **Sessions.** Token verification uses the shared demo verifier, but session handling is each product's own
+    transport, so the session checks are scored on the product.
+    - The SDK v2 copy runs `legacy: "stateless"`, which keeps no sessions. Session ids are ignored and every request
+      is authenticated by its own token, so those 2 checks are n/a.
+    - **FastMCP's real failure:** another subject's token was accepted on a captured `mcp-session-id` (200). Like
+      agentgateway and Pomerium, it does not bind sessions to the subject. A forged session id was rejected.
 
 - **Cerbos / OpenFGA:** approvals (20 checks; workflow is custom code around a stateless PDP) and budgets/rate limits
   (4). Everything else was expressible and passed, but only with an adapter that resolves record owners from the DB

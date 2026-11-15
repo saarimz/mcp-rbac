@@ -81,3 +81,26 @@ def ts_eval(code: str, stdin: str = "") -> str:
         return r.stdout
     finally:
         f.unlink(missing_ok=True)
+
+
+_OTEL: dict[str, Any] = {}
+
+
+@pytest.fixture
+def otel_spans() -> Any:
+    """Process-wide SDK TracerProvider (set once: OTel forbids replacing it) with an in-memory exporter, cleared per test."""
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    if "exp" not in _OTEL:
+        provider = trace.get_tracer_provider()
+        if not isinstance(provider, TracerProvider):
+            provider = TracerProvider()
+            trace.set_tracer_provider(provider)
+        exp = InMemorySpanExporter()
+        provider.add_span_processor(SimpleSpanProcessor(exp))
+        _OTEL["exp"] = exp
+    _OTEL["exp"].clear()
+    return _OTEL["exp"]

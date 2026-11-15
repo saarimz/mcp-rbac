@@ -219,16 +219,8 @@ async def test_http_raw_mrtr_tamper_replay_and_other_principal() -> None:
             assert lst["result"]["cacheScope"] == "private"
 
 
-async def test_otel_spans_carry_decisions_and_trace_context() -> None:
-    from opentelemetry import trace
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
-    exp = InMemorySpanExporter()
-    provider = TracerProvider()
-    provider.add_span_processor(SimpleSpanProcessor(exp))
-    trace.set_tracer_provider(provider)
+async def test_otel_spans_carry_decisions_and_trace_context(otel_spans: Any) -> None:
+    exp = otel_spans
     server, rbac, _ = build(local_identity=Identity.of("ana", ["analyst"], tenant="acme"))
     trace_id = "0af7651916cd43dd8448eb211c80319c"
     async with Client(server) as c:

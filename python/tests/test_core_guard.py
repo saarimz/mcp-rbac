@@ -6,6 +6,7 @@ import os
 import pathlib
 import random
 import sys
+from typing import Any
 
 import anyio
 import pytest
@@ -102,3 +103,39 @@ def test_no_identity_is_unauthenticated():
         return (await s.list_tools()).tools, await s.call_tool("list_events", {})
     tools, r = run(None, f)
     assert tools == [] and _text(r) == "Denied: unauthenticated"
+
+
+def test_denials_and_redaction_on_modern_protocol_in_memory():
+    """Regression: on MCP 2026-07-28 a CallToolResult needs `resultType`; the guard's own denial result lacked it and
+    the SDK turned every denial into a validation error. The in-memory Client negotiates the modern protocol."""
+    from mcp import Client
+    from mcp.server.mcpserver import MCPServer
+
+    from mcp_rbac.core_guard import protect_with_core
+
+    def build(identity):
+        s = MCPServer("modern", version="0")
+
+        @s.tool(structured_output=True)
+        def refund(ticketId: str, amount: float) -> dict[str, Any]:  # noqa: N803
+            return {"refunded": ticketId}
+
+        @s.tool(structured_output=True)
+        def get_guest(guestId: str) -> dict[str, Any]:  # noqa: N803
+            return {"id": guestId, "email": "ada@example.com"}
+
+        protect_with_core(s, POLICY, identity=lambda ctx: identity)
+        return s
+
+    async def go():
+        async with Client(build({"id": "d", "roles": ["door"]})) as c:
+            r = await c.call_tool("refund", {"ticketId": "t1", "amount": 5})
+            assert r.is_error and r.content[0].text == "Denied: user:no_matching_permission"
+        async with Client(build({"id": "s", "roles": ["support"]})) as c:
+            r = await c.call_tool("get_guest", {"guestId": "g1"})
+            assert not r.is_error and r.structured_content == {"id": "g1", "email": "[REDACTED]"}
+        async with Client(build({"id": "o", "roles": ["owner"]})) as c:
+            r = await c.call_tool("refund", {"ticketId": "t1", "amount": 150})
+            assert r.is_error and r.content[0].text == "Approval required for refund"
+
+    anyio.run(go)

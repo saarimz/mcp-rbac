@@ -1,4 +1,7 @@
-# P9: mcp-rbac vs open-source competitors (local head-to-head)
+# mcp-rbac vs open-source competitors (local head-to-head; P9, updated P10)
+
+> **P10 update (2026-11-15):** batched audit writes (docs/AUDIT.md) re-measured in §2; the official built-ins
+> (MCP TS SDK v2 `requireScopes`, FastMCP 3 `require_scopes`) are now scored in §1 and §2.
 
 Measured on Sunday, 15 Nov 2026, America/New_York (UTC-5), on the shared box (8 vCPU, Linux). Everything ran locally:
 no accounts, no third-party writes, nothing pushed. Re-run with `bench/competitors/run.sh`. Raw results are in `results/*.json`,
@@ -46,11 +49,35 @@ early, its unreached checks still count, so every target has the same denominato
 | agentgateway 1.7.0 | **30 / 30** | 29 | 31 / 59 | 22 / 30 (+6 cannot) | 4 |
 | Pomerium 0.34.1 (MCP route) | **19 / 19** | 40 | 24 / 59 | 10 / 20 (+6 cannot) | 14 |
 | protect-mcp 0.32.4 | 0 / 0 | 43 | — | cannot express (static token) | 48 |
+| MCP TS SDK v2 2.4.0 `requireScopes` (venue only) | **7 / 7** | 21 | 9 / 28 | shared front (15/15) | 49 |
+| FastMCP 3.4.11 `require_scopes` (marketing only) | **14 / 14** | 17 | 17 / 31 | shared front (15/15) | 46 |
 
 *mcp-rbac also passes the 2 stdio checks (61/61 overall). "Raw" counts a check as passed even when it is marked
 cannot-express, which happens when the app's own business code rejected the call.*
 
 What each product **cannot express** (from `results/redteam-*.json`):
+
+- **Official built-ins (P10).** Both were scored against an authorization-server mapping that issues one scope
+  per tool (`tool:<name>`), generated from the same roles (`config/scopes/gen.py` → `scopes.json`). Tools that any
+  role may call get the scope `anyone`. A token's own `scope` claim narrows the grant.
+  - **TS SDK v2** (`servers/venue-sdk2.ts`): the unchanged v1 venue tools are re-registered on a v2 `McpServer` with
+    `scopeChallenge: requireScopes("tool:<name>")`. A denied call is an HTTP 403
+    `Bearer error="insufficient_scope", scope="tool:…"`, which was verified with a raw probe.
+    Cannot express:
+    - approvals (10);
+    - argument limits (3; a custom `ScopeChallengeHandler` could read arguments, but that is custom code);
+    - record-owner scope (3);
+    - counters (2);
+    - tools/list filtering (2; the list is not filtered);
+    - result filtering (1).
+  - **FastMCP 3** (`servers/marketing_fastmcp.py`): the unchanged marketing tools are re-registered with
+    `auth=require_scopes(...)`. tools/list **is** filtered, and a hidden tool answers `Unknown tool`.
+    Cannot express:
+    - approvals (10);
+    - argument checks (3; `AuthContext` has the token and the component, not the arguments);
+    - record-owner scope (2);
+    - counters (2).
+  - Nothing they could express failed. Their raw counts include checks that the app's own business code rejected.
 
 - **Cerbos / OpenFGA:** approvals (20 checks; workflow is custom code around a stateless PDP) and budgets/rate limits
   (4). Everything else was expressible and passed, but only with an adapter that resolves record owners from the DB
@@ -86,11 +113,14 @@ responses.
 
 | Target | c=1 p50 ms | c=1 p90 | c=1 p99 | c=32 req/s | c=32 p50 ms | c=32 p99 ms | errors | peak RSS MB (chain) | transport |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| baseline | 0.231 | 0.368 | 0.692 | 5386.7 | 4.999 | 16.426 | 0 | 350.1 (app 350.1) | http |
+| baseline (P10 re-run) | 0.242 | 0.372 | 0.693 | 5604.3 | 4.929 | 13.411 | 0 | 355.5 (app 355.5) | http |
 | policy-guard | 0.267 | 0.421 | 0.732 | 4620.1 | 5.79 | 17.613 | 0 | 359.0 (app+adapter 359.0) | http |
 | mcp-rbac-noaudit | 0.375 | 0.522 | 0.782 | 3289 | 8.567 | 19.598 | 0 | 365.5 (app+guard 365.5) | http |
 | agentgateway | 0.63 | 0.933 | 1.373 | 6710.8 | 4.075 | 11.878 | 0 | 429.8 (app 356.0, agentgateway 73.8) | http |
-| mcp-rbac | 0.717 | 1.414 | 2.088 | 1508.1 | 19.467 | 46.939 | 0 | 367.6 (app+guard 367.6) | http |
+| **mcp-rbac (P10, batched audit, shipped default)** | 0.431 | 0.647 | 0.996 | 2881.5 | 9.921 | 23.559 | 0 | 369.3 (app+guard 369.3) | http |
+| mcp-rbac-sync (P10, `MCP_RBAC_AUDIT_MODE=sync`) | 0.507 | 0.679 | 1.081 | 2310.3 | 11.976 | 30.83 | 0 | 370.2 (app+guard 370.2) | http |
+| MCP TS SDK v2 `requireScopes` (P10) | 0.529 | 0.776 | 1.134 | 2260.9 | 11.992 | 30.227 | 0 | 427.8 (app 427.8) | http |
+| *mcp-rbac P9 (per-call autocommit INSERT; superseded)* | 0.717 | 1.414 | 2.088 | 1508.1 | 19.467 | 46.939 | 0 | 367.6 (app+guard 367.6) | http |
 | protect-mcp | 1.222 | 1.604 | 2.014 | 1429.7 | 21.295 | 36 | 0 | 461.3 (protect-mcp + stdio app 461.3) | http |
 | cerbos | 1.487 | 1.91 | 2.542 | 2260.5 | 12.877 | 30.633 | 0 | 491.3 (app+adapter 379.1, cerbos PDP 112.2) | http |
 | openfga | 1.781 | 2.196 | 3 | 2157.3 | 13.748 | 28.12 | 0 | 466.3 (app+adapter 387.8, openfga 78.5) | http |
@@ -98,12 +128,18 @@ responses.
 
 How to read this:
 
-- **mcp-rbac with audit on (the shipped config)** costs about 0.49 ms p50 over no guard at c=1, and gets about 28% of
-  the baseline's throughput at c=32. The diagnostic `mcp-rbac-noaudit` row shows that most of the cost is the
-  **synchronous SQLite audit INSERT per decision**. Without it, the engine adds about 0.14 ms p50 and keeps about 61% of
-  baseline throughput. No other target writes an audit record per call, so the fair engine-to-engine comparison is
-  the noaudit row. The shipped number is still the honest one for what the example servers do today (action item:
-  batch or async audit writes).
+- **mcp-rbac with audit on (the shipped config)**:
+  - **P9:** a synchronous autocommit INSERT per decision. It cost about 0.49 ms p50 over no guard and got about 28% of
+    baseline throughput.
+  - **P10:** the default is batched group commit (WAL, one transaction per batch, hash chain computed at commit;
+    docs/AUDIT.md). That cut p50 from 0.717 to **0.431 ms** (about +0.19 ms over no guard) and raised c=32 throughput
+    from 1,508 to **2,882 req/s** (1.9×, about 51% of baseline).
+  - **Sync mode** (now with a prepared statement and WAL) gets 2,310 req/s.
+  - `mcp-rbac-noaudit` (P9 diagnostic, 3,289 req/s) is the engine-only ceiling. Every audited row still writes one
+    hash-chained record per decision, which no other target does.
+- **MCP TS SDK v2 `requireScopes`** runs at about mcp-rbac-sync speed (0.53 ms p50, 2,261 req/s) with only a scope
+  check. Most of its cost is the v2 stateless handler, which builds a server per request (`createMcpHandler` with
+  `legacy: "stateless"`). That is not the check itself, and there is no v2 no-scope baseline to separate the two.
 - **agentgateway is faster than the baseline under load** (6.7k vs 5.4k req/s). Its upstream runs in trust mode
   (decode only, no HS256 verify), and the Rust proxy handles the client side well. It still adds about 0.4 ms at c=1.
 - **Cerbos / OpenFGA** add one loopback HTTP hop per call (Cerbos about 1.3 ms, OpenFGA about 1.5 ms at p50, OpenFGA
@@ -111,7 +147,21 @@ How to read this:
 - **Pomerium** is the slowest per call (5.3 ms p50). Part of that is TLS: it is the only https path, with a self-signed
   cert. The rest is ext_authz + ext_proc. It also has the largest footprint (Envoy + Pomerium: 325 MB).
 - **protect-mcp** adds a stdio hop (HTTP → protect-mcp → child stdio) plus Cedar WASM.
-- Marketing (Python) was not load-tested here (time); its red-team runs are complete.
+- **Marketing (Python, P10)**: `profiles.list` as the account admin. Same loadgen and 10 s phases.
+
+  | Target | c=1 p50 ms | c=1 p99 | c=32 req/s | c=32 p50 ms | c=32 p99 ms | errors | peak RSS MB |
+  |---|---:|---:|---:|---:|---:|---:|---:|
+  | baseline (no guard, Python SDK 2.3) | 40.988 | 46.287 | 712.0 | 44.125 | 68.211 | 0 | 79.4 |
+  | mcp-rbac `CoreGuard` (batched audit)* | 40.693 | 45.848 | 591.9 | 52.75 | 81.8 | 0 | 82.3 |
+  | FastMCP 3.4.11 `require_scopes` | 40.86 | 48.911 | 453.5 | 68.897 | 103.116 | 0 | 82.2 |
+
+  - The about-40 ms c=1 floor is the same with no guard, so it comes from the Python streamable-HTTP stack in this
+    setup, not from either guard. Guard overhead at c=1 is within noise.
+  - Under load, mcp-rbac keeps 83% of baseline throughput and FastMCP keeps 64%. FastMCP is a different server
+    framework, so that row includes framework cost, not only `require_scopes`.
+  - *The shipped marketing policy caps each client at 1,200 calls/min (`limits: per-client`). A 32-way load trips
+    that by design (every call returned `rate_limited`). The row above is the same policy with only that `limits:`
+    block removed, which is consistent with "rate limits off for every product".
 
 ## 3. Setup size (non-blank, non-comment lines; `results/loc.json`)
 
@@ -166,11 +216,10 @@ Auth + HTTP).
 
 ## Could not run, or partly
 
-- **Official TS SDK `requireScopes` / FastMCP built-in scope checks:** not run. `requireScopes` exists only in the v2
-  `@modelcontextprotocol/server` 2.4.0 package (installed in `/opt/tools/competitors/npm`), and our servers use SDK v1
-  (`McpServer` 1.32.2), so a port of the venue server would be needed. FastMCP 4.2.0 would need the marketing server
-  rewritten on FastMCP. Both are scope checks only (no roles, arguments or tenants, per docs/MARKET.md SDK1/FM1), so
-  they would sit near the baseline on this suite. Not measured, so not scored.
+- **Official TS SDK `requireScopes` / FastMCP built-in scope checks:** run in P10 (§1, §2). Each covers one server:
+  the TS SDK covers venue and FastMCP covers marketing. They are faithful copies that re-register the unchanged tool
+  handlers, not rewrites. The SDK v2 copy re-registers the v1 tool definitions. Its client sees the 403 as a
+  transport error, not a tool result.
 - **Permit Edge PDP and MCP Gateway, AWS AgentCore Policy:** see above.
 - **protect-mcp:** ran, but on the red-team suite it is 0 expressible checks (see §1). The marketing server was not
   wrapped.
@@ -194,8 +243,9 @@ Auth + HTTP).
     not do at all.
   - **Permit** has a hosted control plane with no-code policy editing and sub-second propagation for assignment
     changes.
-- **Where mcp-rbac loses today:** its shipped example config is slower under load than every guard except Pomerium and
-  protect-mcp, because of the synchronous per-decision audit write. It has no hosted control plane, no UI, and no
+- **Where mcp-rbac loses today:** with P10 batched audit it is faster under load than Cerbos, OpenFGA, protect-mcp,
+  Pomerium and the SDK v2 built-in. It is still behind mcp-policy-guard and agentgateway, neither of which writes a
+  per-call audit record. It has no hosted control plane, no UI, and no
   adoption (unpublished).
 - **Home-field caveat:** the red-team suite was written alongside mcp-rbac, so it naturally exercises features mcp-rbac
   has (approvals, budgets, record scope). The "cannot express" column exists so that missing features are not

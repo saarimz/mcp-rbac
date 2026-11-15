@@ -7,7 +7,7 @@
 | Type | Standards Track |
 | Created | 2026-11-15 |
 | Reference implementation | this repository: `spec/tool-semantics.md`, `core/mcp-rbac-core/src/semantics.rs`, 508 conformance vectors × 6 engines |
-| Related | SEP-2793 *Tool Risk Metadata* (open draft), SEP-2061 *Action Security Metadata* (open draft), issue #2745 *advisory policy hints* (closed), discussion #2382 (`egressHint`, `reversibleHint`) |
+| Related | SEP-2793 *Tool Risk Metadata* (open draft), SEP-2061 *Action Security Metadata* (closed PR), issue #2745 *advisory policy hints* (closed), discussion #2382 (`egressHint`, `reversibleHint`) |
 
 ## Abstract
 

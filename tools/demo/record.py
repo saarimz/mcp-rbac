@@ -51,7 +51,7 @@ def main() -> None:
     pathlib.Path(work, "notes", "todo.txt").write_text("buy milk\n")
     shutil.copy(ROOT / "tools/demo/agent.ts", os.path.join(work, "agent.ts"))
 
-    events: list[list] = []
+    events: list[list[object]] = []
     t = 0.4
 
     def emit(s: str, dt: float = 0.0) -> None:

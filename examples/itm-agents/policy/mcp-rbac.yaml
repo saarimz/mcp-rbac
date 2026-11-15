@@ -14,7 +14,7 @@ roles:
     tools:
       - "*"
   admin:
-    description: ADMIN - full access to the brand. Identical to owner by default (Saarim 2026-11-15); per-role limits below are the knob.
+    description: ADMIN - full access to the brand. OWNER == ADMIN everywhere; nothing is owner-only (Saarim 2026-11-15).
     tools:
       - "*"
   agent:
@@ -58,7 +58,7 @@ tools:
     description: Real itm-agent tool (two-phase PlanChangeProposal apply).
     approve: true
   accept_service_quote:
-    description: PROPOSED (marketplace plan, not in ITM yet). Spends brand money on a booth/vendor-space quote.
+    description: PROPOSED (marketplace plan, not in ITM yet). Spends brand money. PHASE 2 - its scope and budget are inactive unless the spendBudgets knob is on.
     approve: true
     labels:
       - spend
@@ -67,6 +67,7 @@ tools:
         min: 1
         max: 2000000
         integer: true
+    # Phase 2 (deferred): enforced only with the spendBudgets knob on.
     budget:
       name: human_daily_spend
       max: 500000
@@ -111,7 +112,7 @@ scopes:
     request_service_quote:
       - itm:bookings:write
     accept_service_quote:
-      - itm:bookings:spend
+      - itm:bookings:spend   # Phase 2 (deferred)
   implies:
     itm:bookings:spend:
       - itm:bookings:write

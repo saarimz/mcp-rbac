@@ -15,7 +15,7 @@ const say = (s = "") => { console.log(s); out.push(s); };
 const app = createApp(); const o = await listen(app);
 const OUT = join(HERE, "..", "out"); mkdirSync(OUT, { recursive: true });
 const adam = await login(o, "adam@harbor.test"), sam = await login(o, "sam@harbor.test");
-const q = new URLSearchParams({ client_name: "Claude (booking-bot)", agent_name: "booking-bot", redirect_uri: "http://127.0.0.1:9/cb", state: "s", code_challenge: "c", code_challenge_method: "S256", dpop_jkt: "j", scope: "itm:bookings:spend itm:venues:read" });
+const q = new URLSearchParams({ client_name: "Claude (booking-bot)", agent_name: "booking-bot", redirect_uri: "http://127.0.0.1:9/cb", state: "s", code_challenge: "c", code_challenge_method: "S256", dpop_jkt: "j", scope: "itm:bookings:write itm:venues:read" });
 writeFileSync(join(OUT, "consent.html"), await (await fetch(`${o}/oauth/authorize?${q}`, { headers: { cookie: adam } })).text());
 writeFileSync(join(OUT, "consent-staff.html"), await (await fetch(`${o}/oauth/authorize?${q.toString().replaceAll("booking-bot", "door-bot")}`, { headers: { cookie: sam } })).text());
 
@@ -23,11 +23,11 @@ const conn = async (ck: string, f: any) => { const r = await connectAgent(o, ck,
 const show = async (who: string, c: Connected, tool: string, args: any = {}) => { const r = await call(c.client, tool, args); say(`  ${who.padEnd(14)} ${tool.padEnd(22)} ${r.ok ? "ALLOW" : r.needsApproval ? `NEEDS APPROVAL ${r.needsApproval}` : `DENY ${r.denied}`}`); return r; };
 
 say("== 1. Adam (ADMIN, Harbor Hall) connects three agents, each with different scopes and limits");
-say("booking-bot: bookings incl. spend, venues; $1,500/day budget"); const booking = (await conn(adam, { name: "booking-bot", brand: "brand_harbor", scopes: ["itm:bookings:spend", "itm:venues:read"], spend_per_day_usd: 1500 }))!;
+say("booking-bot: search listings + request quotes, venues (no spending in v1)"); const booking = (await conn(adam, { name: "booking-bot", brand: "brand_harbor", scopes: ["itm:bookings:write", "itm:venues:read"] }))!;
 say("marketing-bot: send email (max 3 recipients), read events"); const marketing = (await conn(adam, { name: "marketing-bot", brand: "brand_harbor", scopes: ["itm:campaigns:write", "itm:events:read"], max_recipients: 3 }))!;
 say("finance-bot: read plans + sales only"); const finance = (await conn(adam, { name: "finance-bot", brand: "brand_harbor", scopes: ["itm:plans:read", "itm:orders:read"] }))!;
 say("Adam tries to give an agent more than he has:");
-await conn(adam, { name: "greedy-bot", brand: "brand_harbor", scopes: ["itm:bookings:spend"], spend_per_day_usd: 10000 });
+await conn(adam, { name: "greedy-bot", brand: "brand_harbor", scopes: ["itm:bookings:spend"] }); // Phase 2 scope: off in v1
 await conn(adam, { name: "spy-bot", brand: "brand_northside", scopes: ["itm:events:read"] });
 await conn(adam, { name: "blast-bot", brand: "brand_harbor", scopes: ["itm:campaigns:write"], max_recipients: 500 });
 
@@ -45,14 +45,17 @@ await show("door-bot", door, "check_in_ticket", { ticketUid: "tkt_h1_1" });
 await show("door-bot", door, "list_moment_guests", { momentUid: "mom_h2" });
 await show("door-bot", door, "list_moment_guests", { momentUid: "mom_n1" });
 
-say("\n== 4. Approval + budget: booking-bot accepts booth quotes until its own $1,500/day budget stops it");
-for (const l of ["lst_1", "lst_2", "lst_3"]) {
-  const quote = (await call(booking.client, "request_service_quote", { listingUid: l })).data;
-  const r = await show("booking-bot", booking, "accept_service_quote", quote);
-  if (r.needsApproval) { await approve(o, adam, r.needsApproval); say(`  (Adam approves ${r.needsApproval} for $${(quote.amountCents / 100).toFixed(2)})`); await show("booking-bot", booking, "accept_service_quote", quote); }
-}
+say("\n== 4. Approvals: marketing-bot's email waits for a human; the approval is bound to that exact email and used once");
+const mail = { to: ["a@example.com", "b@example.com"], subject: "Winter Market", body: "Doors at 11" };
+const m1 = await show("marketing-bot", marketing, "send_email", mail);
+if (m1.needsApproval) { await approve(o, adam, m1.needsApproval); say(`  (Adam approves ${m1.needsApproval})`); }
+await show("marketing-bot", marketing, "send_email", mail);
+await show("marketing-bot", marketing, "send_email", mail);
+say("booking-bot can ask for a quote, but accepting one (spending) is Phase 2 and not in any v1 grant:");
+const quote = (await show("booking-bot", booking, "request_service_quote", { listingUid: "lst_1" })).data;
+await show("booking-bot", booking, "accept_service_quote", quote);
 
-say("\n== 5. Prompt injection in a guest name tells door-bot to spend money and use another agent's token");
+say("\n== 5. Prompt injection in a guest name tells door-bot to accept a quote and use another agent's token");
 const g = await call(door.client, "list_moment_guests", { momentUid: "mom_h1" });
 say(`  guest list contains: "${g.data.find((x: any) => x.holderName.startsWith("IGNORE")).holderName.slice(0, 90)}..."`);
 await show("door-bot", door, "accept_service_quote", { quoteUid: "quote_n1", amountCents: 1 });

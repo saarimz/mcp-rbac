@@ -39,10 +39,10 @@ const json = (res: ServerResponse, status: number, v: unknown, h: Record<string,
 const cookie = (req: IncomingMessage, name: string) => (req.headers.cookie ?? "").split(/;\s*/).map((c) => c.split("=")).find(([k]) => k === name)?.[1];
 const okRedirect = (u: string) => { try { const x = new URL(u); return (x.protocol === "http:" && (x.hostname === "127.0.0.1" || x.hostname === "localhost")) || x.protocol === "https:"; } catch { return false; } };
 
-export function createApp(opts: { db?: DatabaseSync; now?: () => number; momentPinning?: boolean } = {}): App {
+export function createApp(opts: { db?: DatabaseSync; now?: () => number; momentPinning?: boolean; spendBudgets?: boolean } = {}): App {
   const db = opts.db ?? (() => { const d = openDb(); seed(d); return d; })();
   const base = loadPortablePolicy(readFileSync(BASE_POLICY_PATH, "utf8"));
-  const store = new GrantStore(db, base, TOOLS.map((t) => t.name), opts.now, { momentPinning: opts.momentPinning ?? false });
+  const store = new GrantStore(db, base, TOOLS.map((t) => t.name), opts.now, { momentPinning: opts.momentPinning ?? false, spendBudgets: opts.spendBudgets ?? false });
   const csrfKey = randomBytes(32);
   const csrf = (sess: string) => createHmac("sha256", csrfKey).update(sess).digest("base64url");
   let origin = "";
@@ -68,7 +68,8 @@ legend{font-weight:600}.muted{color:#777}.no{color:#aaa}.err{background:#fde8e8;
     const ident = mem ? store.humanIdentity({ adminUid: "x", role: mem.role, momentUid: mem.momentUid }, mem.uid) : null;
     const pin = mem ? store.pinnedMoment(mem) : null;
     const resource = mem ? (pin ? { brand: mem.uid, moment: pin } : { brand: mem.uid }) : {};
-    const rows = SCOPES.map(({ scope, label }) => {
+    const spendOn = !!opts.spendBudgets;
+    const rows = SCOPES.filter((x) => spendOn || !x.phase2).map(({ scope, label }) => {
       const exp = expandScopes(base, [scope]);
       const tools = TOOLS.filter((t) => { const r = requiredScopes(base, t.name); return r.length && r.every((s) => exp.has(s)); }).map((t) => t.name);
       const held = !!ident && tools.length > 0 && tools.every(holds);
@@ -87,7 +88,7 @@ ${errors.length ? `<div class="err"><b>Not created:</b><ul>${errors.map((e) => `
 <fieldset><legend>What this agent may do</legend>${rows.map((r) => `<label class="${r.held ? "" : "no"}"><input type="checkbox" name="scope" value="${r.scope}" ${r.held ? "" : "disabled"} ${r.held && requested.has(r.scope) ? "checked" : ""}> ${esc(r.label)} <span class="chip">${r.scope}</span>${r.held ? "" : " — your role doesn't have this"}</label><div class="tools">${r.tools.join(", ")}</div>`).join("")}</fieldset>
 <fieldset><legend>Limits</legend>
 <label>Max recipients per email <input type="number" name="max_recipients" min="1" max="10" value="${esc(q.get("max_recipients") ?? "")}" placeholder="10"></label>
-<label>Spend budget per day for this agent (USD) <input type="number" name="spend_per_day_usd" min="1" value="${esc(q.get("spend_per_day_usd") ?? "")}" placeholder="none"></label>
+${spendOn ? `<label>Spend budget per day for this agent (USD) <input type="number" name="spend_per_day_usd" min="1" value="${esc(q.get("spend_per_day_usd") ?? "")}" placeholder="none"></label>` : ""}
 <label>Max ticket price this agent may set (USD) <input type="number" name="max_ticket_price_usd" min="0" value="${esc(q.get("max_ticket_price_usd") ?? "")}"></label>
 <label><input type="checkbox" name="approve_all_writes" value="1"> Ask me before every action that changes something</label>
 <label>Expires after <select name="expires_days">${[1, 7, 30, 90].map((d) => `<option value="${d}" ${d === 30 ? "selected" : ""}>${d} day${d > 1 ? "s" : ""}</option>`).join("")}</select></label></fieldset>
@@ -214,6 +215,6 @@ export async function listen(app: App, port = 0): Promise<string> {
 }
 
 if (process.argv[1]?.endsWith("server.ts")) {
-  const app = createApp({ momentPinning: process.env.ITM_MOMENT_PINNING === "1", db: (() => { const d = openDb(process.env.ITM_DB ?? ":memory:"); try { seed(d); } catch { /* already seeded */ } return d; })() });
+  const app = createApp({ momentPinning: process.env.ITM_MOMENT_PINNING === "1", spendBudgets: process.env.ITM_SPEND_BUDGETS === "1", db: (() => { const d = openDb(process.env.ITM_DB ?? ":memory:"); try { seed(d); } catch { /* already seeded */ } return d; })() });
   listen(app, Number(process.env.PORT ?? 8787)).then((o) => console.log(`itm-local MCP on ${o}/mcp  (sign in at ${o}/login)`));
 }

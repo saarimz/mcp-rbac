@@ -55,8 +55,13 @@ export class GrantStore {
    * @param opts.momentPinning  OFF by default (Saarim 2026-11-15: AGENT staff stay brand-wide, matching today's
    *   BrandMemberGuard). When ON, an AGENT member with AdminUserBrand.momentUid set is limited to that moment, and so
    *   are the agents they create (optional/future knob, see ADOPTION.md).
+   * @param opts.spendBudgets  OFF by default (Saarim 2026-11-15: v1 is about ACTIONS - tools, argument limits,
+   *   approvals; spend needs per-partner cost extraction, so it is Phase 2). When OFF: the Phase-2 scope
+   *   itm:bookings:spend can't be granted, grants can't carry spend budgets (budgets with `sum`), and spend limits
+   *   in the base policy / overlays are not enforced. Call-count limits (no `sum`) still work.
    */
-  constructor(readonly db: DatabaseSync, readonly base: CompiledPolicy, readonly toolNames: string[], readonly now: () => number = () => Date.now(), readonly opts: { momentPinning?: boolean } = {}) {}
+  constructor(readonly db: DatabaseSync, readonly base: CompiledPolicy, readonly toolNames: string[], readonly now: () => number = () => Date.now(), readonly opts: { momentPinning?: boolean; spendBudgets?: boolean } = {}) {}
+  static readonly PHASE2_SCOPES = ["itm:bookings:spend"];
   /** The moment an AGENT member is pinned to, or null (always null unless the momentPinning knob is on). */
   pinnedMoment(m: { role: string; momentUid?: string | null }): string | null { return this.opts.momentPinning && m.role === "AGENT" && m.momentUid ? m.momentUid : null; }
   private iso(offsetMs = 0) { return new Date(this.now() + offsetMs).toISOString(); }
@@ -135,6 +140,7 @@ export class GrantStore {
     const known = new Set(this.toolNames);
     for (const s of req.scopes) {
       if (!/^itm:[a-z]+:[a-z]+$/.test(s)) { reasons.push(`bad_scope:${s}`); continue; }
+      if (!this.opts.spendBudgets && GrantStore.PHASE2_SCOPES.includes(s)) { reasons.push(`phase2_scope_disabled:${s}`); continue; }
       const ts = this.toolsForScopes([s]).filter((t) => requiredScopes(this.base, t).length > 0);
       if (!ts.length) reasons.push(`unknown_scope:${s}`);
       for (const t of ts) if (requiredScopes(this.base, t).some((x) => expandScopes(this.base, [s]).has(x)) && !holds(t)) reasons.push(`scope_exceeds_grantor:${s}(${t})`);
@@ -162,6 +168,7 @@ export class GrantStore {
       }
     }
     for (const b of req.budgets ?? []) {
+      if (b.sum !== undefined && !this.opts.spendBudgets) { reasons.push(`spend_budgets_disabled:${b.name}`); continue; }
       if (!tools.includes(b.tool)) { reasons.push(`budget_on_ungranted_tool:${b.tool}`); continue; }
       if (!(b.max > 0)) reasons.push(`bad_budget:${b.name}`);
       for (const l of this.base.limits) {
@@ -298,7 +305,10 @@ export class GrantStore {
     // Host checks that need an authorized caller first (so they can't be used as an oracle across brands).
     const v = validate?.();
     if (v) return { decision: "deny", reason: v, base: b, overlay: o, auditSeq: audit("deny", v, b, o) };
-    const limits = [...b.limits.map((l) => ({ ...l, key: `base|${l.key}` })), ...o.limits.map((l) => ({ ...l, key: `grant|${l.key}` }))];
+    // Spend limits (limits with a `sum` argument) are Phase 2: skipped unless the spendBudgets knob is on.
+    const isSpend = (p: CompiledPolicy, i: number) => p.limits[i]?.sum !== undefined;
+    const keep = (p: CompiledPolicy) => (l: { index: number }) => this.opts.spendBudgets || !isSpend(p, l.index);
+    const limits = [...b.limits.filter(keep(this.base)).map((l) => ({ ...l, key: `base|${l.key}` })), ...o.limits.filter(keep(ctx.overlay)).map((l) => ({ ...l, key: `grant|${l.key}` }))];
     const at = this.now();
     for (const l of limits) {
       const used = (this.db.prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM BudgetEvent WHERE key = ? AND at > ?").get(l.key, at - l.windowMs) as { s: number }).s;

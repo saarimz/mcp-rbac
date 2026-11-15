@@ -38,7 +38,7 @@ describe("grant creation: no escalation", () => {
     await c.close();
   });
   test("AGENT staffer cannot grant scopes their role lacks (campaigns, plans, brand-wide events)", async () => {
-    for (const s of ["itm:campaigns:write", "itm:plans:read", "itm:events:read", "itm:bookings:spend"]) {
+    for (const s of ["itm:campaigns:write", "itm:plans:read", "itm:events:read"]) {
       const errs = await mustReject(o, sam, { name: `x-${s.split(":")[1]}`, brand: "brand_harbor", scopes: [s] });
       assert.ok(errs.some((e) => e.startsWith("scope_exceeds_grantor:") || e.startsWith("tool_exceeds_grantor:")), `${s}: ${errs}`);
     }
@@ -70,9 +70,13 @@ describe("grant creation: no escalation", () => {
     assert.ok((await mustReject(o, adam, { name: "m2", brand: "brand_harbor", scopes: ["itm:campaigns:write"], max_recipients: 50 })).includes("limit_wider_than_grantor:send_email.recipientCount.max"));
     assert.ok((await mustReject(o, adam, { name: "t2", brand: "brand_harbor", scopes: ["itm:events:write"], max_ticket_price_usd: 20000 })).includes("limit_wider_than_grantor:edit_ticket_tiers.price.max"));
   });
-  test("admin cannot give an agent a bigger budget than their own cap", async () => {
-    const errs = await mustReject(o, adam, { name: "b2", brand: "brand_harbor", scopes: ["itm:bookings:spend"], spend_per_day_usd: 10000 });
-    assert.ok(errs.includes("budget_exceeds_grantor:agent_daily_spend>human_daily_spend"), String(errs));
+  test("v1 is actions-only: the Phase 2 spend scope and spend budgets are refused by default, and not on the consent screen", async () => {
+    assert.deepEqual(await mustReject(o, adam, { name: "s1", brand: "brand_harbor", scopes: ["itm:bookings:spend"] }), ["phase2_scope_disabled:itm:bookings:spend"]);
+    assert.throws(() => app.store.createGrant({ grantorAdminUserId: 2, brandUid: "brand_harbor", name: "s2", scopes: ["itm:bookings:write"], expiresInSec: 3600,
+      budgets: [{ name: "agent_daily_spend", tool: "accept_service_quote", sum: "amountCents", max: 10000, per: "day" }] }), (e: any) => e.reasons.includes("spend_budgets_disabled:agent_daily_spend"));
+    const html = await (await fetch(`${o}/oauth/authorize?redirect_uri=http://127.0.0.1:9/cb&code_challenge=x&code_challenge_method=S256&dpop_jkt=y`, { headers: { cookie: adam } })).text();
+    assert.doesNotMatch(html, /itm:bookings:spend|spend_per_day_usd/);
+    assert.match(html, /value="itm:bookings:write"/);
   });
   test("forged / unknown scopes and over-long expiry are rejected", async () => {
     assert.ok((await mustReject(o, adam, { name: "f1", brand: "brand_harbor", scopes: ["itm:admin:all"] })).includes("unknown_scope:itm:admin:all"));
@@ -96,7 +100,7 @@ describe("runtime enforcement", () => {
   before(async () => {
     app = createApp(); o = await listen(app);
     [adam, sam, olivia, nora] = await Promise.all(["adam@harbor.test", "sam@harbor.test", "olivia@harbor.test", "nora@northside.test"].map((e) => login(o, e)));
-    booking = await mustConnect(o, adam, { name: "booking-bot", brand: "brand_harbor", scopes: ["itm:bookings:spend", "itm:venues:read"], spend_per_day_usd: 1500 });
+    booking = await mustConnect(o, adam, { name: "booking-bot", brand: "brand_harbor", scopes: ["itm:bookings:write", "itm:venues:read"] });
     marketing = await mustConnect(o, adam, { name: "marketing-bot", brand: "brand_harbor", scopes: ["itm:campaigns:write", "itm:events:read"], max_recipients: 3 });
     planner = await mustConnect(o, adam, { name: "planner-bot", brand: "brand_harbor", scopes: ["itm:plans:write", "itm:events:write", "itm:orders:read"], max_ticket_price_usd: 50 });
     door = await mustConnect(o, sam, { name: "door-bot", brand: "brand_harbor", scopes: ["itm:checkin:write"] });
@@ -104,7 +108,7 @@ describe("runtime enforcement", () => {
   after(async () => { for (const c of [booking, marketing, door, planner]) await c.close().catch(() => {}); await app.close(); });
 
   test("tools/list is the intersection of the human's rights and the grant", async () => {
-    assert.deepEqual((await booking.client.listTools()).tools.map((t) => t.name).sort(), ["accept_service_quote", "get_connection", "request_service_quote", "search_service_listings", "search_venues"]);
+    assert.deepEqual((await booking.client.listTools()).tools.map((t) => t.name).sort(), ["get_connection", "request_service_quote", "search_service_listings", "search_venues"]);
     assert.deepEqual((await door.client.listTools()).tools.map((t) => t.name).sort(), ["check_in_ticket", "get_connection", "list_moment_guests"]);
   });
   test("agent exceeding its grant: tools outside it are denied and audited", async () => {
@@ -120,8 +124,6 @@ describe("runtime enforcement", () => {
     assert.equal((await call(planner.client, "edit_ticket_tiers", { tierUid: "tier_h1_ga", price: 9900 })).denied, "grant:user:constraint:above_max:price");
   });
   test("cross-workspace: records of another brand are denied no matter what the agent passes", async () => {
-    await call(booking.client, "request_service_quote", { listingUid: "lst_1" });
-    assert.equal((await call(booking.client, "accept_service_quote", { quoteUid: "quote_n1", amountCents: 90000 })).denied, "base:cross_tenant");
     assert.equal((await call(planner.client, "read_plan", { planUid: "plan_n1" })).denied, "base:cross_tenant");
     assert.equal((await call(planner.client, "get_moment_stats", { momentUid: "mom_n1" })).denied, "base:cross_tenant");
     assert.equal((await call(door.client, "check_in_ticket", { ticketUid: "tkt_n1_1" })).denied, "base:cross_tenant");
@@ -144,22 +146,10 @@ describe("runtime enforcement", () => {
     assert.equal((await call(marketing.client, "send_email", args)).data.status, "QUEUED_LOCAL_NOT_SENT");
     assert.ok((await call(marketing.client, "send_email", args)).needsApproval); // single use
   });
-  test("budgets per agent, and all of one human's agents together stay inside the human's cap", async () => {
-    const q = async (c: Connected, l: string) => (await call(c.client, "request_service_quote", { listingUid: l })).data as { quoteUid: string; amountCents: number };
-    assert.equal((await call(booking.client, "accept_service_quote", { quoteUid: (await q(booking, "lst_1")).quoteUid, amountCents: 1 })).denied, "amount_mismatch");
-    let spent = 0;
-    for (const l of ["lst_1", "lst_2"]) { const x = await q(booking, l); const r = await callApproved(app, adam, booking, "accept_service_quote", x); assert.equal(r.data.status, "ACCEPTED"); spent += x.amountCents; }
-    assert.equal(spent, 47919 + 55838);
-    const over = await q(booking, "lst_3");
-    assert.match((await call(booking.client, "accept_service_quote", over)).denied!, /^budget:agent:agent_daily_spend/);
-    // A second spending agent of the same admin, with its own (larger) budget:
-    const b2 = await mustConnect(o, adam, { name: "booking-bot-2", brand: "brand_harbor", scopes: ["itm:bookings:spend"], spend_per_day_usd: 4500 });
-    let n = 0, last: any;
-    for (;;) { const x = await q(b2, "lst_3"); last = await callApproved(app, adam, b2, "accept_service_quote", x); if (!last.ok) break; n++; }
-    assert.equal(n, 6); // 6 x 63757 = 382542 within its own 450000, but 103757 + 7 x 63757 > adam's 500000
-    assert.match(last.denied, /^budget:grantor:human_daily_spend/);
-    // Booking-bot's budget is untouched by b2 and vice versa (separate keys), the human cap is shared.
-    await b2.close();
+  test("v1: an agent can request quotes but spending (accept_service_quote) is outside every v1 grant", async () => {
+    const x = (await call(booking.client, "request_service_quote", { listingUid: "lst_1" })).data;
+    assert.ok(x.quoteUid);
+    assert.equal((await call(booking.client, "accept_service_quote", x)).denied, "base:insufficient_scope");
   });
   test("two agents of the same admin are isolated: token + other agent's key, Bearer downgrade, replayed proof", async () => {
     const tool = `${o}/mcp`;
@@ -284,5 +274,39 @@ describe("optional knob: moment pinning (off by default)", () => {
     const a = await mustConnect(o, adam, { name: "events-bot", brand: "brand_harbor", scopes: ["itm:events:read"] });
     assert.equal(app.store.grant(a.grantUid)!.momentUid, null);
     await r.close(); await a.close();
+  });
+});
+
+describe("optional knob: spend budgets (Phase 2, off by default)", () => {
+  let app: App, o: string, adam: string, booking: Connected;
+  before(async () => {
+    app = createApp({ spendBudgets: true }); o = await listen(app); adam = await login(o, "adam@harbor.test");
+    booking = await mustConnect(o, adam, { name: "booking-bot", brand: "brand_harbor", scopes: ["itm:bookings:spend", "itm:venues:read"], spend_per_day_usd: 1500 });
+  });
+  after(async () => { await booking.close().catch(() => {}); await app.close(); });
+
+  test("admin cannot give an agent a bigger budget than their own cap", async () => {
+    const errs = await mustReject(o, adam, { name: "b2", brand: "brand_harbor", scopes: ["itm:bookings:spend"], spend_per_day_usd: 10000 });
+    assert.ok(errs.includes("budget_exceeds_grantor:agent_daily_spend>human_daily_spend"), String(errs));
+  });
+  test("cross-workspace quote is denied even with the spend scope", async () => {
+    assert.equal((await call(booking.client, "accept_service_quote", { quoteUid: "quote_n1", amountCents: 90000 })).denied, "base:cross_tenant");
+  });
+  test("budgets per agent, and all of one human's agents together stay inside the human's cap", async () => {
+    const q = async (c: Connected, l: string) => (await call(c.client, "request_service_quote", { listingUid: l })).data as { quoteUid: string; amountCents: number };
+    assert.equal((await call(booking.client, "accept_service_quote", { quoteUid: (await q(booking, "lst_1")).quoteUid, amountCents: 1 })).denied, "amount_mismatch");
+    let spent = 0;
+    for (const l of ["lst_1", "lst_2"]) { const x = await q(booking, l); const r = await callApproved(app, adam, booking, "accept_service_quote", x); assert.equal(r.data.status, "ACCEPTED"); spent += x.amountCents; }
+    assert.equal(spent, 47919 + 55838);
+    const over = await q(booking, "lst_3");
+    assert.match((await call(booking.client, "accept_service_quote", over)).denied!, /^budget:agent:agent_daily_spend/);
+    // A second spending agent of the same admin, with its own (larger) budget:
+    const b2 = await mustConnect(o, adam, { name: "booking-bot-2", brand: "brand_harbor", scopes: ["itm:bookings:spend"], spend_per_day_usd: 4500 });
+    let n = 0, last: any;
+    for (;;) { const x = await q(b2, "lst_3"); last = await callApproved(app, adam, b2, "accept_service_quote", x); if (!last.ok) break; n++; }
+    assert.equal(n, 6); // 6 x 63757 = 382542 within its own 450000, but 103757 + 7 x 63757 > adam's 500000
+    assert.match(last.denied, /^budget:grantor:human_daily_spend/);
+    // Booking-bot's budget is untouched by b2 and vice versa (separate keys), the human cap is shared.
+    await b2.close();
   });
 });

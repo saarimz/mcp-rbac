@@ -109,7 +109,8 @@ export const TOOLS: ToolSpec[] = [
     run: (db, _c, a) => { const q = db.prepare("SELECT * FROM BrandServiceQuote WHERE uid = ?").get(a.quoteUid) as any; if (q.status !== "OPEN") return { error: `quote is ${q.status}` }; db.prepare("UPDATE BrandServiceQuote SET status = 'ACCEPTED' WHERE uid = ?").run(a.quoteUid); return { quoteUid: a.quoteUid, status: "ACCEPTED", amountCents: q.amountCents, note: "local mirror: no money moves" }; } },
 ];
 
-export const SCOPES: { scope: string; label: string }[] = [
+/** v1 scope list; `phase2` scopes only appear when the spendBudgets knob is on. */
+export const SCOPES: { scope: string; label: string; phase2?: boolean }[] = [
   { scope: "itm:brand:read", label: "Read brand profile" },
   { scope: "itm:events:read", label: "Read moments (events)" },
   { scope: "itm:events:write", label: "Create moments, edit ticket tiers" },
@@ -123,5 +124,5 @@ export const SCOPES: { scope: string; label: string }[] = [
   { scope: "itm:campaigns:write", label: "Send emails from the brand inbox" },
   { scope: "itm:bookings:read", label: "Search booth / vendor-space listings (proposed)" },
   { scope: "itm:bookings:write", label: "Request quotes (proposed)" },
-  { scope: "itm:bookings:spend", label: "Accept and pay quotes (proposed)" },
+  { scope: "itm:bookings:spend", label: "Accept and pay quotes (Phase 2)", phase2: true },
 ];

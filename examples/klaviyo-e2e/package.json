@@ -1,0 +1,20 @@
+{
+  "name": "mcp-rbac-klaviyo-e2e",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Local Better Auth + mcp-rbac guard in front of Klaviyo MCP (mocked by default; live with a private API key later).",
+  "type": "module",
+  "scripts": {
+    "setup": "tsx src/setup-env.ts",
+    "generate-policy": "tsx src/generate-policy.ts",
+    "start": "tsx src/server.ts",
+    "test:mocked": "tsx src/driver.ts --mode=mock",
+    "test:live": "tsx src/driver.ts --mode=live"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "better-auth": "^1.4.5"
+  }
+}

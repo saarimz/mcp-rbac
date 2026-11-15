@@ -1,0 +1,2482 @@
+{
+  "source": "https://developers.klaviyo.com/en/docs/klaviyo_mcp_server_available_tools",
+  "count": 309,
+  "tools": [
+    {
+      "name": "get_account_details",
+      "category": "Accounts",
+      "description": "Get details of your account.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_campaigns",
+      "category": "Campaigns",
+      "description": "List your campaigns.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_campaign",
+      "category": "Campaigns",
+      "description": "Get details of a campaign.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_campaign",
+      "category": "Campaigns",
+      "description": "Create a campaign.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "assign_template_to_campaign_message",
+      "category": "Campaigns",
+      "description": "Assign an email template to a campaign message.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_campaign_message",
+      "category": "Campaigns",
+      "description": "Create a message on a campaign. (Requires `beta=true`)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_campaign_variation",
+      "category": "Campaigns",
+      "description": "Add a variation to a campaign message to create an A/B test. (Requires `beta=true`)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_campaign_send_job",
+      "category": "Campaigns",
+      "description": "Get the status of a campaign send job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_campaign_recipient_estimation_job",
+      "category": "Campaigns",
+      "description": "Get the status of a campaign recipient estimation job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_campaign_recipient_estimation",
+      "category": "Campaigns",
+      "description": "Get the estimated number of recipients for a campaign.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_campaign_message",
+      "category": "Campaigns",
+      "description": "Get details of a campaign message.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "refresh_campaign_recipient_estimation",
+      "category": "Campaigns",
+      "description": "Refresh a campaign's recipient estimation.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_campaign_clone",
+      "category": "Campaigns",
+      "description": "Clone a campaign.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_campaign",
+      "category": "Campaigns",
+      "description": "Update a campaign.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_campaign",
+      "category": "Campaigns",
+      "description": "Delete a campaign.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_campaign_message",
+      "category": "Campaigns",
+      "description": "Update a campaign message.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_image_for_campaign_message",
+      "category": "Campaigns",
+      "description": "Update the image associated with a campaign message.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "send_campaign",
+      "category": "Campaigns",
+      "description": "Send a campaign to its configured audience.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "cancel_campaign_send",
+      "category": "Campaigns",
+      "description": "Cancel or revert a campaign send.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_catalog_items",
+      "category": "Catalogs",
+      "description": "List your catalog items.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_catalog_item",
+      "category": "Catalogs",
+      "description": "Get details of a catalog item.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_catalog_variant",
+      "category": "Catalogs",
+      "description": "Get details of a catalog variant.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_catalog_category",
+      "category": "Catalogs",
+      "description": "Get details of a catalog category.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_create_catalog_items_job",
+      "category": "Catalogs",
+      "description": "Get the status of a bulk catalog item create job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_update_catalog_items_job",
+      "category": "Catalogs",
+      "description": "Get the status of a bulk catalog item update job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_delete_catalog_items_job",
+      "category": "Catalogs",
+      "description": "Get the status of a bulk catalog item delete job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_create_variants_job",
+      "category": "Catalogs",
+      "description": "Get the status of a bulk catalog variant create job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_update_variants_job",
+      "category": "Catalogs",
+      "description": "Get the status of a bulk catalog variant update job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_delete_variants_job",
+      "category": "Catalogs",
+      "description": "Get the status of a bulk catalog variant delete job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_catalog_variants",
+      "category": "Catalogs",
+      "description": "List catalog variants.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_catalog_categories",
+      "category": "Catalogs",
+      "description": "List catalog categories.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_create_catalog_items_jobs",
+      "category": "Catalogs",
+      "description": "List bulk catalog item create jobs.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_update_catalog_items_jobs",
+      "category": "Catalogs",
+      "description": "List bulk catalog item update jobs.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_delete_catalog_items_jobs",
+      "category": "Catalogs",
+      "description": "List bulk catalog item delete jobs.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_create_variants_jobs",
+      "category": "Catalogs",
+      "description": "List bulk catalog variant create jobs.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_update_variants_jobs",
+      "category": "Catalogs",
+      "description": "List bulk catalog variant update jobs.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_delete_variants_jobs",
+      "category": "Catalogs",
+      "description": "List bulk catalog variant delete jobs.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_catalog_item",
+      "category": "Catalogs",
+      "description": "Create a catalog item.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_catalog_item",
+      "category": "Catalogs",
+      "description": "Update a catalog item.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_catalog_item",
+      "category": "Catalogs",
+      "description": "Delete a catalog item.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "add_categories_to_catalog_item",
+      "category": "Catalogs",
+      "description": "Add categories to a catalog item.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "remove_categories_from_catalog_item",
+      "category": "Catalogs",
+      "description": "Remove categories from a catalog item.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_categories_for_catalog_item",
+      "category": "Catalogs",
+      "description": "Update the categories for a catalog item.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_back_in_stock_subscription",
+      "category": "Catalogs",
+      "description": "Create a back-in-stock subscription.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_catalog_variant",
+      "category": "Catalogs",
+      "description": "Create a catalog variant.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_catalog_variant",
+      "category": "Catalogs",
+      "description": "Update a catalog variant.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_catalog_variant",
+      "category": "Catalogs",
+      "description": "Delete a catalog variant.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_catalog_category",
+      "category": "Catalogs",
+      "description": "Create a catalog category.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_catalog_category",
+      "category": "Catalogs",
+      "description": "Update a catalog category.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_catalog_category",
+      "category": "Catalogs",
+      "description": "Delete a catalog category.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "add_items_to_catalog_category",
+      "category": "Catalogs",
+      "description": "Add items to a catalog category.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "remove_items_from_catalog_category",
+      "category": "Catalogs",
+      "description": "Remove items from a catalog category.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_items_for_catalog_category",
+      "category": "Catalogs",
+      "description": "Update the items in a catalog category.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_create_catalog_items",
+      "category": "Catalogs",
+      "description": "Create catalog items in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_update_catalog_items",
+      "category": "Catalogs",
+      "description": "Update catalog items in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_delete_catalog_items",
+      "category": "Catalogs",
+      "description": "Delete catalog items in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_create_catalog_variants",
+      "category": "Catalogs",
+      "description": "Create catalog variants in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_update_catalog_variants",
+      "category": "Catalogs",
+      "description": "Update catalog variants in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_delete_catalog_variants",
+      "category": "Catalogs",
+      "description": "Delete catalog variants in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_events",
+      "category": "Events",
+      "description": "List events.",
+      "readOnly": true,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_event",
+      "category": "Events",
+      "description": "Create an event for a profile.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_metrics",
+      "category": "Events",
+      "description": "List event metrics.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_metric",
+      "category": "Events",
+      "description": "Get details of an event metric.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "query_metric_aggregates",
+      "category": "Events",
+      "description": "Query and aggregate event data associated with a metric.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_event",
+      "category": "Events",
+      "description": "Get details of an event.",
+      "readOnly": true,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_custom_metric",
+      "category": "Events",
+      "description": "Get details of a custom metric.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_mapped_metric",
+      "category": "Events",
+      "description": "Get details of a mapped metric.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_metric_property",
+      "category": "Events",
+      "description": "Get details of a metric property.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_custom_metrics",
+      "category": "Events",
+      "description": "List custom metrics.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_mapped_metrics",
+      "category": "Events",
+      "description": "List mapped metrics.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_flows_triggered_by_metric",
+      "category": "Events",
+      "description": "List flows triggered by a metric.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_custom_metric",
+      "category": "Events",
+      "description": "Create a custom metric.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_custom_metric",
+      "category": "Events",
+      "description": "Update a custom metric.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_custom_metric",
+      "category": "Events",
+      "description": "Delete a custom metric.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_mapped_metric",
+      "category": "Events",
+      "description": "Update a mapped metric.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_create_events",
+      "category": "Events",
+      "description": "Create events for multiple profiles in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_download_for_event_bulk_export_job",
+      "category": "Events",
+      "description": "Get the download URL for an event bulk export job. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_event_bulk_export_job",
+      "category": "Events",
+      "description": "Get the status of an event bulk export job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_flows",
+      "category": "Flows",
+      "description": "List your flows.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_flow",
+      "category": "Flows",
+      "description": "Get details of a flow.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_flow_message",
+      "category": "Flows",
+      "description": "Get details of a flow message.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_flow_action",
+      "category": "Flows",
+      "description": "Get details of a flow action.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_flow",
+      "category": "Flows",
+      "description": "Create a flow.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_flow",
+      "category": "Flows",
+      "description": "Update a flow's status.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_flow",
+      "category": "Flows",
+      "description": "Delete a flow.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_flow_action",
+      "category": "Flows",
+      "description": "Update a flow action.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_flow_action",
+      "category": "Flows",
+      "description": "Add an action to a flow. (Requires `beta=true`)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_lists",
+      "category": "Groups",
+      "description": "List your lists.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_list",
+      "category": "Groups",
+      "description": "Get details of a list.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_segments",
+      "category": "Groups",
+      "description": "List your segments.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_segment",
+      "category": "Groups",
+      "description": "Get details of a segment.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_flows_triggered_by_list",
+      "category": "Groups",
+      "description": "List flows triggered by a list.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_flows_triggered_by_segment",
+      "category": "Groups",
+      "description": "List flows triggered by a segment.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_list",
+      "category": "Groups",
+      "description": "Create a list.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_list",
+      "category": "Groups",
+      "description": "Update a list.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_list",
+      "category": "Groups",
+      "description": "Delete a list.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "add_profiles_to_list",
+      "category": "Groups",
+      "description": "Add profiles to a list.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "remove_profiles_from_list",
+      "category": "Groups",
+      "description": "Remove profiles from a list.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_profiles_for_list",
+      "category": "Groups",
+      "description": "List the profiles in a list.",
+      "readOnly": true,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_profiles_for_segment",
+      "category": "Groups",
+      "description": "List the profiles in a segment.",
+      "readOnly": true,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_segment",
+      "category": "Groups",
+      "description": "Create a segment.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_segment",
+      "category": "Groups",
+      "description": "Update a segment.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_segment",
+      "category": "Groups",
+      "description": "Delete a segment.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "upload_image_from_file",
+      "category": "Images",
+      "description": "Upload image from a local file.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": false
+    },
+    {
+      "name": "upload_image_from_url",
+      "category": "Images",
+      "description": "Upload image from a URL.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_image",
+      "category": "Images",
+      "description": "Get details of an image.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_images",
+      "category": "Images",
+      "description": "List images.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_image",
+      "category": "Images",
+      "description": "Update an image's metadata.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_profiles",
+      "category": "Profiles",
+      "description": "List your profiles.",
+      "readOnly": true,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_profile",
+      "category": "Profiles",
+      "description": "Get details of a profile.",
+      "readOnly": true,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_profile",
+      "category": "Profiles",
+      "description": "Create a profile.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_profile",
+      "category": "Profiles",
+      "description": "Update a profile.",
+      "readOnly": false,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "subscribe_profile_to_marketing",
+      "category": "Profiles",
+      "description": "Subscribe a profile to marketing for a given channel and list.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "unsubscribe_profile_from_marketing",
+      "category": "Profiles",
+      "description": "Unsubscribe a profile from marketing for a given channel and list.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_import_profiles_job",
+      "category": "Profiles",
+      "description": "Get the status of a bulk profile import job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_suppress_profiles_job",
+      "category": "Profiles",
+      "description": "Get the status of a bulk profile suppression job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_unsuppress_profiles_job",
+      "category": "Profiles",
+      "description": "Get the status of a bulk profile unsuppression job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_push_token",
+      "category": "Profiles",
+      "description": "Get details of a push token.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_import_profiles_jobs",
+      "category": "Profiles",
+      "description": "List bulk profile import jobs.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_suppress_profiles_jobs",
+      "category": "Profiles",
+      "description": "List bulk profile suppression jobs.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_unsuppress_profiles_jobs",
+      "category": "Profiles",
+      "description": "List bulk profile unsuppression jobs.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_push_tokens",
+      "category": "Profiles",
+      "description": "List push tokens.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_or_update_profile",
+      "category": "Profiles",
+      "description": "Create or update a profile.",
+      "readOnly": false,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_push_token",
+      "category": "Profiles",
+      "description": "Create or update a push token.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_push_token",
+      "category": "Profiles",
+      "description": "Delete a push token.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_import_profiles",
+      "category": "Profiles",
+      "description": "Import profiles in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_suppress_profiles",
+      "category": "Profiles",
+      "description": "Suppress profiles from marketing in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_unsuppress_profiles",
+      "category": "Profiles",
+      "description": "Unsuppress profiles in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "merge_profiles",
+      "category": "Profiles",
+      "description": "Merge two profiles.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_download_for_profile_bulk_export_job",
+      "category": "Profiles",
+      "description": "Get the download URL for a profile bulk export job. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_profile_bulk_export_job",
+      "category": "Profiles",
+      "description": "Get the status of a profile bulk export job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_campaign_report",
+      "category": "Reporting",
+      "description": "Get a report of your campaign performance.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_flow_report",
+      "category": "Reporting",
+      "description": "Get a report of your flow performance.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "query_form_values",
+      "category": "Reporting",
+      "description": "Query form performance values.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "query_form_series",
+      "category": "Reporting",
+      "description": "Query form performance over time.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "query_segment_values",
+      "category": "Reporting",
+      "description": "Query segment membership values.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "query_segment_series",
+      "category": "Reporting",
+      "description": "Query segment membership over time.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_email_template",
+      "category": "Templates",
+      "description": "Create an HTML email template.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_email_template",
+      "category": "Templates",
+      "description": "Get the details of an email template.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_dnd_email_template",
+      "category": "Templates",
+      "description": "Create a drag-and-drop (DND) email template with a structured definition.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_dnd_email_template",
+      "category": "Templates",
+      "description": "Update an existing drag-and-drop (DND) email template.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "list_email_templates",
+      "category": "Templates",
+      "description": "List your email templates.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_email_template",
+      "category": "Templates",
+      "description": "Update an HTML email template.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "clone_email_template",
+      "category": "Templates",
+      "description": "Clone an email template.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_email_template",
+      "category": "Templates",
+      "description": "Delete an email template.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "render_email_template",
+      "category": "Templates",
+      "description": "Render an email template with provided context.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_universal_content",
+      "category": "Templates",
+      "description": "Get details of a universal content block.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_all_universal_content",
+      "category": "Templates",
+      "description": "List universal content blocks.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_universal_content",
+      "category": "Templates",
+      "description": "Create a universal content block.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_universal_content",
+      "category": "Templates",
+      "description": "Update a universal content block.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_universal_content",
+      "category": "Templates",
+      "description": "Delete a universal content block.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_template_preview_send_job",
+      "category": "Templates",
+      "description": "Send a preview of a template to specified recipients. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_translations",
+      "category": "Translations",
+      "description": "List all translation collections. Supports filtering by channel, resource type, and resource ID. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_translation",
+      "category": "Translations",
+      "description": "Get a translation collection by ID, optionally including translated values per locale. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_translation",
+      "category": "Translations",
+      "description": "Create a translation collection for a campaign variation, flow message, template, or universal content. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_translation",
+      "category": "Translations",
+      "description": "Update translation settings (locales) and/or import translated values for a resource. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_translation",
+      "category": "Translations",
+      "description": "Delete a translation collection and all its localized values. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_coupon",
+      "category": "Coupons",
+      "description": "Get details of a coupon.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_create_coupon_codes_job",
+      "category": "Coupons",
+      "description": "Get the status of a bulk coupon code create job.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_coupons",
+      "category": "Coupons",
+      "description": "List coupons.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_coupon_codes",
+      "category": "Coupons",
+      "description": "List coupon codes.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_coupon_code",
+      "category": "Coupons",
+      "description": "Get details of a coupon code.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_bulk_create_coupon_code_jobs",
+      "category": "Coupons",
+      "description": "List bulk coupon code create jobs.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_coupon",
+      "category": "Coupons",
+      "description": "Create a coupon.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_coupon",
+      "category": "Coupons",
+      "description": "Update a coupon.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_coupon_code",
+      "category": "Coupons",
+      "description": "Create a coupon code.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_coupon_code",
+      "category": "Coupons",
+      "description": "Update a coupon code.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_coupon_code",
+      "category": "Coupons",
+      "description": "Delete a coupon code.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_coupon",
+      "category": "Coupons",
+      "description": "Delete a coupon.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_create_coupon_codes",
+      "category": "Coupons",
+      "description": "Create coupon codes in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_tag_group",
+      "category": "Tags",
+      "description": "Get details of a tag group.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_tags",
+      "category": "Tags",
+      "description": "List tags.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_tag",
+      "category": "Tags",
+      "description": "Get details of a tag.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_tag_groups",
+      "category": "Tags",
+      "description": "List tag groups.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_campaign_ids_for_tag",
+      "category": "Tags",
+      "description": "List the IDs of campaigns with a tag.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_flow_ids_for_tag",
+      "category": "Tags",
+      "description": "List the IDs of flows with a tag.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_list_ids_for_tag",
+      "category": "Tags",
+      "description": "List the IDs of lists with a tag.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_segment_ids_for_tag",
+      "category": "Tags",
+      "description": "List the IDs of segments with a tag.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_tag",
+      "category": "Tags",
+      "description": "Create a tag.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_tag",
+      "category": "Tags",
+      "description": "Update a tag.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_tag",
+      "category": "Tags",
+      "description": "Delete a tag.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_tag_group",
+      "category": "Tags",
+      "description": "Create a tag group.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_tag_group",
+      "category": "Tags",
+      "description": "Update a tag group.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_tag_group",
+      "category": "Tags",
+      "description": "Delete a tag group.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "tag_campaigns",
+      "category": "Tags",
+      "description": "Add a tag to campaigns.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "tag_flows",
+      "category": "Tags",
+      "description": "Add a tag to flows.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "tag_lists",
+      "category": "Tags",
+      "description": "Add a tag to lists.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "tag_segments",
+      "category": "Tags",
+      "description": "Add a tag to segments.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "remove_tag_from_campaigns",
+      "category": "Tags",
+      "description": "Remove a tag from campaigns.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "remove_tag_from_flows",
+      "category": "Tags",
+      "description": "Remove a tag from flows.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "remove_tag_from_lists",
+      "category": "Tags",
+      "description": "Remove a tag from lists.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "remove_tag_from_segments",
+      "category": "Tags",
+      "description": "Remove a tag from segments.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_webhook",
+      "category": "Webhooks",
+      "description": "Get details of a webhook.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_webhook_topics",
+      "category": "Webhooks",
+      "description": "List webhook topics.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_webhook_topic",
+      "category": "Webhooks",
+      "description": "Get details of a webhook topic.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_webhooks",
+      "category": "Webhooks",
+      "description": "List webhooks.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_webhook",
+      "category": "Webhooks",
+      "description": "Create a webhook.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_webhook",
+      "category": "Webhooks",
+      "description": "Update a webhook.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_webhook",
+      "category": "Webhooks",
+      "description": "Delete a webhook.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_form",
+      "category": "Forms",
+      "description": "Get details of a form.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_forms",
+      "category": "Forms",
+      "description": "List forms.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_form_version",
+      "category": "Forms",
+      "description": "Get details of a form version.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_form",
+      "category": "Forms",
+      "description": "Create a form.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_form",
+      "category": "Forms",
+      "description": "Delete a form.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_reviews",
+      "category": "Reviews",
+      "description": "List your reviews.",
+      "readOnly": true,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_review",
+      "category": "Reviews",
+      "description": "Get details of a review.",
+      "readOnly": true,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_review",
+      "category": "Reviews",
+      "description": "Update a review.",
+      "readOnly": false,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "request_profile_deletion",
+      "category": "Data Privacy",
+      "description": "Request deletion of a profile's data.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_applications",
+      "category": "Applications",
+      "description": "List OAuth applications. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_application",
+      "category": "Applications",
+      "description": "Get details of an application. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "list_billing_usage",
+      "category": "Billing",
+      "description": "List billing usage records. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_billing_usage",
+      "category": "Billing",
+      "description": "Get details of a billing usage record. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_brand_button",
+      "category": "Brands",
+      "description": "Create a brand button. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_brand_color",
+      "category": "Brands",
+      "description": "Create a brand color. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_brand_logo",
+      "category": "Brands",
+      "description": "Create a brand logo. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_brand_social_group",
+      "category": "Brands",
+      "description": "Create a brand social group. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_brand_button",
+      "category": "Brands",
+      "description": "Delete a brand button. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_brand_color",
+      "category": "Brands",
+      "description": "Delete a brand color. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_brand_logo",
+      "category": "Brands",
+      "description": "Delete a brand logo. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_brand_social_group",
+      "category": "Brands",
+      "description": "Delete a brand social group. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_brand_button",
+      "category": "Brands",
+      "description": "Get details of a brand button. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_brand_buttons",
+      "category": "Brands",
+      "description": "List brand buttons. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_brand_color",
+      "category": "Brands",
+      "description": "Get details of a brand color. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_brand_colors",
+      "category": "Brands",
+      "description": "List brand colors. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_brand_email_default",
+      "category": "Brands",
+      "description": "Get details of a brand email default. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_brand_email_defaults",
+      "category": "Brands",
+      "description": "List brand email defaults. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_brand_logo",
+      "category": "Brands",
+      "description": "Get details of a brand logo. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_brand_logos",
+      "category": "Brands",
+      "description": "List brand logos. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_brand_social_group",
+      "category": "Brands",
+      "description": "Get details of a brand social group. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_brand_social_groups",
+      "category": "Brands",
+      "description": "List brand social groups. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_brand_voice",
+      "category": "Brands",
+      "description": "Get the brand voice. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_brand_button",
+      "category": "Brands",
+      "description": "Update a brand button. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_brand_color",
+      "category": "Brands",
+      "description": "Update a brand color. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_brand_email_default",
+      "category": "Brands",
+      "description": "Update a brand email default. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_brand_logo",
+      "category": "Brands",
+      "description": "Update a brand logo. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_brand_social_group",
+      "category": "Brands",
+      "description": "Update a brand social group. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_brand_voice",
+      "category": "Brands",
+      "description": "Update the brand voice. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_agent_knowledge",
+      "category": "Customer Agent",
+      "description": "Create an agent knowledge entry. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_agent_skill",
+      "category": "Customer Agent",
+      "description": "Create an agent skill. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_agent_tool",
+      "category": "Customer Agent",
+      "description": "Create an agent tool. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_customer_agent_response",
+      "category": "Customer Agent",
+      "description": "Create a customer agent response. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_agent_knowledge",
+      "category": "Customer Agent",
+      "description": "Delete an agent knowledge entry. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_agent_secret",
+      "category": "Customer Agent",
+      "description": "Delete an agent secret. Requires your confirmation, since tools that use the secret will stop authenticating. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_agent_skill",
+      "category": "Customer Agent",
+      "description": "Delete an agent skill. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_agent_tool",
+      "category": "Customer Agent",
+      "description": "Delete an agent tool. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_agent_knowledge",
+      "category": "Customer Agent",
+      "description": "Get details of an agent knowledge entry. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "list_agent_knowledge",
+      "category": "Customer Agent",
+      "description": "List agent knowledge entries. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_agent_secret",
+      "category": "Customer Agent",
+      "description": "Get details of an agent secret. Returns metadata and a masked value only. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_agent_secrets",
+      "category": "Customer Agent",
+      "description": "List agent secrets. Returns metadata and masked values only. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_agent_skill",
+      "category": "Customer Agent",
+      "description": "Get details of an agent skill. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_agent_skills",
+      "category": "Customer Agent",
+      "description": "List agent skills. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_agent_tool",
+      "category": "Customer Agent",
+      "description": "Get details of an agent tool. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_agent_tools",
+      "category": "Customer Agent",
+      "description": "List agent tools. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_customer_agent",
+      "category": "Customer Agent",
+      "description": "Get details of a customer agent. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "retrieve_customer_agent_conversation",
+      "category": "Customer Agent",
+      "description": "Get details of a customer agent conversation. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "list_customer_agent_conversations",
+      "category": "Customer Agent",
+      "description": "List customer agent conversations. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_agent_messages_for_customer_agent_conversation",
+      "category": "Customer Agent",
+      "description": "List messages in a customer agent conversation. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_skills_for_agent_tool",
+      "category": "Customer Agent",
+      "description": "List the skills for an agent tool. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_secrets_for_agent_tool",
+      "category": "Customer Agent",
+      "description": "List the secrets for an agent tool. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_secret_ids_for_agent_tool",
+      "category": "Customer Agent",
+      "description": "List the IDs of the secrets for an agent tool. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_tools_for_agent_secret",
+      "category": "Customer Agent",
+      "description": "List the agent tools that use a secret. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_tool_ids_for_agent_secret",
+      "category": "Customer Agent",
+      "description": "List the IDs of the agent tools that use a secret. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "query_customer_agent_skill_values",
+      "category": "Customer Agent",
+      "description": "Query customer agent skill values. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "query_customer_agent_values",
+      "category": "Customer Agent",
+      "description": "Query customer agent values. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_agent_knowledge",
+      "category": "Customer Agent",
+      "description": "Update an agent knowledge entry. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_agent_skill",
+      "category": "Customer Agent",
+      "description": "Update an agent skill. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_agent_tool",
+      "category": "Customer Agent",
+      "description": "Update an agent tool. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_customer_agent",
+      "category": "Customer Agent",
+      "description": "Update a customer agent. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_customer_agent_conversation",
+      "category": "Customer Agent",
+      "description": "Update a customer agent conversation. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_sending_domain_activation_job",
+      "category": "Sending Domains",
+      "description": "Create a sending domain activation job. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_sending_domain",
+      "category": "Sending Domains",
+      "description": "Create a sending domain. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_sending_domain",
+      "category": "Sending Domains",
+      "description": "Delete a sending domain. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_sending_domain",
+      "category": "Sending Domains",
+      "description": "Get details of a sending domain. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_sending_domains",
+      "category": "Sending Domains",
+      "description": "List sending domains. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_sending_domain_verification_job",
+      "category": "Sending Domains",
+      "description": "Create a sending domain verification job. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_text_messaging_configuration",
+      "category": "Text Messaging",
+      "description": "Create a text messaging configuration. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_text_messaging_sender",
+      "category": "Text Messaging",
+      "description": "Create a text messaging sender. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_text_messaging_sender_registration",
+      "category": "Text Messaging",
+      "description": "Create a text messaging sender registration. (Beta)",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_messaging_sender_registration_id_for_text_messaging_sender",
+      "category": "Text Messaging",
+      "description": "Get the registration ID for a text messaging sender. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_text_messaging_configuration",
+      "category": "Text Messaging",
+      "description": "Get details of a text messaging configuration. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_text_messaging_sender",
+      "category": "Text Messaging",
+      "description": "Get details of a text messaging sender. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_text_messaging_sender_registration",
+      "category": "Text Messaging",
+      "description": "Get details of a text messaging sender registration. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_text_messaging_senders",
+      "category": "Text Messaging",
+      "description": "List text messaging senders. (Beta)",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_object_types",
+      "category": "Custom Objects",
+      "description": "List your custom object types.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_object_type",
+      "category": "Custom Objects",
+      "description": "Get details of a custom object type.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_object_type",
+      "category": "Custom Objects",
+      "description": "Create a custom object type.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_object_type",
+      "category": "Custom Objects",
+      "description": "Delete a custom object type.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_object_schema",
+      "category": "Custom Objects",
+      "description": "Get details of a custom object schema.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_object_schema",
+      "category": "Custom Objects",
+      "description": "Create a custom object schema.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_object_schema",
+      "category": "Custom Objects",
+      "description": "Update a custom object schema.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_object_schema_relationship",
+      "category": "Custom Objects",
+      "description": "Create a relationship between two custom object schemas.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_object_schema_relationship",
+      "category": "Custom Objects",
+      "description": "Update a relationship between two custom object schemas.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_object_schema_relationship",
+      "category": "Custom Objects",
+      "description": "Delete a relationship between two custom object schemas.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_profile_schema_relationship",
+      "category": "Custom Objects",
+      "description": "Create a relationship between a custom object schema and profiles.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_profile_schema_relationship",
+      "category": "Custom Objects",
+      "description": "Update a relationship between a custom object schema and profiles.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_profile_schema_relationship",
+      "category": "Custom Objects",
+      "description": "Delete a relationship between a custom object schema and profiles.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_source_mapping",
+      "category": "Custom Objects",
+      "description": "Get details of a source mapping.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "update_source_mapping",
+      "category": "Custom Objects",
+      "description": "Update a source mapping.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_data_sources",
+      "category": "Custom Objects",
+      "description": "List your data sources.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_data_source",
+      "category": "Custom Objects",
+      "description": "Get details of a data source.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_data_source",
+      "category": "Custom Objects",
+      "description": "Create a data source.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "delete_data_source",
+      "category": "Custom Objects",
+      "description": "Delete a data source.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "create_data_source_record",
+      "category": "Custom Objects",
+      "description": "Import a single record into a data source.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_create_data_source_records",
+      "category": "Custom Objects",
+      "description": "Import records into a data source in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_records_for_object_type",
+      "category": "Custom Objects",
+      "description": "List the records of a custom object type.",
+      "readOnly": true,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_object_record",
+      "category": "Custom Objects",
+      "description": "Get details of a custom object record.",
+      "readOnly": true,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "bulk_delete_object_records",
+      "category": "Custom Objects",
+      "description": "Delete custom object records in bulk.",
+      "readOnly": false,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    },
+    {
+      "name": "get_ingestion_logs_for_object_type",
+      "category": "Custom Objects",
+      "description": "List ingestion failures for a custom object type.",
+      "readOnly": true,
+      "hasUserGeneratedContent": true,
+      "availableOnRemote": true
+    },
+    {
+      "name": "report_unsupported_task",
+      "category": "Feedback",
+      "description": "Report a task the model could not complete with the available tools, so Klaviyo can prioritize new capabilities. Only available if you consent to share prompt intent with Klaviyo.",
+      "readOnly": true,
+      "hasUserGeneratedContent": false,
+      "availableOnRemote": true
+    }
+  ],
+  "retrievedAt": "2026-11-15",
+  "sourceTitle": "Klaviyo Developers: Available tools",
+  "connectSource": "https://developers.klaviyo.com/en/docs/connect_to_the_klaviyo_mcp_server",
+  "overviewSource": "https://developers.klaviyo.com/en/docs/klaviyo_mcp_server"
+}

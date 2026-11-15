@@ -1,0 +1,7 @@
+.env
+*.db
+*.db-*
+data/
+out/
+node_modules/
+.auth/

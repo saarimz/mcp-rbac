@@ -16,3 +16,4 @@ tools/otel-e2e/out/
 test/_deprecation_*.ts
 site/
 tools/docs-check/.tmp/
+core/mcp-rbac-py/python/mcp_rbac_core/*.so

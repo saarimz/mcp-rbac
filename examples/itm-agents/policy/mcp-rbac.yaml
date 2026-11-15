@@ -1,0 +1,119 @@
+# Base policy for the local faithful ITM MCP server (examples/itm-agents/src/server.ts).
+# Humans: AdminUserBrand roles OWNER / ADMIN / AGENT (enum AdminBrandRole in itm-backend schema.prisma).
+# Agents never get a role of their own: every agent call is decided TWICE, here as the granting human
+# (with the grant's OAuth scopes as the token scopes), and against the grant's generated overlay.
+# Both must allow (intersection). See src/grants.ts and ADOPTION.md.
+version: 1
+name: itm-local
+description: ITM brand workspace. Tenant = Brand (resource key "brand"); AGENT staff are also scoped to one moment.
+tenantKey: brand
+
+roles:
+  owner:
+    description: OWNER - full access to the brand.
+    tools:
+      - "*"
+  admin:
+    description: ADMIN - full access to the brand. Identical to owner by default (Saarim 2026-11-15); per-role limits below are the knob.
+    tools:
+      - "*"
+  agent:
+    description: AGENT - human check-in staffer, assigned to a single moment (assignment scope {brand, moment}).
+    tools:
+      - list_moment_guests
+      - check_in_ticket
+
+tools:
+  get_connection:
+    description: Real itm-partner-mcp tool. Any authenticated connection may read its own connection.
+    allow: "*"
+  send_email:
+    description: Real itm-agent tool (AgentMail, 1-10 recipients, operator CC'd, always approved).
+    approve: true
+    labels:
+      - external-send
+    limits:
+      recipientCount:
+        min: 1
+        max: 10
+        integer: true
+  create_moment:
+    description: Real itm-agent tool (always human-approved, forced private).
+    approve: true
+  edit_ticket_tiers:
+    description: Real partner op editPartnerTicketTiersForMoment (price/supply). Price in cents.
+    approve: true
+    limits:
+      price:
+        min: 0
+        max: 1000000
+        integer: true
+        optional: true
+      supply:
+        min: 0
+        max: 100000
+        integer: true
+        optional: true
+  apply_plan_proposal:
+    description: Real itm-agent tool (two-phase PlanChangeProposal apply).
+    approve: true
+  accept_service_quote:
+    description: PROPOSED (marketplace plan, not in ITM yet). Spends brand money on a booth/vendor-space quote.
+    approve: true
+    labels:
+      - spend
+    limits:
+      amountCents:
+        min: 1
+        max: 2000000
+        integer: true
+    budget:
+      name: human_daily_spend
+      max: 500000
+      per: day
+      sum: amountCents
+      shared: user
+
+scopes:
+  required:
+    get_brand:
+      - itm:brand:read
+    search_moments:
+      - itm:events:read
+    get_moment_stats:
+      - itm:orders:read
+    create_moment:
+      - itm:events:write
+    edit_ticket_tiers:
+      - itm:events:write
+    list_moment_guests:
+      - itm:guests:read
+    check_in_ticket:
+      - itm:checkin:write
+    search_plans:
+      - itm:plans:read
+    read_plan:
+      - itm:plans:read
+    prepare_plan_proposal:
+      - itm:plans:write
+    apply_plan_proposal:
+      - itm:plans:write
+    reject_plan_proposal:
+      - itm:plans:write
+    search_venues:
+      - itm:venues:read
+    send_email:
+      - itm:campaigns:write
+    get_email_send_status:
+      - itm:campaigns:read
+    search_service_listings:
+      - itm:bookings:read
+    request_service_quote:
+      - itm:bookings:write
+    accept_service_quote:
+      - itm:bookings:spend
+  implies:
+    itm:bookings:spend:
+      - itm:bookings:write
+    itm:checkin:write:
+      - itm:guests:read

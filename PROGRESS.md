@@ -83,3 +83,9 @@ Also fixed: a time-bomb test (delegation expiry hard-coded to 2026-11-15 02:00 E
 | approval_bypass | 30 | 30 | pending≠approved, `_meta` claiming approval, other subject, different/extra args, 16 concurrent uses of one approval, replay after use, approving a non-existent id, approver sees exact args | devops/http, marketing/http, venue/http |
 
 Plus `test_redteam_injection.py` (12: hijacked agent per server × role, stdio + HTTP, DB proves no damage). **Residual risk (pinned, not fixed):** in-role actions without an approval rule are not stopped by RBAC — marketer/admin small `campaigns.send`, venue owner `export_guest_list`. Fixed during P6: prod `secrets.read` now needs approval; approvals show exact args.
+
+### P8b: benchmarks (done)
+- `tools/bench-core.sh` writes bench/core/results.json. Engine level in 4 bindings plus guarded-vs-unguarded tools/call in TS/Py/Go; see bench/core/README.md.
+- Decision, median: native 13.3 µs · PyO3 15.1 µs · WASM 20.9 µs · wazero 47.0 µs. Guarded call overhead: TS 28 µs, Py 55 µs (self 37), Go 58 µs (self 65).
+- Found and fixed a benchmark bug: the policy's 3000/min limit turned most guarded calls into denials, which made guarded calls look faster. All timed calls are now asserted allowed.
+- Not done: rmcp guarded-call bench; HTTP load numbers.

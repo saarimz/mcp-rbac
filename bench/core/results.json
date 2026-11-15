@@ -1,0 +1,171 @@
+{
+  "generated": "2026-11-15T04:51:46-05:00",
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor",
+    "vcpus": 8,
+    "os": "Linux-6.12.113+-x86_64-with-glibc2.41"
+  },
+  "workload": "bench/core/workload.json",
+  "engine_ns_per_op_median": {
+    "rust-native": {
+      "binding": "rust-native",
+      "ns_per_op": {
+        "decide.allow": 13300.6648,
+        "authorize.allow": 14019.0948,
+        "decide.deny_constraint": 8497.0267,
+        "authorize.deny_constraint": 8367.222,
+        "decide.needs_approval": 13969.9696,
+        "authorize.needs_approval": 13909.89185,
+        "decide.cross_tenant": 6479.6257,
+        "authorize.cross_tenant": 6448.7044,
+        "redact.build_log": 73033.70185
+      }
+    },
+    "ts-wasm": {
+      "binding": "ts-wasm",
+      "runtime": "node v24.22.1",
+      "ns_per_op": {
+        "decide.allow": 20935.06985,
+        "authorize.allow": 21590.49135,
+        "decide.deny_constraint": 13284.77115,
+        "authorize.deny_constraint": 13029.73475,
+        "decide.needs_approval": 21713.26965,
+        "authorize.needs_approval": 21737.22915,
+        "decide.cross_tenant": 10058.9427,
+        "authorize.cross_tenant": 9981.4314,
+        "redact.build_log": 77404.54845
+      },
+      "decisions": {
+        "allow": "allow:ok",
+        "deny_constraint": "deny:user:constraint:not_equal:env",
+        "needs_approval": "needs_approval:ok",
+        "cross_tenant": "deny:cross_tenant"
+      },
+      "overhead_vs_native_ns": {
+        "decide.allow": 7634,
+        "authorize.allow": 7571,
+        "decide.deny_constraint": 4788,
+        "authorize.deny_constraint": 4663,
+        "decide.needs_approval": 7743,
+        "authorize.needs_approval": 7827,
+        "decide.cross_tenant": 3579,
+        "authorize.cross_tenant": 3533,
+        "redact.build_log": 4371
+      }
+    },
+    "python-pyo3": {
+      "binding": "python-pyo3",
+      "runtime": "CPython 3.13.5",
+      "ns_per_op": {
+        "decide.allow": 15070.9707,
+        "authorize.allow": 14952.3605,
+        "decide.deny_constraint": 9143.66595,
+        "authorize.deny_constraint": 9138.7771,
+        "decide.needs_approval": 14839.8828,
+        "authorize.needs_approval": 14750.24175,
+        "decide.cross_tenant": 7030.31485,
+        "authorize.cross_tenant": 7000.1774,
+        "redact.build_log": 75436.15245
+      },
+      "decisions": {
+        "allow": "allow:ok",
+        "deny_constraint": "deny:user:constraint:not_equal:env",
+        "needs_approval": "needs_approval:ok",
+        "cross_tenant": "deny:cross_tenant"
+      },
+      "overhead_vs_native_ns": {
+        "decide.allow": 1770,
+        "authorize.allow": 933,
+        "decide.deny_constraint": 647,
+        "authorize.deny_constraint": 772,
+        "decide.needs_approval": 870,
+        "authorize.needs_approval": 840,
+        "decide.cross_tenant": 551,
+        "authorize.cross_tenant": 551,
+        "redact.build_log": 2402
+      }
+    },
+    "go-wazero": {
+      "binding": "go-wazero",
+      "decisions": {
+        "allow": "allow:ok",
+        "cross_tenant": "deny:cross_tenant",
+        "deny_constraint": "deny:user:constraint:not_equal:env",
+        "needs_approval": "needs_approval:ok"
+      },
+      "ns_per_op": {
+        "authorize.allow": 48318.6422,
+        "authorize.cross_tenant": 22366.8609,
+        "authorize.deny_constraint": 29877.20405,
+        "authorize.needs_approval": 49643.08335,
+        "decide.allow": 47029.2361,
+        "decide.cross_tenant": 22509.26195,
+        "decide.deny_constraint": 29200.6105,
+        "decide.needs_approval": 49351.8296,
+        "redact.build_log": 165671.43145
+      },
+      "runtime": "go1.27.3",
+      "overhead_vs_native_ns": {
+        "authorize.allow": 34300,
+        "authorize.cross_tenant": 15918,
+        "authorize.deny_constraint": 21510,
+        "authorize.needs_approval": 35733,
+        "decide.allow": 33729,
+        "decide.cross_tenant": 16030,
+        "decide.deny_constraint": 20704,
+        "decide.needs_approval": 35382,
+        "redact.build_log": 92638
+      }
+    }
+  },
+  "decisions_identical": true,
+  "guarded_call_us": {
+    "ts-wasm": {
+      "wall_us_per_call_interleaved": [
+        14.683196333333324,
+        44.11777333333333,
+        7.810475666666662,
+        36.001207999999984
+      ],
+      "us_per_call": {
+        "unguarded": 7.810475666666662,
+        "guarded": 36.001207999999984,
+        "overhead": 28.190732333333322
+      },
+      "all_allowed": true
+    },
+    "python-pyo3": {
+      "wall_us_per_call_interleaved": [
+        151.65789899765514,
+        208.00901933398563,
+        146.25412299938034,
+        200.9821896693514
+      ],
+      "wall_us_per_call": {
+        "unguarded": 146.25412299938034,
+        "guarded": 200.9821896693514,
+        "overhead": 54.72806666997107
+      },
+      "cpu_us_per_call": {
+        "unguarded": 146.2613819999999,
+        "guarded": 200.98227766666662,
+        "overhead": 54.720895666666706
+      },
+      "guard_self_us_per_call": 36.62033786531538
+    },
+    "go-wazero": {
+      "guard_self_us_per_call": 64.52480735473836,
+      "us_per_call": {
+        "guarded": 203.763,
+        "overhead": 57.92166666666668,
+        "unguarded": 145.84133333333332
+      },
+      "wall_us_per_call_interleaved": [
+        149.729,
+        207.74466666666666,
+        145.84133333333332,
+        203.763
+      ]
+    }
+  }
+}

@@ -1,0 +1,262 @@
+{
+ "policy": "examples/policies/devops.yaml",
+ "requests": {
+  "allow": {
+   "tool": "deploys.list",
+   "args": {},
+   "identity": {
+    "id": "sam",
+    "tenant": "acme",
+    "roles": [
+     {
+      "role": "sre",
+      "scope": {
+       "org": "acme"
+      }
+     }
+    ],
+    "scope": {
+     "org": "acme"
+    },
+    "scopes": [
+     "ops:admin",
+     "deploys:read",
+     "secrets:read"
+    ]
+   }
+  },
+  "deny_constraint": {
+   "tool": "deploys.create",
+   "args": {
+    "service": "checkout-api",
+    "env": "prod",
+    "version": "v1.5.0"
+   },
+   "identity": {
+    "id": "dev",
+    "tenant": "acme",
+    "roles": [
+     {
+      "role": "developer",
+      "scope": {
+       "org": "acme"
+      }
+     }
+    ],
+    "scope": {
+     "org": "acme"
+    }
+   }
+  },
+  "needs_approval": {
+   "tool": "secrets.read",
+   "args": {
+    "name": "stripe-key",
+    "env": "prod"
+   },
+   "identity": {
+    "id": "sam",
+    "tenant": "acme",
+    "roles": [
+     {
+      "role": "sre",
+      "scope": {
+       "org": "acme"
+      }
+     }
+    ],
+    "scope": {
+     "org": "acme"
+    },
+    "scopes": [
+     "ops:admin",
+     "deploys:read",
+     "secrets:read"
+    ]
+   }
+  },
+  "cross_tenant": {
+   "tool": "deploys.get",
+   "args": {
+    "deploy_id": "D-4"
+   },
+   "identity": {
+    "id": "dev",
+    "tenant": "acme",
+    "roles": [
+     {
+      "role": "developer",
+      "scope": {
+       "org": "acme"
+      }
+     }
+    ],
+    "scope": {
+     "org": "acme"
+    }
+   },
+   "resource": {
+    "org": "globex"
+   }
+  }
+ },
+ "redact": {
+  "request": {
+   "tool": "builds.logs",
+   "args": {
+    "build_id": "B-1"
+   },
+   "identity": {
+    "id": "dev",
+    "tenant": "acme",
+    "roles": [
+     {
+      "role": "developer",
+      "scope": {
+       "org": "acme"
+      }
+     }
+    ],
+    "scope": {
+     "org": "acme"
+    }
+   }
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "x"
+    }
+   ],
+   "structuredContent": {
+    "id": "B-1",
+    "lines": [
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     },
+     {
+      "ts": "t",
+      "msg": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      "env": "DATABASE_URL=postgres://x",
+      "user_email": "a@b.c"
+     }
+    ]
+   }
+  }
+ },
+ "warmup": 2000,
+ "iterations": 20000,
+ "rounds": 5
+}

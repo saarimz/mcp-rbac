@@ -16,6 +16,7 @@
 pub mod budget;
 pub mod constraints;
 pub mod decide;
+pub mod engine;
 pub mod json;
 pub mod pattern;
 pub mod policy;
@@ -25,6 +26,7 @@ pub mod yaml;
 
 pub use decide::{Decision, Outcome};
 pub use policy::Policy;
+pub use engine::Engine;
 
 /// Load a policy from YAML or JSON text and return `{"ok":true,"warnings":[...]}` or `{"error":"policy_invalid","message":...}`.
 pub fn check_policy(src: &str) -> String {

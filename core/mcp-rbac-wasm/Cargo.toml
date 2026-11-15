@@ -1,0 +1,21 @@
+[package]
+name = "mcp-rbac-wasm"
+description = "WebAssembly (wasm-bindgen) binding of mcp-rbac-core for JavaScript/TypeScript"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+mcp-rbac-core = { path = "../mcp-rbac-core" }
+wasm-bindgen = "=0.2.130"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

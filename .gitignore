@@ -10,3 +10,4 @@ __pycache__/
 test/fixtures/.py-eval-*
 conformance/out/
 conformance/difffuzz-findings/
+wasm-pkg/

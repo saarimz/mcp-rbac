@@ -76,7 +76,8 @@
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
-    "docs/*.md"
+    "docs/*.md",
+    "wasm-pkg"
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/cli.js",
@@ -89,7 +90,9 @@
     "demo": "tsx examples/demo-injection.ts",
     "demo:stdio": "tsx examples/stdio-server.ts",
     "test:py": "cd python && .venv/bin/python -m pytest -q",
-    "bench:stores": "tsx bench/stores-bench.ts"
+    "bench:stores": "tsx bench/stores-bench.ts",
+    "build:wasm": "cd core/mcp-rbac-wasm && wasm-pack build --release --target nodejs --out-dir ../../wasm-pkg --out-name mcp_rbac_wasm && cd ../.. && rm -f wasm-pkg/.gitignore && echo {\\\"type\\\":\\\"commonjs\\\"} > wasm-pkg/package.json",
+    "conformance": "conformance/run.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

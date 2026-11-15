@@ -1,0 +1,25 @@
+# Shared policy for the minimal per-language servers (TS/WASM, Python/PyO3, Rust/rmcp, Go/wazero).
+# Every binding must produce the same e2e results against it (see each language's e2e test).
+version: 1
+name: mini-venue
+roles:
+  owner:
+    description: Everything; refunds of 100 or more need a human approval.
+    tools: ['*']
+  door:
+    description: Door staff. Check guests in (3 per minute), list events.
+    tools: [list_events, checkin]
+  support:
+    description: Support agent. Reads guests (contact fields redacted) and events.
+    tools: [list_events, get_guest]
+tools:
+  refund:
+    allow: [owner]
+    limits:
+      amount: {min: 0.01, max: 500}
+      ticketId: {pattern: "t[0-9]{1,6}", maxLength: 7}
+    approve: {when: {amount: {min: 100}}}
+  get_guest:
+    redact: {fields: [email, phone]}
+limits:
+  - {tool: checkin, max: 3, per: minute}

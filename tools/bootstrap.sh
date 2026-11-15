@@ -29,6 +29,18 @@ echo "== otelcol-contrib 0.165.0"
 [ -x otelcol-contrib ] || curl -fsSL https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.165.0/otelcol-contrib_0.165.0_linux_amd64.tar.gz | tar xz otelcol-contrib
 echo "== Jaeger 2.23.0"
 [ -x jaeger-2.23.0-linux-amd64/jaeger ] || curl -fsSL https://github.com/jaegertracing/jaeger/releases/download/v2.23.0/jaeger-2.23.0-linux-amd64.tar.gz | tar xz
+echo "== OpenFGA 1.22.1 (engines-real tests)"
+mkdir -p "$TOOLS/openfga"
+[ -x "$TOOLS/openfga/openfga" ] || curl -fsSL https://github.com/openfga/openfga/releases/download/v1.22.1/openfga_1.22.1_linux_amd64.tar.gz | tar xz -C "$TOOLS/openfga" openfga
+echo "== zig 0.17.1 as the C++ toolchain for cargo-fuzz (core/fuzz/run-all.sh)"
+if [ ! -x "$TOOLS/zig/zig" ]; then
+  mkdir -p "$TOOLS/zig" && curl -fsSL https://ziglang.org/download/0.17.1/zig-x86_64-linux-0.17.1.tar.xz | tar xJ --strip-components=1 -C "$TOOLS/zig"
+  # zig does not parse rustc-style triples: translate them
+  printf '%s\n' '#!/bin/sh' 'for a in "$@"; do shift; case "$a" in --target=x86_64-unknown-linux-gnu) set -- "$@" -target x86_64-linux-gnu;; x86_64-unknown-linux-gnu) set -- "$@" x86_64-linux-gnu;; *) set -- "$@" "$a";; esac; done' "exec $TOOLS/zig/zig c++ \"\$@\"" > "$TOOLS/zig/zig-c++"
+  chmod +x "$TOOLS/zig/zig-c++"
+fi
+command -v cargo-fuzz >/dev/null || cargo install -q cargo-fuzz
+rustup toolchain list | grep -q nightly || rustup toolchain install nightly --profile minimal
 echo "== reference MCP servers"
 MCP_SERVERS=${MCP_SERVERS:-$(dirname "$ROOT")/mcp-servers}
 if [ -f "$MCP_SERVERS/package.json" ]; then

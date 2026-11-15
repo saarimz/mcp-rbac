@@ -21,6 +21,22 @@ It's also a TypeScript library for servers you do write. That adds RBAC with typ
 - **Engines**: an AuthZEN 1.0 PDP and client, OpenFGA, and Cedar.
 - **[Python package](docs/python.md)** for the official Python SDK, with the same formats.
 
+**0.4: one Rust policy core for every language, proven on real servers** ([docs/polyglot.md](docs/polyglot.md)):
+
+- **One engine, four bindings.** A `forbid(unsafe)` Rust core runs as WASM in Node (`mcp-rbac/core`), PyO3 in Python
+  (`CoreGuard`), wazero in Go (no cgo) and natively in Rust (rmcp). Byte-identical decisions: 3620 conformance vectors × 6
+  runners. It is fuzzed with cargo-fuzz.
+- **Host-resolved resources.** Authorize against the account, venue or org that *owns the record*, looked up in your own
+  data, never the agent's arguments.
+- **[OpenTelemetry](docs/otel.md)** in every binding, using the GenAI/MCP semantic conventions, verified end to end
+  against a real otelcol-contrib and Jaeger.
+- **[Three realistic servers](examples/servers/README.md)** (TS venue ops, Python multi-tenant marketing, Go devops): SQLite,
+  JWT, single-use approvals that show the exact arguments, and audit. Driven by the MCP Inspector CLI.
+- **[Red team](docs/THREAT-MODEL.md#red-team-results-04-against-the-three-servers-in-examplesservers)**: 140/140 checks
+  across privilege escalation, confused deputy, token replay, prompt injection, cross-tenant, budget exhaustion and approval
+  bypass. Also a hostile-input and session-soak harness.
+- Why this doesn't exist yet, and who else is close: **[docs/MARKET.md](docs/MARKET.md)**.
+
 Trust docs: [SECURITY.md](SECURITY.md), [threat model](docs/THREAT-MODEL.md), [data flow / GDPR](docs/DATA-FLOW.md), [support policy](docs/SUPPORT.md), [self security review](docs/SECURITY-REVIEW.md), [spec conformance](docs/CONFORMANCE.md).
 
 > Working name `mcp-rbac`. **`mcp-guard` on npm is an unrelated package** (see [Name](#name)). Not yet published; run from this folder.
@@ -260,6 +276,16 @@ Full API and how a call is decided: [docs/library.md](docs/library.md). Upstream
 | Python guard allow / deny / +budget+chain (`python/bench.py`) | 40k / 63k / 15k checks/s |
 | Python MCPServer in-process unguarded / guarded | 2,675 / 1,797 calls/s |
 
+**0.4 Rust core, per binding** (`tools/bench-core.sh`, 8 vCPU Xeon; method and raw data in [bench/core/README.md](bench/core/README.md)):
+
+| median per op | Rust native | Python / PyO3 | TS / WASM | Go / wazero |
+|---|---:|---:|---:|---:|
+| decide, allowed call | 13.3 µs | 15.1 µs | 20.9 µs | 47.0 µs |
+| authorize (with rate counters) | 14.0 µs | 15.0 µs | 21.6 µs | 48.3 µs |
+| deny on an argument constraint | 8.5 µs | 9.1 µs | 13.3 µs | 29.2 µs |
+| redact a 20-line build log | 73 µs | 75 µs | 77 µs | 166 µs |
+| guarded − unguarded in-process `tools/call` | n/a | +55 µs | +28 µs | +58 µs |
+
 An LLM tool call takes 100s of ms to seconds, so proxy overhead is noise. Reproduce with `npm run bench`, `npm run bench:proxy` and `npm run bench:remote`.
 
 ## Tests
@@ -291,6 +317,13 @@ Free when checked on 2026-11-13: `mcp-rbac` (chosen), `mcp-grants`, `mcp-permit`
   - The Python package has no token-exchange endpoint (use the TS one).
   - Python list filtering isn't audited.
   - The Klaviyo role matrix in the example is an approximation, with mock data.
+- **0.4 limits:**
+  - RBAC can't tell a hijacked agent from its user *within* the user's role. Small in-role writes without an approval rule
+    still go through; the red team pins two such cases. Session taint tracking is not implemented.
+  - The Rust-core guards keep budgets in process memory. Use the TS/Python Redis or Postgres stores (or one engine per process
+    behind a sticky router) for several instances.
+  - Go doesn't record `jsonrpc.request.id` in spans (go-sdk keeps it private).
+  - The example servers' token format is a demo IdP (HS256 shared secret). Use real OAuth validation in production.
 - **Remote proxy.**
   - Downstream is stdio only; there's no local HTTP endpoint yet.
   - Tokens live in a 0600 file, not the OS keychain.
@@ -301,7 +334,11 @@ Free when checked on 2026-11-13: `mcp-rbac` (chosen), `mcp-grants`, `mcp-permit`
 ## Development
 
 ```bash
+tools/bootstrap.sh --tools          # from scratch: npm, Python venv, the three cores, Inspector, OpenFGA, otelcol, Jaeger, Redis, Postgres
+tools/test-services.sh start        # local Redis :6390 + Postgres :5439 for the store tests
 npm test && npm run typecheck && npm run build && npm pack --dry-run
+npm run test:py; (cd go && go test -race ./...); (cd core && cargo test --release)
+conformance/run.sh; python/.venv/bin/python -m redteam.run; tools/otel-e2e.sh
 ```
 
 MIT © 2026 Saarim Zaman. Changes: [CHANGELOG.md](CHANGELOG.md).

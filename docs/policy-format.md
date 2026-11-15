@@ -36,6 +36,20 @@ Portability restrictions on top of YAML 1.2 (each found by differential fuzzing;
 - Escaped surrogates (`\uD800`-`\uDFFF`, `\U0000D800`...) are rejected anywhere in the text (lexical rule): one
   loader joined escaped pairs, one rejected them, one produced lone surrogates. Write the character itself.
 
+### YAML compatibility policy
+- **One meaning or a rejection, everywhere.** A document inside the subset above loads to the same value in the Rust core
+  (all four bindings), the pure TS loader (`yaml` 2.x) and the pure Python loader (PyYAML with 1.2 overrides). A document
+  outside it is rejected by every loader with `yaml_invalid`. A loader that accepts something another rejects is a bug.
+  This is enforced by 220 `yamlDoc` vectors in `conformance/corpus.jsonl` (102 must load, byte-identical; 118 must be
+  rejected), run against all six runners. The core's YAML loader is also fuzzed (`core/fuzz`, target `policy_yaml`).
+- **The subset only grows within a policy version.** A later 1.x release may *accept* a construct that is rejected today,
+  once every loader handles it identically, and the CHANGELOG lists it. It never starts rejecting a document that 1.x
+  accepted, and never changes the value a document loads to. Any narrowing waits for `version: 2`.
+- **Upgrading a parser dependency** (`yaml`, PyYAML, the Rust core's loader) is gated on the conformance run staying
+  byte-identical. Where a new parser version behaves differently, the portable loader keeps the documented behaviour.
+- **When in doubt, use JSON.** A policy whose first non-whitespace character is `{` is parsed as strict JSON in every
+  loader, with none of YAML's ambiguity. `mcp-rbac check` validates either form.
+
 ## Top level
 | key | type | meaning |
 |-----|------|---------|

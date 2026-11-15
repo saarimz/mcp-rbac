@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.4.0 (unreleased, local only)
+
+One Rust policy core, every language. Real servers, red-teamed. OpenTelemetry throughout.
+
+- **Rust core** (`core/mcp-rbac-core`, `#![forbid(unsafe_code)]`): the portable policy engine, budgets, approvals and redaction.
+  Bindings: TS/Node via WASM (`mcp-rbac/core`, `protectWithCore`), Python via PyO3 (`mcp_rbac.core_guard.CoreGuard`),
+  Go via wazero with no cgo (`github.com/mcp-rbac/mcp-rbac-go`), and Rust via an rmcp service wrapper (`mcp-rbac-rmcp`).
+  Conformance: 3620 vectors x 6 runners, byte-identical. See docs/polyglot.md.
+- **Host-resolved resources** (`resource` option in all four guards): authorize against the tenant/venue/org that owns the
+  record, not the caller's arguments. A resolver failure fails closed (`resource_unresolved`). The trusted caller context
+  (`identity`, `tenant`, `rule`, `resource`) is passed to the tool and can't be spoofed through client `_meta`.
+- **Decision events carry the identity** (`onDecision` / `on_decision` / `OnDecision`) in all four guards.
+- **OpenTelemetry** in every binding (opt-in): `tools/call` and authorize spans, decision attributes, metrics
+  (`mcp_rbac.decisions`, `mcp_rbac.authorize.duration`, `mcp_rbac.budget.utilization`), log correlation, and a W3C
+  traceparent from `_meta`. Never records arguments, results or tokens. Verified against a real otelcol-contrib and Jaeger
+  (`tools/otel-e2e.sh`). See docs/otel.md.
+- **Three realistic servers** (`examples/servers/`): venue ops (TS), multi-tenant marketing (Python) and devops (Go). Each
+  has SQLite, stdio and Streamable HTTP with JWT bearer tokens, session binding to the token subject, single-use approvals
+  that show the approver the exact args, audit and an admin CLI. They are driven through the MCP Inspector CLI.
+- **Red team** (`redteam/`): 140 checks across privilege escalation, confused deputy, token replay, prompt injection,
+  cross-tenant, budget exhaustion and approval bypass, against the three real servers (all pass). Malformed-input and
+  session-soak harness (`redteam/malformed.py`).
+- **Benchmarks** (`tools/bench-core.sh`, bench/core/README.md): the engine in each binding plus guarded-call overhead.
+- **Fixes found by the 0.4 hardening work:**
+  - TS `MemoryStore` cleared *every* counter once it held more than 50k buckets, which reset live budgets. Now only expired buckets are evicted.
+  - The Rust core in-memory store never evicted. It now sweeps ended windows, amortised O(1).
+  - A result the core cannot redact (nested ~127+ levels) is withheld as an explicit `redaction_failed` denial in all
+    four guards. Before, TS passed `{"error":...}` through as a non-error result.
+  - Go guard: invalid UTF-8 in raw arguments is an explicit `invalid_input` denial, and engine errors are `engine_error`. Before, the call was denied only by accident, with an empty reason.
+  - TS/WASM: strings with lone surrogates are rejected instead of being silently mapped to U+FFFD, which merged distinct identities.
+  - Example servers: the marketing server shared one sqlite3 connection across worker threads (now serialized); the venue
+    server's 413 response left a poisoned keep-alive connection, and a rejected initialize leaked a server; devops had an ID
+    race; prod `secrets.read` lacked approval; policy PII leaks in marketing and devops.
+  - Python package: `pyyaml` is now a declared dependency (the portable YAML loader needs it).
+- **Tooling**: `tools/bootstrap.sh [--tools]` recreates the full dev/test environment from scratch;
+  `tools/test-services.sh` runs local Redis/Postgres for the store tests.
+
 ## 0.3.0 (unreleased, local only)
 
 Enterprise-readiness release (a Klaviyo-style multi-account SaaS was the reference).

@@ -14,6 +14,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { CoreTelemetry, type CoreTelemetryOptions } from "./core-otel.js";
 import { CallToolRequestSchema, CallToolResultSchema, ListToolsRequestSchema, ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 
 /** The WASM engine: JSON text in, canonical JSON text out (see core/mcp-rbac-core/src/engine.rs). */
@@ -52,7 +53,7 @@ export interface CoreDecision {
   labels: string[];
   redact: { fields: string[]; replacement: unknown }[];
   withholdText: boolean;
-  limits: { index: number; name: string; key: string; amount: number; max: number; windowMs: number }[];
+  limits: { index: number; name: string; key: string; amount: number; max: number; windowMs: number; used?: number }[];
   requiredScopes: string[];
   missingScopes: string[];
   tenant: string | null;
@@ -69,8 +70,10 @@ export interface CoreGuardOptions {
   approve?: (call: { tool: string; args: Record<string, unknown>; identity: unknown }, d: CoreDecision) => Promise<boolean> | boolean;
   /** Clock for rate-limit windows (default Date.now). */
   now?: () => number;
-  /** Observability hook, called once per tools/call decision (P5 hangs OpenTelemetry off this). */
+  /** Observability hook, called once per tools/call decision. */
   onDecision?: (e: { tool: string; decision: CoreDecision; durationMs: number; approved: boolean }) => void;
+  /** OpenTelemetry (docs/otel.md): a CoreTelemetry, its options, or true for the global providers. Default off. */
+  telemetry?: CoreTelemetry | CoreTelemetryOptions | boolean;
   /** Upstream request timeout (default 10 minutes). */
   forwardTimeoutMs?: number;
 }
@@ -94,42 +97,66 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
     instructions: client.getInstructions(),
   });
   const now = opts.now ?? Date.now;
+  const tel = opts.telemetry instanceof CoreTelemetry ? opts.telemetry
+    : opts.telemetry ? new CoreTelemetry(opts.telemetry === true ? {} : opts.telemetry) : undefined;
   const timeout = opts.forwardTimeoutMs ?? 600_000;
   if (!caps.tools) return { server: outer, engine };
 
   outer.setRequestHandler(ListToolsRequestSchema, async (req, extra) => {
-    const res = await client.request({ method: "tools/list", params: req.params ?? {} }, ListToolsResultSchema, { signal: extra.signal, timeout });
-    const identity = await opts.identity(extra);
-    if (identity === undefined) return { ...res, tools: [] };
-    const toolsets = opts.toolsets?.(extra);
-    const out = JSON.parse(engine.visible(JSON.stringify({ identity, tools: res.tools.map((t) => t.name), ...(toolsets ? { toolsets } : {}) }))) as { visible?: string[] };
-    const ok = new Set(out.visible ?? []);
-    return { ...res, tools: res.tools.filter((t) => ok.has(t.name)) };
+    const run = async () => {
+      const res = await client.request({ method: "tools/list", params: req.params ?? {} }, ListToolsResultSchema, { signal: extra.signal, timeout });
+      const identity = await opts.identity(extra);
+      if (identity === undefined) return { ...res, tools: [] };
+      const toolsets = opts.toolsets?.(extra);
+      const out = JSON.parse(engine.visible(JSON.stringify({ identity, tools: res.tools.map((t) => t.name), ...(toolsets ? { toolsets } : {}) }))) as { visible?: string[] };
+      const ok = new Set(out.visible ?? []);
+      return { ...res, tools: res.tools.filter((t) => ok.has(t.name)) };
+    };
+    return tel ? tel.serverSpan("tools/list", undefined, req.params?._meta, ids(extra), run) : run();
   });
 
   outer.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
-    const t0 = performance.now();
     const tool = req.params.name;
-    const args = (req.params.arguments ?? {}) as Record<string, unknown>;
-    const identity = await opts.identity(extra);
-    const toolsets = opts.toolsets?.(extra);
-    const reqJson = JSON.stringify({ tool, args, ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}) });
-    let raw = engine.authorize(reqJson, now());
-    let d = JSON.parse(raw) as CoreDecision;
-    let approved = false;
-    if (d.decision === "needs_approval" && opts.approve && (await opts.approve({ tool, args, identity }, d))) {
-      raw = engine.authorizeApproved(reqJson, now());
-      d = JSON.parse(raw) as CoreDecision;
-      approved = d.decision === "allow";
-    }
-    opts.onDecision?.({ tool, decision: d, durationMs: performance.now() - t0, approved });
-    if (d.decision !== "allow") {
-      const text = d.decision === "needs_approval" ? `Approval required for ${tool}` : `Denied: ${d.reason}`;
-      return { content: [{ type: "text" as const, text }], isError: true, _meta: { [DENIAL_META_KEY]: { decision: d.decision, reason: d.reason } } };
-    }
-    const result = await client.request({ method: "tools/call", params: { name: tool, arguments: args } }, CallToolResultSchema, { signal: extra.signal, timeout });
-    if (!d.redact.length && !d.labels.length) return result;
-    return JSON.parse(engine.redact(JSON.stringify(result), raw));
+    const run = async (server?: import("@opentelemetry/api").Span) => {
+      const t0 = performance.now();
+      const args = (req.params.arguments ?? {}) as Record<string, unknown>;
+      const identity = await opts.identity(extra);
+      const toolsets = opts.toolsets?.(extra);
+      const reqJson = JSON.stringify({ tool, args, ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}) });
+      const authSpan = tel?.startAuthorize(tool);
+      let e0 = performance.now();
+      let raw = engine.authorize(reqJson, now());
+      let engineMs = performance.now() - e0;
+      let d = JSON.parse(raw) as CoreDecision;
+      let approved = false;
+      let approval: "none" | "granted" | "rejected" | "unavailable" = "none";
+      if (d.decision === "needs_approval") {
+        if (!opts.approve) approval = "unavailable";
+        else if (await opts.approve({ tool, args, identity }, d)) {
+          e0 = performance.now();
+          raw = engine.authorizeApproved(reqJson, now());
+          engineMs += performance.now() - e0;
+          d = JSON.parse(raw) as CoreDecision;
+          approved = d.decision === "allow";
+          approval = "granted";
+        } else approval = "rejected";
+      }
+      if (tel && authSpan && server) tel.endAuthorize(authSpan, server, tool, d, approval, engineMs / 1000);
+      opts.onDecision?.({ tool, decision: d, durationMs: performance.now() - t0, approved });
+      if (d.decision !== "allow") {
+        const text = d.decision === "needs_approval" ? `Approval required for ${tool}` : `Denied: ${d.reason}`;
+        return { content: [{ type: "text" as const, text }], isError: true, _meta: { [DENIAL_META_KEY]: { decision: d.decision, reason: d.reason } } };
+      }
+      const result = await client.request({ method: "tools/call", params: { name: tool, arguments: args } }, CallToolResultSchema, { signal: extra.signal, timeout });
+      if (!d.redact.length && !d.labels.length) return result;
+      server?.setAttribute("mcp_rbac.redacted", d.redact.length > 0);
+      return JSON.parse(engine.redact(JSON.stringify(result), raw));
+    };
+    return tel ? tel.serverSpan("tools/call", tool, req.params._meta, ids(extra), (span) => run(span)) : run();
   });
   return { server: outer, engine };
+}
+
+function ids(extra: any): { requestId?: string | number; sessionId?: string; protocolVersion?: string } {
+  return { requestId: extra?.requestId, sessionId: extra?.sessionId };
 }

@@ -35,7 +35,9 @@ impl Outcome {
 }
 
 #[derive(Debug, Clone)]
-pub struct LimitItem { pub index: usize, pub name: String, pub key: String, pub amount: f64, pub max: f64, pub window_ms: f64, pub burst: Option<(String, f64, f64)> }
+pub struct LimitItem { pub index: usize, pub name: String, pub key: String, pub amount: f64, pub max: f64, pub window_ms: f64, pub burst: Option<(String, f64, f64)>,
+    /// Steady-counter total after this call consumed it (set only by `Engine::authorize*` on allow). Never part of `decide`.
+    pub used: Option<f64> }
 
 #[derive(Debug, Clone)]
 pub struct Decision {
@@ -67,11 +69,15 @@ impl Decision {
             ("labels", s(&self.labels)),
             ("redact", Value::Array(self.redact.iter().map(|(f, r)| obj(vec![("fields", s(f)), ("replacement", r.clone())])).collect())),
             ("withholdText", Value::Bool(self.withhold_text)),
-            ("limits", Value::Array(self.limits.iter().map(|l| obj(vec![
-                ("index", number(l.index as f64)), ("name", Value::String(l.name.clone())), ("key", Value::String(l.key.clone())),
-                ("amount", number(l.amount)), ("max", number(l.max)), ("windowMs", number(l.window_ms)),
-                ("burst", l.burst.as_ref().map(|(k, m, w)| obj(vec![("key", Value::String(k.clone())), ("max", number(*m)), ("windowMs", number(*w))])).unwrap_or(Value::Null)),
-            ])).collect())),
+            ("limits", Value::Array(self.limits.iter().map(|l| {
+                let mut f = vec![
+                    ("index", number(l.index as f64)), ("name", Value::String(l.name.clone())), ("key", Value::String(l.key.clone())),
+                    ("amount", number(l.amount)), ("max", number(l.max)), ("windowMs", number(l.window_ms)),
+                    ("burst", l.burst.as_ref().map(|(k, m, w)| obj(vec![("key", Value::String(k.clone())), ("max", number(*m)), ("windowMs", number(*w))])).unwrap_or(Value::Null)),
+                ];
+                if let Some(u) = l.used { f.push(("used", number(u))) }
+                obj(f)
+            }).collect())),
             ("tenant", self.tenant.clone().map(Value::String).unwrap_or(Value::Null)),
         ])
     }
@@ -359,7 +365,7 @@ impl Policy {
             };
             let key = format!("limit|{i}|{who}");
             let burst = l.burst.map(|(m, w)| (format!("{key}|burst"), m, w));
-            d.limits.push(LimitItem { index: i, name: l.name.clone().unwrap_or_else(|| format!("l{i}")), key, amount, max: l.max, window_ms: l.window_ms, burst });
+            d.limits.push(LimitItem { index: i, name: l.name.clone().unwrap_or_else(|| format!("l{i}")), key, amount, max: l.max, window_ms: l.window_ms, burst, used: None });
         }
         // 10. approval
         d.outcome = Outcome::Allow;

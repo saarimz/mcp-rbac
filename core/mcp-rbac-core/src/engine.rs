@@ -50,7 +50,7 @@ impl Engine {
         let mut d = self.policy.decide(&v);
         if approved && d.outcome == Outcome::NeedsApproval { d.outcome = Outcome::Allow }
         if d.outcome == Outcome::Allow && now_ms.is_finite() {
-            if let Err(reason) = enforce(&self.store, &d, now_ms) {
+            if let Err(reason) = enforce(&self.store, &mut d, now_ms) {
                 d.outcome = Outcome::Deny;
                 d.reason = reason;
             }
@@ -114,8 +114,13 @@ mod tests {
     #[test]
     fn authorize_consumes_and_limits() {
         let e = Engine::new(P).unwrap();
-        assert!(e.authorize(REQ, 0.0).contains(r#""decision":"allow""#));
-        assert!(e.authorize(REQ, 1.0).contains(r#""decision":"allow""#));
+        let first = e.authorize(REQ, 0.0);
+        assert!(first.contains(r#""decision":"allow""#) && first.contains(r#""used":1"#), "{first}");
+        let second = e.authorize(REQ, 1.0);
+        assert!(second.contains(r#""decision":"allow""#) && second.contains(r#""used":2"#), "{second}");
+        assert!(!e.decide(REQ).contains("used"), "decide never reports counter state");
+        // an authorize decision (with `used`) is a valid redaction plan
+        assert!(!e.redact(r#"{"content":[],"structuredContent":{"secret":"x"}}"#, &second).contains("error"));
         let third = e.authorize(REQ, 2.0);
         assert!(third.contains(r#""decision":"deny""#) && third.contains("rate_limited:0"), "{third}");
         assert!(e.decide(REQ).contains(r#""decision":"allow""#)); // pure decide is unaffected

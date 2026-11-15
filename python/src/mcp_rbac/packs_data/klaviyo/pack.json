@@ -1,0 +1,2665 @@
+{
+ "$schema": "../../spec/mcp-rbac-pack.schema.json",
+ "pack": "klaviyo",
+ "version": "2026.11.15",
+ "title": "Klaviyo MCP server",
+ "description": "Side-effect classes and data sensitivity for the 309 tools on Klaviyo's official MCP tools page. Tool names are unprefixed (hosted server). The local package (uvx klaviyo-mcp-server) exposes a subset with a klaviyo_ prefix: use {name: klaviyo, prefix: klaviyo_}.",
+ "server": {
+  "hosted": "https://mcp.klaviyo.com/mcp",
+  "local": "uvx klaviyo-mcp-server@latest",
+  "localPrefix": "klaviyo_"
+ },
+ "license": "Apache-2.0",
+ "sources": [
+  {
+   "id": "klaviyo-tools-page",
+   "url": "https://developers.klaviyo.com/en/docs/klaviyo_mcp_server_available_tools",
+   "retrieved": "2026-11-15",
+   "what": "tool names, categories, readOnly and user-generated-content flags"
+  },
+  {
+   "id": "klaviyo-connect",
+   "url": "https://developers.klaviyo.com/en/docs/connect_to_the_klaviyo_mcp_server",
+   "retrieved": "2026-11-15",
+   "what": "hosted URL, local package, READ_ONLY flag"
+  },
+  {
+   "id": "local-run",
+   "url": "examples/klaviyo-e2e/LIVE-RESULTS.md",
+   "retrieved": "2026-11-15",
+   "what": "28 klaviyo_-prefixed tools observed on the local package"
+  }
+ ],
+ "tools": {
+  "get_account_details": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_campaigns": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_campaign": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_campaign": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "assign_template_to_campaign_message": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.campaign_id"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.campaign_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "create_campaign_message": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_campaign_variation": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_campaign_send_job": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_campaign_recipient_estimation_job": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_campaign_recipient_estimation": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_campaign_message": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "refresh_campaign_recipient_estimation": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.campaign_id"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.campaign_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "create_campaign_clone": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_campaign": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.campaign_id"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.campaign_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "delete_campaign": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.campaign_id"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.campaign_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "update_campaign_message": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.campaign_id"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.campaign_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "update_image_for_campaign_message": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.campaign_id"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.campaign_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "send_campaign": {
+   "classes": [
+    "send",
+    "external-comm",
+    "write"
+   ],
+   "resources": [
+    "$.campaign_id"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "sends the campaign to its configured audience (email/SMS; SMS uses paid credits); resource arg $.campaign_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "cancel_campaign_send": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.campaign_id"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "reverts a scheduled send; resource arg $.campaign_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "get_catalog_items": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_catalog_item": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_catalog_variant": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_catalog_category": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_create_catalog_items_job": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_update_catalog_items_job": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_delete_catalog_items_job": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_create_variants_job": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_update_variants_job": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_delete_variants_job": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_catalog_variants": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_catalog_categories": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_create_catalog_items_jobs": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_update_catalog_items_jobs": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_delete_catalog_items_jobs": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_create_variants_jobs": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_update_variants_jobs": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_delete_variants_jobs": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_catalog_item": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_catalog_item": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_catalog_item": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "add_categories_to_catalog_item": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "remove_categories_from_catalog_item": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_categories_for_catalog_item": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_back_in_stock_subscription": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_catalog_variant": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_catalog_variant": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_catalog_variant": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_catalog_category": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_catalog_category": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_catalog_category": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "add_items_to_catalog_category": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "remove_items_from_catalog_category": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_items_for_catalog_category": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "bulk_create_catalog_items": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "bulk_update_catalog_items": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "bulk_delete_catalog_items": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "bulk_create_catalog_variants": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "bulk_update_catalog_variants": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "bulk_delete_catalog_variants": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_events": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_event": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_metrics": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_metric": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "query_metric_aggregates": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_event": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_custom_metric": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_mapped_metric": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_metric_property": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_custom_metrics": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_mapped_metrics": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_flows_triggered_by_metric": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_custom_metric": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_custom_metric": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_custom_metric": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_mapped_metric": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "bulk_create_events": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_download_for_event_bulk_export_job": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_event_bulk_export_job": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_flows": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_flow": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_flow_message": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_flow_action": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_flow": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_flow": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.flow_id"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.flow_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "delete_flow": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.flow_id"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.flow_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "update_flow_action": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.flow_id"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.flow_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "create_flow_action": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_lists": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_list": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_segments": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_segment": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_flows_triggered_by_list": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_flows_triggered_by_segment": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_list": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_list": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_list": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "add_profiles_to_list": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "remove_profiles_from_list": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_profiles_for_list": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_profiles_for_segment": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_segment": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_segment": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_segment": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "upload_image_from_file": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "upload_image_from_url": {
+   "classes": [
+    "write",
+    "external-comm"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "data is sent to or fetched from a caller-chosen URL / domain"
+  },
+  "get_image": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_images": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_image": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_profiles": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_profile": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_profile": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_profile": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.profile_id"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.profile_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "subscribe_profile_to_marketing": {
+   "classes": [
+    "write",
+    "x-consent"
+   ],
+   "resources": [
+    "$.profile_id"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "changes a person's marketing consent; resource arg $.profile_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "unsubscribe_profile_from_marketing": {
+   "classes": [
+    "write",
+    "x-consent"
+   ],
+   "resources": [
+    "$.profile_id"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "changes a person's marketing consent; resource arg $.profile_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "get_bulk_import_profiles_job": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_suppress_profiles_job": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_unsuppress_profiles_job": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_push_token": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_import_profiles_jobs": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_suppress_profiles_jobs": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_unsuppress_profiles_jobs": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_push_tokens": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_or_update_profile": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_push_token": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_push_token": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.profile_id"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.profile_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "bulk_import_profiles": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "bulk_suppress_profiles": {
+   "classes": [
+    "write",
+    "x-consent"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "changes a person's marketing consent"
+  },
+  "bulk_unsuppress_profiles": {
+   "classes": [
+    "write",
+    "x-consent"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "changes a person's marketing consent"
+  },
+  "merge_profiles": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.profile_id"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "resource arg $.profile_id as the local package names it (examples/klaviyo-e2e/src/live-args.ts); hosted names unverified"
+  },
+  "get_download_for_profile_bulk_export_job": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_profile_bulk_export_job": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_campaign_report": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_flow_report": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "query_form_values": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "query_form_series": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "query_segment_values": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "query_segment_series": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_email_template": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_email_template": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_dnd_email_template": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_dnd_email_template": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "list_email_templates": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_email_template": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "clone_email_template": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_email_template": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "render_email_template": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_universal_content": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_all_universal_content": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_universal_content": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_universal_content": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_universal_content": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_template_preview_send_job": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_translations": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_translation": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_translation": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_translation": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_translation": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_coupon": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_create_coupon_codes_job": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_coupons": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_coupon_codes": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_coupon_code": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_bulk_create_coupon_code_jobs": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_coupon": {
+   "classes": [
+    "write",
+    "x-discount"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "creates or edits discount codes (money-like, no direct charge)"
+  },
+  "update_coupon": {
+   "classes": [
+    "write",
+    "x-discount"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "creates or edits discount codes (money-like, no direct charge)"
+  },
+  "create_coupon_code": {
+   "classes": [
+    "write",
+    "x-discount"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "creates or edits discount codes (money-like, no direct charge)"
+  },
+  "update_coupon_code": {
+   "classes": [
+    "write",
+    "x-discount"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "creates or edits discount codes (money-like, no direct charge)"
+  },
+  "delete_coupon_code": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_coupon": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "bulk_create_coupon_codes": {
+   "classes": [
+    "write",
+    "x-discount"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "creates or edits discount codes (money-like, no direct charge)"
+  },
+  "get_tag_group": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_tags": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_tag": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_tag_groups": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_campaign_ids_for_tag": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_flow_ids_for_tag": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_list_ids_for_tag": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_segment_ids_for_tag": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_tag": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_tag": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_tag": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_tag_group": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_tag_group": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_tag_group": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "tag_campaigns": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "tag_flows": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "tag_lists": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "tag_segments": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "remove_tag_from_campaigns": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "remove_tag_from_flows": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "remove_tag_from_lists": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "remove_tag_from_segments": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_webhook": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_webhook_topics": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_webhook_topic": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_webhooks": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_webhook": {
+   "classes": [
+    "write",
+    "external-comm"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "data is sent to or fetched from a caller-chosen URL / domain"
+  },
+  "update_webhook": {
+   "classes": [
+    "write",
+    "external-comm"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "data is sent to or fetched from a caller-chosen URL / domain"
+  },
+  "delete_webhook": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_form": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_forms": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_form_version": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_form": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_form": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_reviews": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_review": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_review": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "request_profile_deletion": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_applications": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_application": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "list_billing_usage": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_billing_usage": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_brand_button": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_brand_color": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_brand_logo": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_brand_social_group": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_brand_button": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_brand_color": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_brand_logo": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_brand_social_group": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_brand_button": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_brand_buttons": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_brand_color": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_brand_colors": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_brand_email_default": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_brand_email_defaults": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_brand_logo": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_brand_logos": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_brand_social_group": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_brand_social_groups": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_brand_voice": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_brand_button": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_brand_color": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_brand_email_default": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_brand_logo": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_brand_social_group": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_brand_voice": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_agent_knowledge": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_agent_skill": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_agent_tool": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_customer_agent_response": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_agent_knowledge": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_agent_secret": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_agent_skill": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_agent_tool": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_agent_knowledge": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "list_agent_knowledge": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_agent_secret": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_agent_secrets": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_agent_skill": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_agent_skills": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_agent_tool": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_agent_tools": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_customer_agent": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "retrieve_customer_agent_conversation": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "page marks readOnly=false; description is a read"
+  },
+  "list_customer_agent_conversations": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_agent_messages_for_customer_agent_conversation": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_skills_for_agent_tool": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_secrets_for_agent_tool": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_secret_ids_for_agent_tool": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_tools_for_agent_secret": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_tool_ids_for_agent_secret": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "query_customer_agent_skill_values": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "query_customer_agent_values": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_agent_knowledge": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_agent_skill": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_agent_tool": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_customer_agent": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_customer_agent_conversation": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_sending_domain_activation_job": {
+   "classes": [
+    "write",
+    "external-comm"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "data is sent to or fetched from a caller-chosen URL / domain"
+  },
+  "create_sending_domain": {
+   "classes": [
+    "write",
+    "external-comm"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "data is sent to or fetched from a caller-chosen URL / domain"
+  },
+  "delete_sending_domain": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_sending_domain": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_sending_domains": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_sending_domain_verification_job": {
+   "classes": [
+    "write",
+    "external-comm"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "medium",
+   "note": "data is sent to or fetched from a caller-chosen URL / domain"
+  },
+  "create_text_messaging_configuration": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_text_messaging_sender": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_text_messaging_sender_registration": {
+   "classes": [
+    "write"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_messaging_sender_registration_id_for_text_messaging_sender": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_text_messaging_configuration": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_text_messaging_sender": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_text_messaging_sender_registration": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_text_messaging_senders": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_object_types": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_object_type": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_object_type": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_object_type": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_object_schema": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_object_schema": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_object_schema": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_object_schema_relationship": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_object_schema_relationship": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_object_schema_relationship": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_profile_schema_relationship": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_profile_schema_relationship": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_profile_schema_relationship": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_source_mapping": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "update_source_mapping": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_data_sources": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_data_source": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_data_source": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "delete_data_source": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "create_data_source_record": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "bulk_create_data_source_records": {
+   "classes": [
+    "write"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_records_for_object_type": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_object_record": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "bulk_delete_object_records": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "sensitivity": [
+    "pii"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "get_ingestion_logs_for_object_type": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "pii",
+    "ugc"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high"
+  },
+  "report_unsupported_task": {
+   "classes": [
+    "read"
+   ],
+   "source": "klaviyo-tools-page",
+   "confidence": "high",
+   "note": "sends the model's task description to Klaviyo"
+  }
+ }
+}

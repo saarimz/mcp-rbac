@@ -1,0 +1,1486 @@
+{
+ "$schema": "../../spec/mcp-rbac-pack.schema.json",
+ "pack": "github",
+ "version": "2026.11.13",
+ "title": "GitHub MCP server (github/github-mcp-server)",
+ "description": "Side-effect classes for the 133 tools in github-mcp-server's tool snapshots at 0663b830582a. Base classes are the server's own ToolAnnotations; refinements are listed per tool.",
+ "server": {
+  "hosted": "https://api.githubcopilot.com/mcp/",
+  "local": "ghcr.io/github/github-mcp-server",
+  "repo": "https://github.com/github/github-mcp-server",
+  "commit": "0663b830582af923e30fb14cb2e10dd3248baa86"
+ },
+ "license": "Apache-2.0",
+ "sources": [
+  {
+   "id": "github-toolsnaps",
+   "url": "https://github.com/github/github-mcp-server/tree/0663b830582af923e30fb14cb2e10dd3248baa86/pkg/github/__toolsnaps__",
+   "retrieved": "2026-11-15",
+   "what": "tool names, ToolAnnotations (readOnlyHint, destructiveHint, openWorldHint), inputSchema argument names"
+  },
+  {
+   "id": "github-readme",
+   "url": "https://github.com/github/github-mcp-server/blob/0663b830582af923e30fb14cb2e10dd3248baa86/README.md",
+   "retrieved": "2026-11-15",
+   "what": "toolsets, tool descriptions, OAuth scopes per tool"
+  }
+ ],
+ "tools": {
+  "actions_get": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "actions_list": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "actions_run_trigger": {
+   "classes": [
+    "write",
+    "destructive",
+    "x-compute"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "runs or reruns GitHub Actions workflows (can bill Actions minutes)"
+  },
+  "add_comment_to_pending_review": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "add_issue_comment": {
+   "classes": [
+    "write",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "add_issue_comment_reaction": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "add_issue_reaction": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "add_pull_request_review_comment": {
+   "classes": [
+    "write",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "add_pull_request_review_comment_reaction": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "add_reply_to_pull_request_comment": {
+   "classes": [
+    "write",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "add_sub_issue": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "assign_copilot_to_issue": {
+   "classes": [
+    "write",
+    "x-compute"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "starts the Copilot coding agent (consumes premium requests)"
+  },
+  "assign_copilot_to_issue_with_intent": {
+   "classes": [
+    "write",
+    "x-compute"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "starts the Copilot coding agent (consumes premium requests)"
+  },
+  "create_branch": {
+   "classes": [
+    "write",
+    "x-code-change"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high",
+   "note": "changes repository contents"
+  },
+  "create_gist": {
+   "classes": [
+    "write",
+    "external-comm"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "a public gist publishes content to anyone"
+  },
+  "create_issue": {
+   "classes": [
+    "write",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "create_or_update_file": {
+   "classes": [
+    "write",
+    "x-code-change"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high",
+   "note": "changes repository contents"
+  },
+  "create_pull_request": {
+   "classes": [
+    "write",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "create_pull_request_review": {
+   "classes": [
+    "write",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "create_repository": {
+   "classes": [
+    "write",
+    "x-admin"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "create_repository_ruleset": {
+   "classes": [
+    "write",
+    "x-admin"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "custom_properties_read": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "custom_properties_write": {
+   "classes": [
+    "write",
+    "x-admin"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "delete_file": {
+   "classes": [
+    "write",
+    "destructive",
+    "x-code-change"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high",
+   "note": "changes repository contents"
+  },
+  "delete_pending_pull_request_review": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "delete_repository": {
+   "classes": [
+    "write",
+    "destructive",
+    "x-admin"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "discussion_comment_write": {
+   "classes": [
+    "write",
+    "destructive",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "dismiss_notification": {
+   "classes": [
+    "write"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "find_duplicate": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "fork_repository": {
+   "classes": [
+    "write",
+    "x-admin"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_code_quality_finding": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_code_scanning_alert": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_commit": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "sensitivity": [
+    "source-code"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_dependabot_alert": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_discussion": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_discussion_comments": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_file_blame": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "sensitivity": [
+    "source-code"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_file_contents": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "sensitivity": [
+    "source-code"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_gist": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_global_security_advisory": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_job_logs": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "sensitivity": [
+    "source-code"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_label": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_latest_release": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_me": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_notification_details": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_release_by_tag": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_repository_tree": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "sensitivity": [
+    "source-code"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_secret_scanning_alert": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "sensitivity": [
+    "secrets"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_tag": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_team_members": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "get_teams": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "hide_issue_comment": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "hide_pull_request_review": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "hide_pull_request_review_comment": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "issue_artifact_read": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "issue_artifact_write": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "issue_dependency_read": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "issue_dependency_write": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "issue_read": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "issue_write": {
+   "classes": [
+    "write",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "label_write": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_branches": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_code_scanning_alerts": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_commits": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_dependabot_alerts": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_discussion_categories": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_discussions": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_gists": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_global_security_advisories": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_issue_fields": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_issue_types": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_issues": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_label": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_notifications": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_org_repository_security_advisories": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_pull_requests": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_releases": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_repository_collaborators": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_repository_security_advisories": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_secret_scanning_alerts": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "sensitivity": [
+    "secrets"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_starred_repositories": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "list_tags": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "manage_notification_subscription": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "manage_repository_notification_subscription": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "mark_all_notifications_read": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "merge_pull_request": {
+   "classes": [
+    "write",
+    "x-merge"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "projects_get": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "projects_list": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "projects_write": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "pull_request_read": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "sensitivity": [
+    "source-code"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "pull_request_review_write": {
+   "classes": [
+    "write",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "push_files": {
+   "classes": [
+    "write",
+    "x-code-change"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high",
+   "note": "changes repository contents"
+  },
+  "remove_issue_comment_reaction": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "remove_issue_reaction": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "remove_pull_request_review_comment_reaction": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "remove_sub_issue": {
+   "classes": [
+    "write",
+    "destructive"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "repository_ruleset_read": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "reprioritize_sub_issue": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "request_copilot_review": {
+   "classes": [
+    "write",
+    "x-compute"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "requests a Copilot review (consumes premium requests)"
+  },
+  "request_pull_request_reviewers": {
+   "classes": [
+    "write",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "resolve_review_thread": {
+   "classes": [
+    "write"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "search_code": {
+   "classes": [
+    "read"
+   ],
+   "sensitivity": [
+    "source-code"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "search_commits": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "search_issues": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "search_orgs": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "search_pull_requests": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "search_repositories": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "search_users": {
+   "classes": [
+    "read"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "set_issue_fields": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "star_repository": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "sub_issue_write": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "submit_pending_pull_request_review": {
+   "classes": [
+    "write",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "ui_get": {
+   "classes": [
+    "read"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "unhide_issue_comment": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "unhide_pull_request_review": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "unhide_pull_request_review_comment": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "unresolve_review_thread": {
+   "classes": [
+    "write"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "unstar_repository": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_gist": {
+   "classes": [
+    "write",
+    "external-comm"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "a public gist publishes content to anyone"
+  },
+  "update_issue_assignees": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_issue_body": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_issue_comment": {
+   "classes": [
+    "write",
+    "send"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "medium",
+   "note": "posts content that notifies other people"
+  },
+  "update_issue_labels": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_issue_milestone": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_issue_state": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_issue_title": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_issue_type": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_pull_request": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_pull_request_body": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_pull_request_branch": {
+   "classes": [
+    "write",
+    "x-code-change"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high",
+   "note": "changes repository contents"
+  },
+  "update_pull_request_draft_state": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_pull_request_state": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  },
+  "update_pull_request_title": {
+   "classes": [
+    "write"
+   ],
+   "resources": [
+    "$.owner",
+    "$.repo"
+   ],
+   "source": "github-toolsnaps",
+   "confidence": "high"
+  }
+ }
+}

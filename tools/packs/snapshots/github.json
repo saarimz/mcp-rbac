@@ -1,0 +1,1874 @@
+{
+ "repo": "https://github.com/github/github-mcp-server",
+ "commit": "0663b830582af923e30fb14cb2e10dd3248baa86",
+ "date": "2026-11-13",
+ "tools": {
+  "actions_get": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "method",
+    "owner",
+    "repo",
+    "resource_id"
+   ]
+  },
+  "actions_list": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "method",
+    "owner",
+    "page",
+    "perPage",
+    "repo",
+    "resource_id",
+    "workflow_jobs_filter",
+    "workflow_runs_filter"
+   ]
+  },
+  "actions_run_trigger": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "inputs",
+    "method",
+    "owner",
+    "ref",
+    "repo",
+    "run_id",
+    "workflow_id"
+   ]
+  },
+  "add_comment_to_pending_review": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "line",
+    "owner",
+    "path",
+    "pullNumber",
+    "repo",
+    "side",
+    "startLine",
+    "startSide",
+    "subjectType"
+   ]
+  },
+  "add_issue_comment": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "comment_id",
+    "issue_number",
+    "owner",
+    "reaction",
+    "repo"
+   ]
+  },
+  "add_issue_comment_reaction": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "comment_id",
+    "content",
+    "owner",
+    "repo"
+   ]
+  },
+  "add_issue_reaction": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "content",
+    "issue_number",
+    "owner",
+    "repo"
+   ]
+  },
+  "add_pull_request_review_comment": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "line",
+    "owner",
+    "path",
+    "pullNumber",
+    "repo",
+    "side",
+    "startLine",
+    "startSide",
+    "subjectType"
+   ]
+  },
+  "add_pull_request_review_comment_reaction": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "comment_id",
+    "content",
+    "owner",
+    "repo"
+   ]
+  },
+  "add_reply_to_pull_request_comment": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "commentId",
+    "owner",
+    "pullNumber",
+    "reaction",
+    "repo"
+   ]
+  },
+  "add_sub_issue": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "issue_number",
+    "owner",
+    "replace_parent",
+    "repo",
+    "sub_issue_id"
+   ]
+  },
+  "assign_copilot_to_issue": {
+   "annotations": {
+    "idempotentHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "base_ref",
+    "custom_instructions",
+    "issue_number",
+    "owner",
+    "repo"
+   ]
+  },
+  "assign_copilot_to_issue_with_intent": {
+   "annotations": {
+    "idempotentHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "base_ref",
+    "confidence",
+    "custom_instructions",
+    "is_suggestion",
+    "issue_number",
+    "owner",
+    "rationale",
+    "repo"
+   ]
+  },
+  "create_branch": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "branch",
+    "from_branch",
+    "owner",
+    "repo"
+   ]
+  },
+  "create_gist": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "content",
+    "description",
+    "filename",
+    "public"
+   ]
+  },
+  "create_issue": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "owner",
+    "parent_issue_number",
+    "parent_owner",
+    "parent_repo",
+    "repo",
+    "title"
+   ]
+  },
+  "create_or_update_file": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "allow_symlink_write",
+    "branch",
+    "content",
+    "message",
+    "owner",
+    "path",
+    "repo",
+    "sha"
+   ]
+  },
+  "create_pull_request": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "base",
+    "body",
+    "draft",
+    "head",
+    "maintainer_can_modify",
+    "owner",
+    "repo",
+    "reviewers",
+    "title"
+   ]
+  },
+  "create_pull_request_review": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "commitID",
+    "event",
+    "owner",
+    "pullNumber",
+    "repo"
+   ]
+  },
+  "create_repository": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "autoInit",
+    "description",
+    "name",
+    "organization",
+    "private"
+   ]
+  },
+  "create_repository_ruleset": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "bypass_actors",
+    "conditions",
+    "enforcement",
+    "enterprise",
+    "level",
+    "name",
+    "org",
+    "owner",
+    "repo",
+    "rules",
+    "target"
+   ]
+  },
+  "custom_properties_read": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "enterprise",
+    "level",
+    "org",
+    "owner",
+    "repo"
+   ]
+  },
+  "custom_properties_write": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "enterprise",
+    "level",
+    "org",
+    "owner",
+    "properties",
+    "repo"
+   ]
+  },
+  "delete_file": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "branch",
+    "message",
+    "owner",
+    "path",
+    "repo"
+   ]
+  },
+  "delete_pending_pull_request_review": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "owner",
+    "pullNumber",
+    "repo"
+   ]
+  },
+  "delete_repository": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "owner",
+    "repo"
+   ]
+  },
+  "discussion_comment_write": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "commentNodeID",
+    "discussionNumber",
+    "method",
+    "owner",
+    "repo"
+   ]
+  },
+  "dismiss_notification": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "state",
+    "threadID"
+   ]
+  },
+  "find_duplicate": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "confidence_threshold",
+    "issue_number",
+    "owner",
+    "page",
+    "perPage",
+    "repo"
+   ]
+  },
+  "fork_repository": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "organization",
+    "owner",
+    "repo"
+   ]
+  },
+  "get_code_quality_finding": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "findingNumber",
+    "owner",
+    "repo"
+   ]
+  },
+  "get_code_scanning_alert": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "alertNumber",
+    "owner",
+    "repo"
+   ]
+  },
+  "get_commit": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "detail",
+    "owner",
+    "page",
+    "perPage",
+    "repo",
+    "sha"
+   ]
+  },
+  "get_dependabot_alert": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "alertNumber",
+    "owner",
+    "repo"
+   ]
+  },
+  "get_discussion": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "discussionNumber",
+    "owner",
+    "repo"
+   ]
+  },
+  "get_discussion_comments": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "after",
+    "discussionNumber",
+    "includeReplies",
+    "owner",
+    "perPage",
+    "repo"
+   ]
+  },
+  "get_file_blame": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "after",
+    "end_line",
+    "owner",
+    "path",
+    "perPage",
+    "ref",
+    "repo",
+    "start_line"
+   ]
+  },
+  "get_file_contents": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "fields",
+    "owner",
+    "path",
+    "ref",
+    "repo",
+    "sha"
+   ]
+  },
+  "get_gist": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "gist_id"
+   ]
+  },
+  "get_global_security_advisory": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "ghsaId"
+   ]
+  },
+  "get_job_logs": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "failed_only",
+    "job_id",
+    "owner",
+    "repo",
+    "return_content",
+    "run_id",
+    "tail_lines"
+   ]
+  },
+  "get_label": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "name",
+    "owner",
+    "repo"
+   ]
+  },
+  "get_latest_release": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "owner",
+    "repo"
+   ]
+  },
+  "get_me": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": []
+  },
+  "get_notification_details": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "notificationID"
+   ]
+  },
+  "get_release_by_tag": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "owner",
+    "repo",
+    "tag"
+   ]
+  },
+  "get_repository_tree": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "owner",
+    "path_filter",
+    "recursive",
+    "repo",
+    "tree_sha"
+   ]
+  },
+  "get_secret_scanning_alert": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "alertNumber",
+    "hide_secret",
+    "owner",
+    "repo"
+   ]
+  },
+  "get_tag": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "owner",
+    "repo",
+    "tag"
+   ]
+  },
+  "get_team_members": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "org",
+    "team_slug"
+   ]
+  },
+  "get_teams": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "user"
+   ]
+  },
+  "hide_issue_comment": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "classifier",
+    "comment_id",
+    "owner",
+    "repo"
+   ]
+  },
+  "hide_pull_request_review": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "classifier",
+    "owner",
+    "pullNumber",
+    "repo",
+    "review_id"
+   ]
+  },
+  "hide_pull_request_review_comment": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "classifier",
+    "comment_id",
+    "owner",
+    "repo"
+   ]
+  },
+  "issue_artifact_read": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "artifact_number",
+    "issue_number",
+    "method",
+    "owner",
+    "page",
+    "perPage",
+    "repo",
+    "type"
+   ]
+  },
+  "issue_artifact_write": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "artifact_number",
+    "body",
+    "issue_number",
+    "method",
+    "name",
+    "owner",
+    "repo",
+    "type"
+   ]
+  },
+  "issue_dependency_read": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "issue_number",
+    "method",
+    "owner",
+    "page",
+    "perPage",
+    "repo"
+   ]
+  },
+  "issue_dependency_write": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "issue_number",
+    "method",
+    "owner",
+    "related_issue_number",
+    "related_owner",
+    "related_repo",
+    "repo",
+    "type"
+   ]
+  },
+  "issue_read": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "issue_number",
+    "method",
+    "owner",
+    "page",
+    "perPage",
+    "repo"
+   ]
+  },
+  "issue_write": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "assignees",
+    "body",
+    "duplicate_of",
+    "issue_fields",
+    "issue_number",
+    "labels",
+    "method",
+    "milestone",
+    "owner",
+    "parent_issue_number",
+    "parent_owner",
+    "parent_repo",
+    "repo",
+    "state",
+    "state_reason",
+    "title",
+    "type"
+   ]
+  },
+  "label_write": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "color",
+    "description",
+    "method",
+    "name",
+    "new_name",
+    "owner",
+    "repo"
+   ]
+  },
+  "list_branches": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "owner",
+    "page",
+    "perPage",
+    "repo"
+   ]
+  },
+  "list_code_scanning_alerts": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "owner",
+    "page",
+    "perPage",
+    "ref",
+    "repo",
+    "severity",
+    "state",
+    "tool_name"
+   ]
+  },
+  "list_commits": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "author",
+    "fields",
+    "owner",
+    "page",
+    "path",
+    "perPage",
+    "repo",
+    "sha",
+    "since",
+    "until"
+   ]
+  },
+  "list_dependabot_alerts": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "after",
+    "owner",
+    "perPage",
+    "repo",
+    "severity",
+    "state"
+   ]
+  },
+  "list_discussion_categories": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "owner",
+    "repo"
+   ]
+  },
+  "list_discussions": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "after",
+    "category",
+    "direction",
+    "orderBy",
+    "owner",
+    "perPage",
+    "repo"
+   ]
+  },
+  "list_gists": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "page",
+    "perPage",
+    "since",
+    "username"
+   ]
+  },
+  "list_global_security_advisories": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "affects",
+    "cveId",
+    "cwes",
+    "ecosystem",
+    "ghsaId",
+    "isWithdrawn",
+    "modified",
+    "published",
+    "severity",
+    "type",
+    "updated"
+   ]
+  },
+  "list_issue_fields": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "owner",
+    "repo"
+   ]
+  },
+  "list_issue_types": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "owner",
+    "repo"
+   ]
+  },
+  "list_issues": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "after",
+    "direction",
+    "field_filters",
+    "fields",
+    "labels",
+    "orderBy",
+    "owner",
+    "perPage",
+    "repo",
+    "since",
+    "state"
+   ]
+  },
+  "list_label": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "after",
+    "owner",
+    "perPage",
+    "repo"
+   ]
+  },
+  "list_notifications": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "before",
+    "filter",
+    "owner",
+    "page",
+    "perPage",
+    "repo",
+    "since"
+   ]
+  },
+  "list_org_repository_security_advisories": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "direction",
+    "org",
+    "sort",
+    "state"
+   ]
+  },
+  "list_pull_requests": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "base",
+    "direction",
+    "fields",
+    "head",
+    "owner",
+    "page",
+    "perPage",
+    "repo",
+    "sort",
+    "state"
+   ]
+  },
+  "list_releases": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "fields",
+    "owner",
+    "page",
+    "perPage",
+    "repo"
+   ]
+  },
+  "list_repository_collaborators": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "affiliation",
+    "owner",
+    "page",
+    "perPage",
+    "repo"
+   ]
+  },
+  "list_repository_security_advisories": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "direction",
+    "owner",
+    "repo",
+    "sort",
+    "state"
+   ]
+  },
+  "list_secret_scanning_alerts": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "hide_secret",
+    "owner",
+    "page",
+    "perPage",
+    "repo",
+    "resolution",
+    "secret_type",
+    "state"
+   ]
+  },
+  "list_starred_repositories": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "direction",
+    "page",
+    "perPage",
+    "sort",
+    "username"
+   ]
+  },
+  "list_tags": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "owner",
+    "page",
+    "perPage",
+    "repo"
+   ]
+  },
+  "manage_notification_subscription": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "action",
+    "notificationID"
+   ]
+  },
+  "manage_repository_notification_subscription": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "action",
+    "owner",
+    "repo"
+   ]
+  },
+  "mark_all_notifications_read": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "lastReadAt",
+    "owner",
+    "repo"
+   ]
+  },
+  "merge_pull_request": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "commit_message",
+    "commit_title",
+    "expectedHeadSha",
+    "merge_method",
+    "owner",
+    "pullNumber",
+    "repo"
+   ]
+  },
+  "projects_get": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "field_id",
+    "field_names",
+    "fields",
+    "item_id",
+    "method",
+    "owner",
+    "owner_type",
+    "project_number",
+    "status_update_id",
+    "view_id"
+   ]
+  },
+  "projects_list": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "after",
+    "before",
+    "field_names",
+    "fields",
+    "method",
+    "owner",
+    "owner_type",
+    "perPage",
+    "project_number",
+    "query"
+   ]
+  },
+  "projects_write": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "field_name",
+    "filter",
+    "issue_number",
+    "item_id",
+    "item_owner",
+    "item_repo",
+    "item_type",
+    "items",
+    "iteration_duration",
+    "iterations",
+    "layout",
+    "method",
+    "name",
+    "owner",
+    "owner_type",
+    "project_number",
+    "pull_request_number",
+    "start_date",
+    "status",
+    "target_date",
+    "title",
+    "updated_field",
+    "view_id",
+    "visible_field_names",
+    "visible_fields"
+   ]
+  },
+  "pull_request_read": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "after",
+    "method",
+    "owner",
+    "page",
+    "perPage",
+    "pullNumber",
+    "repo"
+   ]
+  },
+  "pull_request_review_write": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "commitID",
+    "event",
+    "method",
+    "owner",
+    "pullNumber",
+    "repo",
+    "resolutionReason",
+    "threadId"
+   ]
+  },
+  "push_files": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "branch",
+    "files",
+    "message",
+    "owner",
+    "repo"
+   ]
+  },
+  "remove_issue_comment_reaction": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "comment_id",
+    "owner",
+    "reaction_id",
+    "repo"
+   ]
+  },
+  "remove_issue_reaction": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "issue_number",
+    "owner",
+    "reaction_id",
+    "repo"
+   ]
+  },
+  "remove_pull_request_review_comment_reaction": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "comment_id",
+    "owner",
+    "reaction_id",
+    "repo"
+   ]
+  },
+  "remove_sub_issue": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "issue_number",
+    "owner",
+    "repo",
+    "sub_issue_id"
+   ]
+  },
+  "repository_ruleset_read": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "actor_name",
+    "branch",
+    "enterprise",
+    "evaluate_status",
+    "includes_parents",
+    "level",
+    "method",
+    "org",
+    "owner",
+    "page",
+    "perPage",
+    "ref",
+    "repo",
+    "repository_name",
+    "rule_suite_id",
+    "rule_suite_result",
+    "ruleset_id",
+    "time_period"
+   ]
+  },
+  "reprioritize_sub_issue": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "after_id",
+    "before_id",
+    "issue_number",
+    "owner",
+    "repo",
+    "sub_issue_id"
+   ]
+  },
+  "request_copilot_review": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "owner",
+    "pullNumber",
+    "repo"
+   ]
+  },
+  "request_pull_request_reviewers": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "owner",
+    "pullNumber",
+    "repo",
+    "reviewers"
+   ]
+  },
+  "resolve_review_thread": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "resolutionReason",
+    "threadID"
+   ]
+  },
+  "search_code": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "fields",
+    "order",
+    "page",
+    "perPage",
+    "query",
+    "sort"
+   ]
+  },
+  "search_commits": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "order",
+    "page",
+    "perPage",
+    "query",
+    "sort"
+   ]
+  },
+  "search_issues": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "fields",
+    "order",
+    "owner",
+    "page",
+    "perPage",
+    "query",
+    "repo",
+    "sort"
+   ]
+  },
+  "search_orgs": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "order",
+    "page",
+    "perPage",
+    "query",
+    "sort"
+   ]
+  },
+  "search_pull_requests": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "fields",
+    "order",
+    "owner",
+    "page",
+    "perPage",
+    "query",
+    "repo",
+    "sort"
+   ]
+  },
+  "search_repositories": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "minimal_output",
+    "order",
+    "page",
+    "perPage",
+    "query",
+    "sort"
+   ]
+  },
+  "search_users": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "order",
+    "page",
+    "perPage",
+    "query",
+    "sort"
+   ]
+  },
+  "set_issue_fields": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "fields",
+    "issue_number",
+    "owner",
+    "repo"
+   ]
+  },
+  "star_repository": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "owner",
+    "repo"
+   ]
+  },
+  "sub_issue_write": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "after_id",
+    "before_id",
+    "issue_number",
+    "method",
+    "owner",
+    "replace_parent",
+    "repo",
+    "sub_issue_id"
+   ]
+  },
+  "submit_pending_pull_request_review": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "event",
+    "owner",
+    "pullNumber",
+    "repo"
+   ]
+  },
+  "ui_get": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true
+   },
+   "args": [
+    "method",
+    "owner",
+    "repo"
+   ]
+  },
+  "unhide_issue_comment": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "comment_id",
+    "owner",
+    "repo"
+   ]
+  },
+  "unhide_pull_request_review": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "owner",
+    "pullNumber",
+    "repo",
+    "review_id"
+   ]
+  },
+  "unhide_pull_request_review_comment": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "comment_id",
+    "owner",
+    "repo"
+   ]
+  },
+  "unresolve_review_thread": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "threadID"
+   ]
+  },
+  "unstar_repository": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "owner",
+    "repo"
+   ]
+  },
+  "update_gist": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "content",
+    "description",
+    "filename",
+    "gist_id"
+   ]
+  },
+  "update_issue_assignees": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "assignees",
+    "issue_number",
+    "owner",
+    "repo"
+   ]
+  },
+  "update_issue_body": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "issue_number",
+    "owner",
+    "repo"
+   ]
+  },
+  "update_issue_comment": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "comment_id",
+    "owner",
+    "repo"
+   ]
+  },
+  "update_issue_labels": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "issue_number",
+    "labels",
+    "owner",
+    "repo"
+   ]
+  },
+  "update_issue_milestone": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "issue_number",
+    "milestone",
+    "owner",
+    "repo"
+   ]
+  },
+  "update_issue_state": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "confidence",
+    "duplicate_of",
+    "is_suggestion",
+    "issue_number",
+    "owner",
+    "rationale",
+    "repo",
+    "state",
+    "state_reason"
+   ]
+  },
+  "update_issue_title": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "issue_number",
+    "owner",
+    "repo",
+    "title"
+   ]
+  },
+  "update_issue_type": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "confidence",
+    "is_suggestion",
+    "issue_number",
+    "issue_type",
+    "owner",
+    "rationale",
+    "repo"
+   ]
+  },
+  "update_pull_request": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "base",
+    "body",
+    "draft",
+    "maintainer_can_modify",
+    "owner",
+    "pullNumber",
+    "repo",
+    "reviewers",
+    "state",
+    "title"
+   ]
+  },
+  "update_pull_request_body": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "body",
+    "owner",
+    "pullNumber",
+    "repo"
+   ]
+  },
+  "update_pull_request_branch": {
+   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false
+   },
+   "args": [
+    "expectedHeadSha",
+    "owner",
+    "pullNumber",
+    "repo"
+   ]
+  },
+  "update_pull_request_draft_state": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "draft",
+    "owner",
+    "pullNumber",
+    "repo"
+   ]
+  },
+  "update_pull_request_state": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "owner",
+    "pullNumber",
+    "repo",
+    "state"
+   ]
+  },
+  "update_pull_request_title": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "args": [
+    "owner",
+    "pullNumber",
+    "repo",
+    "title"
+   ]
+  }
+ }
+}

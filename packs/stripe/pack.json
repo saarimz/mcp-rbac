@@ -1,0 +1,29 @@
+{
+ "$schema": "../../spec/mcp-rbac-pack.schema.json",
+ "pack": "stripe",
+ "version": "2026.11.15",
+ "title": "Stripe MCP server (mcp.stripe.com)",
+ "description": "Side-effect classes for the 15 tools in the Tools table of Stripe's MCP docs. stripe_api_write is one tool for every POST/PATCH/PUT/DELETE method (refunds, voids, deletes), so it carries write+spend+destructive: gate it by role and approval, not by tool name alone. Stripe has not published input schemas for the Treasury money tools, so no spend amount path is set: a currency budget denies them (limit_N:unknown_spend, fail-closed) and a count budget on class spend works.",
+ "server": {"hosted": "https://mcp.stripe.com"},
+ "license": "Apache-2.0",
+ "sources": [
+  {"id": "stripe-mcp-docs", "url": "https://docs.stripe.com/mcp", "retrieved": "2026-11-15", "what": "Tools table (names, descriptions, Human confirmation badges), Supported API methods, auth (OAuth, agent API keys)"}
+ ],
+ "tools": {
+  "stripe_api_search": {"classes": ["read"], "source": "stripe-mcp-docs", "confidence": "high", "note": "searches the API method catalog, not account data"},
+  "stripe_api_details": {"classes": ["read"], "source": "stripe-mcp-docs", "confidence": "high"},
+  "stripe_api_read": {"classes": ["read"], "sensitivity": ["pii", "financial"], "source": "stripe-mcp-docs", "confidence": "high", "note": "any GET method: customers, charges, payment methods, payouts, Issuing cards"},
+  "stripe_api_write": {"classes": ["write", "spend", "destructive"], "sensitivity": ["pii", "financial"], "source": "stripe-mcp-docs", "confidence": "medium", "note": "any POST/PATCH/PUT/DELETE method; includes Create refund (Human confirmation), void/finalize invoice, create Checkout Session"},
+  "get_stripe_account_info": {"classes": ["read"], "source": "stripe-mcp-docs", "confidence": "high"},
+  "atlas_company_formation": {"classes": ["write"], "sensitivity": ["pii"], "source": "stripe-mcp-docs", "confidence": "medium", "note": "prepares or resumes an Atlas incorporation application; paying, signing and submitting happen in the Dashboard"},
+  "stripe_analytics": {"classes": ["read"], "sensitivity": ["financial"], "source": "stripe-mcp-docs", "confidence": "high", "note": "preview: metrics, reports, SQL"},
+  "get_balance_summary": {"classes": ["read"], "sensitivity": ["financial"], "source": "stripe-mcp-docs", "confidence": "high"},
+  "convert_currency": {"classes": ["spend", "write"], "sensitivity": ["financial"], "source": "stripe-mcp-docs", "confidence": "high", "note": "moves funds between currencies in a Treasury account (Human confirmation)"},
+  "send_money": {"classes": ["spend", "write", "external-comm"], "sensitivity": ["financial"], "source": "stripe-mcp-docs", "confidence": "high", "note": "sends money from a Treasury account to a recipient (Human confirmation)"},
+  "setup_recipient": {"classes": ["write"], "sensitivity": ["pii", "financial"], "source": "stripe-mcp-docs", "confidence": "high", "note": "creates a payee for send_money"},
+  "transfer_money": {"classes": ["spend", "write"], "sensitivity": ["financial"], "source": "stripe-mcp-docs", "confidence": "high", "note": "moves money between supported Stripe balances (Human confirmation)"},
+  "search_stripe_documentation": {"classes": ["read"], "source": "stripe-mcp-docs", "confidence": "high"},
+  "stripe_implementation_planner": {"classes": ["read"], "source": "stripe-mcp-docs", "confidence": "high"},
+  "send_stripe_feedback": {"classes": ["external-comm"], "source": "stripe-mcp-docs", "confidence": "medium", "note": "sends free text to Stripe"}
+ }
+}

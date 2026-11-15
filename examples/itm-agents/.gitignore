@@ -1,0 +1,4 @@
+.secrets/
+data/
+out/*.sqlite*
+node_modules/

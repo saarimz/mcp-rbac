@@ -93,8 +93,8 @@ export async function runDemo(o: DemoOptions = {}): Promise<{ firstAllowMs: numb
   out(v.ok ? `audit: ${v.count} decisions, hash chain verified${o.keep ? dim(` (${auditPath})`) : ""}` : `audit: chain broken at row ${v.id}: ${v.reason}`);
   out(dim(`first allow after ${Math.round(firstAllowMs)} ms, first deny after ${Math.round(firstDenyMs)} ms (from process start)`));
   out("");
-  out(`next: guard your own server with this policy (mcp-rbac demo --save-policy mcp-rbac.yaml, then docs/quickstart.md)`);
-  out(`      or any server, no code: mcp-rbac proxy --preset read-only -- <server command>`);
+  out(`next: your own server: mcp-rbac demo --save-policy mcp-rbac.yaml, then docs/quickstart.md`);
+  out(`      any server, no code: mcp-rbac proxy --preset read-only -- <server command>`);
   if (!o.keep) rmSync(dir, { recursive: true, force: true });
   return { firstAllowMs, firstDenyMs, auditCount, ok: v.ok };
 }

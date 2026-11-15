@@ -106,7 +106,7 @@ export async function main(argv = process.argv.slice(2)) {
   switch (cmd) {
     case "demo": {
       const { runDemo } = await import("./demo.js");
-      const r = await runDemo({ color: process.stdout.isTTY && !process.env.NO_COLOR, keep: !!flags.keep, savePolicy: str(flags["save-policy"]), t0: 0 });
+      const r = await runDemo({ color: (process.stdout.isTTY || !!process.env.FORCE_COLOR) && !process.env.NO_COLOR, keep: !!flags.keep, savePolicy: str(flags["save-policy"]), t0: 0 });
       if (flags["save-policy"]) process.stdout.write(`\nwrote ${str(flags["save-policy"])}; next: docs/quickstart.md (guard your own server with it)\n`);
       if (!r.ok) process.exitCode = 1;
       return;

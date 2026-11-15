@@ -1,21 +1,27 @@
 /**
- * Sign in each Better Auth user and attempt every official Klaviyo MCP tool
- * through the mcp-rbac guard. Mock mode is the default and is clearly labelled.
- * Live mode requires KLAVIYO_PRIVATE_API_KEY and never sends, deletes, or
- * preview-sends.
+ * Sign in each Better Auth user and attempt Klaviyo MCP tools through the
+ * mcp-rbac guard. Mock mode is the default and is clearly labelled.
+ * Live mode requires KLAVIYO_PRIVATE_API_KEY and never sends, deletes,
+ * unsubscribes, or preview-sends.
  */
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { createWriteStream } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { checkPortablePolicy, decidePortable, loadPortablePolicy, visiblePortable } from "../../../src/portable.ts";
 import { verifyAuditChain } from "../../../src/audit-chain.ts";
 import { loadDotEnv, klaviyoPrivateKey, dataPath, required, ROOT } from "./env.ts";
 import { startHarness, type UpstreamMode } from "./server.ts";
 import {
-  DRAFT_WRITES, ROLES, USERS, allowedFor, driverAction, loadCatalog,
+  ROLES, USERS, allowedFor, driverAction, loadCatalog, toolForName, canonicalToolName, DRAFT_WRITES,
   type RoleName, type CatalogTool,
 } from "./roles.ts";
+import {
+  absorbListFixtures, buildLiveArgs, classifyUpstreamError, extractCreated, isGuardDenial, resultText,
+  type DraftCreated, type JsonSchema, type LiveFixtures,
+} from "./live-args.ts";
 
 interface ToolResult {
   tool: string;
@@ -27,6 +33,9 @@ interface ToolResult {
   mocked: boolean;
   listed: boolean;
   ok: boolean;
+  upstream?: "success" | "error" | "not_called";
+  upstreamErrorClass?: string;
+  latencyMs?: number;
 }
 
 function argParser(argv: string[]): { mode: UpstreamMode; reuseUrl?: string } {
@@ -59,7 +68,6 @@ async function signIn(base: string, email: string, password: string): Promise<{ 
 
 function cookieToken(setCookie: string | null): string | undefined {
   if (!setCookie) return undefined;
-  // Better Auth session cookie (better-auth.session_token or __Secure-...)
   const m = /(?:^|[,\s])(?:__Secure-)?better-auth\.session_token=([^;]+)/i.exec(setCookie)
     ?? /(?:^|[,\s])session_token=([^;]+)/i.exec(setCookie);
   return m?.[1] ? decodeURIComponent(m[1]) : undefined;
@@ -73,27 +81,11 @@ async function connectMcp(mcpUrl: string, token?: string): Promise<Client> {
   return client;
 }
 
-function isDenied(result: { isError?: boolean; content?: unknown; structuredContent?: unknown }): { denied: boolean; reason?: string } {
-  const texts: string[] = [];
-  if (Array.isArray(result.content)) {
-    for (const c of result.content) {
-      if (c && typeof c === "object" && "text" in c && typeof (c as { text: unknown }).text === "string") {
-        texts.push((c as { text: string }).text);
-      }
-    }
-  }
-  const blob = texts.join("\n");
-  const denied = !!result.isError || /not authorized|denied|not allowed|permission/i.test(blob);
-  return { denied, reason: blob.slice(0, 400) || undefined };
-}
-
-function liveArgs(tool: CatalogTool): Record<string, unknown> {
-  if (tool.readOnly) return {};
-  const stamp = "mcp-rbac-e2e draft do not send";
-  if (tool.name === "create_campaign" || tool.name === "update_campaign") return { name: stamp };
-  if (tool.name.includes("email_template") || tool.name.includes("universal_content")) return { name: stamp };
-  if (tool.name === "create_segment" || tool.name === "update_segment") return { name: stamp };
-  return { name: stamp };
+function percentile(values: number[], p: number): number | undefined {
+  if (!values.length) return undefined;
+  const s = [...values].sort((a, b) => a - b);
+  const idx = Math.min(s.length - 1, Math.max(0, Math.ceil((p / 100) * s.length) - 1));
+  return s[idx];
 }
 
 function summarize(rows: ToolResult[], mode: UpstreamMode) {
@@ -112,6 +104,11 @@ function summarize(rows: ToolResult[], mode: UpstreamMode) {
       mismatches: r.filter((x) => !x.ok).length,
     };
   }
+  const forwarded = rows.filter((r) => r.observed === "allow");
+  const errorClasses: Record<string, number> = {};
+  for (const r of forwarded) {
+    if (r.upstream === "error" && r.upstreamErrorClass) errorClasses[r.upstreamErrorClass] = (errorClasses[r.upstreamErrorClass] ?? 0) + 1;
+  }
   return {
     mode,
     mocked: mode === "mock",
@@ -122,10 +119,53 @@ function summarize(rows: ToolResult[], mode: UpstreamMode) {
       calls: rows.filter((r) => r.observed === "allow" || r.observed === "deny").length,
       skipped: rows.filter((r) => r.observed === "skipped").length,
       mismatches: mismatches.length,
+      upstreamSuccess: forwarded.filter((r) => r.upstream === "success").length,
+      upstreamError: forwarded.filter((r) => r.upstream === "error").length,
     },
     byRole,
+    topUpstreamErrors: Object.entries(errorClasses).sort((a, b) => b[1] - a[1]),
     mismatchTools: mismatches.map((m) => ({ role: m.role, tool: m.tool, expected: m.expected, observed: m.observed, reason: m.reason })),
   };
+}
+
+interface ListedTool { name: string; inputSchema?: JsonSchema }
+
+async function connectDirectLive(): Promise<{ client: Client; close: () => Promise<void> }> {
+  const key = klaviyoPrivateKey();
+  if (!key) throw new Error("direct live client requires a key");
+  const errStream = createWriteStream("/tmp/klaviyo-live-sanity/direct-bench.stderr");
+  await new Promise<void>((r, j) => errStream.on("open", () => r()).on("error", j));
+  const transport = new StdioClientTransport({
+    command: "uvx",
+    args: ["klaviyo-mcp-server@latest"],
+    env: {
+      ...(process.env as Record<string, string>),
+      PRIVATE_API_KEY: key,
+      READ_ONLY: "false",
+      ALLOW_USER_GENERATED_CONTENT: "true",
+    },
+    stderr: errStream,
+  });
+  const client = new Client({ name: "klaviyo-e2e-direct", version: "0.4.0" });
+  await client.connect(transport);
+  return {
+    client,
+    close: async () => { await client.close().catch(() => {}); errStream.end(); },
+  };
+}
+
+async function timeCalls(client: Client, tool: string, args: Record<string, unknown>, reps: number, gapMs = 400): Promise<number[]> {
+  const ms: number[] = [];
+  for (let i = 0; i < reps; i++) {
+    const t0 = performance.now();
+    const r = await client.callTool({ name: tool, arguments: args });
+    ms.push(performance.now() - t0);
+    if ((r as { isError?: boolean }).isError) {
+      throw new Error(`latency probe ${tool} failed: ${resultText(r as any).slice(0, 200)}`);
+    }
+    if (gapMs && i < reps - 1) await new Promise((r) => setTimeout(r, gapMs));
+  }
+  return ms;
 }
 
 async function main() {
@@ -135,6 +175,18 @@ async function main() {
     process.stderr.write("LIVE TEST NOT RUN: KLAVIYO_PRIVATE_API_KEY (or PRIVATE_API_KEY) is not set.\n");
     process.stderr.write("This harness does not create Klaviyo keys. Create a private API key on the test account and put it in examples/klaviyo-e2e/.env, then re-run --mode=live.\n");
     process.exit(2);
+  }
+
+  // Isolate this run's audit/traces so counts are not mixed with earlier mocked runs.
+  if (mode === "live") {
+    process.env.AUDIT_DB ??= "./data/audit-live.sqlite";
+    const liveOut = dataPath("OTEL_OUT_DIR", "./out");
+    mkdirSync(liveOut, { recursive: true });
+    const liveAudit = dataPath("AUDIT_DB", "./data/audit-live.sqlite");
+    if (existsSync(liveAudit)) rmSync(liveAudit);
+    for (const extra of [`${liveAudit}-wal`, `${liveAudit}-shm`]) if (existsSync(extra)) rmSync(extra);
+    const traces = join(liveOut, "traces.jsonl");
+    if (existsSync(traces)) rmSync(traces);
   }
 
   const yaml = readFileSync(join(ROOT, "policy", "mcp-rbac.yaml"), "utf8");
@@ -152,15 +204,18 @@ async function main() {
 
   const report: Record<string, unknown> = { startedAt: new Date().toISOString(), catalogSource: catalog.source, catalogCount: catalog.count };
   const rows: ToolResult[] = [];
+  const drafts: DraftCreated[] = [];
+  const fixtures: LiveFixtures = {};
+  let upstreamCatalog: ListedTool[] | undefined;
   let failed = false;
 
   try {
     const health = await fetch(`${base}/health`).then((r) => r.json()) as { ok?: boolean; mode?: string; mocked?: boolean };
     if (!health.ok) throw new Error("health check failed");
     if (mode === "mock" && health.mocked !== true) throw new Error("expected mocked health flag");
+    if (mode === "live" && health.mocked !== false) throw new Error("expected live health flag");
     report.health = health;
 
-    // Unauthenticated MCP must fail.
     let unauth = "error";
     try {
       const c = await connectMcp(mcpUrl);
@@ -173,36 +228,59 @@ async function main() {
     report.unauthenticated = unauth;
     if (unauth !== "rejected") failed = true;
 
-    // Wrong password must fail (never log the wrong password).
     const bad = await signIn(base, process.env[USERS.owner.emailEnv] ?? USERS.owner.defaultEmail, "not-the-password-xxxxxxxx");
     report.wrongPasswordRejected = !bad.token;
     if (bad.token) failed = true;
+
+    let ownerToken: string | undefined;
 
     for (const role of ROLES) {
       const email = process.env[USERS[role].emailEnv] ?? USERS[role].defaultEmail;
       const password = required(USERS[role].passwordEnv);
       const auth = await signIn(base, email, password);
       if (!auth.token) throw new Error(`Better Auth sign-in failed for role ${role}: ${auth.error ?? "no token"}`);
+      if (role === "owner") ownerToken = auth.token;
 
       const client = await connectMcp(mcpUrl, auth.token);
-      const listed = new Set((await client.listTools()).tools.map((t) => t.name));
+      const listedTools = (await client.listTools()).tools as ListedTool[];
+      const listed = new Set(listedTools.map((t) => t.name));
+      if (mode === "live" && role === "owner") {
+        upstreamCatalog = listedTools;
+        report.upstreamToolCount = listedTools.length;
+        report.upstreamTools = listedTools.map((t) => t.name);
+        report.officialCatalogCount = catalog.count;
+        report.upstreamNote = `The official local package (uvx klaviyo-mcp-server) exposed ${listedTools.length} tools with a klaviyo_ prefix, not the 309 hosted-catalog names. The live matrix is those ${listedTools.length} tools for every role (including expected denials).`;
+      }
+      const schemaSource = (mode === "live" && upstreamCatalog) ? upstreamCatalog : listedTools;
+      const schemas = new Map(schemaSource.map((t) => [t.name, t.inputSchema]));
       const identity = { id: `driver-${role}`, name: email, roles: [role] };
-      const expectedVisible = new Set(visiblePortable(policy, identity, catalog.tools.map((t) => t.name)));
 
+      const universe: { name: string; catalogTool: CatalogTool }[] =
+        mode === "live"
+          ? (upstreamCatalog ?? listedTools).map((t) => ({ name: t.name, catalogTool: toolForName(t.name, catalog) }))
+          : catalog.tools.map((t) => ({ name: t.name, catalogTool: t }));
+
+      const expectedVisible = new Set(visiblePortable(policy, identity, universe.map((u) => u.name)));
       const visibilityMismatches: string[] = [];
-      for (const t of catalog.tools) {
-        const shouldList = expectedVisible.has(t.name);
-        if (shouldList !== listed.has(t.name)) visibilityMismatches.push(t.name);
+      for (const u of universe) {
+        const shouldList = expectedVisible.has(u.name);
+        if (shouldList !== listed.has(u.name)) visibilityMismatches.push(u.name);
       }
 
-      for (const tool of catalog.tools) {
+      // In live mode, do reads before draft writes so fixtures (list/segment ids) exist.
+      const ordered = mode === "live"
+        ? [...universe].sort((a, b) => Number(!toolForName(a.name).readOnly) - Number(!toolForName(b.name).readOnly))
+        : universe;
+
+      for (const u of ordered) {
+        const tool = u.catalogTool;
         const expected = allowedFor(role, tool) ? "allow" : "deny";
-        const portable = decidePortable(policy, { identity, tool: tool.name, args: {} });
+        const portable = decidePortable(policy, { identity, tool: u.name, args: {} });
         if ((portable.decision === "allow") !== (expected === "allow")) {
           rows.push({
-            tool: tool.name, role, expected, action: "expect_deny_safe",
+            tool: u.name, role, expected, action: "expect_deny_safe",
             observed: "error", reason: `policy/roles.ts disagree: portable=${portable.decision}`,
-            mocked: mode === "mock", listed: listed.has(tool.name), ok: false,
+            mocked: mode === "mock", listed: listed.has(u.name), ok: false, upstream: "not_called",
           });
           failed = true;
           continue;
@@ -210,32 +288,115 @@ async function main() {
         const action = driverAction(role, tool, mode);
         if (action === "skip_live_destructive" || action === "skip_live_unconfigured_write") {
           rows.push({
-            tool: tool.name, role, expected, action, observed: "skipped",
-            reason: action, mocked: false, listed: listed.has(tool.name), ok: true,
+            tool: u.name, role, expected, action, observed: "skipped",
+            reason: action, mocked: false, listed: listed.has(u.name), ok: true, upstream: "not_called",
           });
           continue;
         }
-        const args = mode === "live" && DRAFT_WRITES.has(tool.name) ? liveArgs(tool) : {};
+
+        let args: Record<string, unknown> = {};
+        if (mode === "live") {
+          const kind = expected === "allow" && DRAFT_WRITES.has(canonicalToolName(u.name)) && !tool.readOnly ? "draft" : "read";
+          // Expected-deny writes still go through the guard; dummy required fields keep the call from failing before policy.
+          const built = buildLiveArgs(u.name, schemas.get(u.name), fixtures, kind === "draft" ? "draft" : "read");
+          if (!built.ok) {
+            // If the guard will deny, we can still call with {model:"other"} only — denial happens first.
+            if (expected === "deny") args = { model: "other" };
+            else {
+              rows.push({
+                tool: u.name, role, expected, action, observed: "skipped",
+                reason: built.skip, mocked: false, listed: listed.has(u.name), ok: true, upstream: "not_called",
+              });
+              continue;
+            }
+          } else args = built.args;
+        }
+
         try {
-          const raw = await client.callTool({ name: tool.name, arguments: args });
-          const { denied, reason } = isDenied(raw as { isError?: boolean; content?: unknown });
-          const observed: ToolResult["observed"] = denied ? "deny" : "allow";
-          const ok = observed === expected;
+          const t0 = performance.now();
+          const raw = await client.callTool({ name: u.name, arguments: args });
+          const latencyMs = performance.now() - t0;
+          const { denied, reason } = isGuardDenial(raw as { isError?: boolean; content?: unknown; _meta?: Record<string, unknown> });
+          if (denied) {
+            const ok = expected === "deny";
+            if (!ok) failed = true;
+            rows.push({ tool: u.name, role, expected, action, observed: "deny", reason, mocked: mode === "mock", listed: listed.has(u.name), ok, upstream: "not_called", latencyMs });
+            continue;
+          }
+          const observed: ToolResult["observed"] = "allow";
+          const ok = expected === "allow";
           if (!ok) failed = true;
-          rows.push({ tool: tool.name, role, expected, action, observed, reason, mocked: mode === "mock", listed: listed.has(tool.name), ok });
+          const text = resultText(raw as any);
+          const upstreamError = !!(raw as { isError?: boolean }).isError;
+          if (mode === "live" && !upstreamError) {
+            absorbListFixtures(u.name, text, fixtures);
+            if (DRAFT_WRITES.has(canonicalToolName(u.name)) && !tool.readOnly) {
+              const draft = extractCreated(u.name, text, args);
+              draft.role = role;
+              drafts.push(draft);
+              if (draft.id && canonicalToolName(u.name) === "create_email_template") fixtures.templateId ??= draft.id;
+              if (draft.id && canonicalToolName(u.name) === "create_campaign") fixtures.campaignId ??= draft.id;
+            }
+          }
+          rows.push({
+            tool: u.name, role, expected, action, observed, reason: text.slice(0, 400) || undefined,
+            mocked: mode === "mock", listed: listed.has(u.name), ok,
+            upstream: upstreamError ? "error" : "success",
+            upstreamErrorClass: upstreamError ? classifyUpstreamError(text) : undefined,
+            latencyMs,
+          });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          const denied = /401|403|not authorized|denied|invalid_token/i.test(msg);
+          const denied = /401|403|not authorized|invalid_token|Forbidden \(ref /i.test(msg);
           const observed: ToolResult["observed"] = denied ? "deny" : "error";
-          const ok = observed === expected;
+          const ok = (observed === "deny" && expected === "deny") || (observed === "allow" && expected === "allow");
           if (!ok) failed = true;
-          rows.push({ tool: tool.name, role, expected, action, observed, reason: msg.slice(0, 400), mocked: mode === "mock", listed: listed.has(tool.name), ok });
+          rows.push({ tool: u.name, role, expected, action, observed, reason: msg.slice(0, 400), mocked: mode === "mock", listed: listed.has(u.name), ok, upstream: "not_called" });
         }
       }
 
       report[`${role}VisibilityMismatches`] = visibilityMismatches;
       if (visibilityMismatches.length) failed = true;
       await client.close().catch(() => {});
+    }
+
+    if (mode === "live" && ownerToken) {
+      const reps = 11;
+      const probes: { tool: string; args: Record<string, unknown> }[] = [
+        { tool: "klaviyo_get_account_details", args: { model: "other" } },
+        { tool: "klaviyo_get_campaigns", args: { model: "other", channel: "email", fields: ["name", "status", "archived", "created_at"] } },
+        { tool: "klaviyo_get_lists", args: { model: "other", fields: ["name", "created", "updated"] } },
+      ];
+      const direct = await connectDirectLive();
+      const guarded = await connectMcp(mcpUrl, ownerToken);
+      const latency: Record<string, unknown> = { reps, tools: probes.map((p) => p.tool) };
+      try {
+        for (const p of probes) {
+          const directMs = await timeCalls(direct.client, p.tool, p.args, reps);
+          const guardMs = await timeCalls(guarded, p.tool, p.args, reps);
+          const overhead = directMs.map((d, i) => guardMs[i]! - d);
+          // Unpaired p50/p99 plus median overhead (guarded - direct, same iteration index).
+          const round = (n: number | undefined) => n === undefined ? undefined : Math.round(n * 100) / 100;
+          latency[p.tool] = {
+            direct_p50_ms: round(percentile(directMs, 50)),
+            direct_p99_ms: round(percentile(directMs, 99)),
+            direct_min_ms: round(Math.min(...directMs)),
+            direct_max_ms: round(Math.max(...directMs)),
+            guarded_p50_ms: round(percentile(guardMs, 50)),
+            guarded_p99_ms: round(percentile(guardMs, 99)),
+            guarded_min_ms: round(Math.min(...guardMs)),
+            guarded_max_ms: round(Math.max(...guardMs)),
+            overhead_p50_ms: round(percentile(overhead, 50)),
+            overhead_p99_ms: round(percentile(overhead, 99)),
+            direct_n: directMs.length,
+            guarded_n: guardMs.length,
+          };
+        }
+      } finally {
+        await guarded.close().catch(() => {});
+        await direct.close().catch(() => {});
+      }
+      report.latency = latency;
     }
 
     const auditRes = await fetch(`${base}/audit`);
@@ -260,6 +421,9 @@ async function main() {
     report.otel = { tracesFile, spansWithDecision: traceDecisions };
     if (mode === "mock" && traceDecisions === 0) failed = true;
 
+    report.fixtures = fixtures;
+    report.draftsCreated = drafts;
+
     const summary = summarize(rows, mode);
     report.summary = summary;
     report.failed = failed || summary.totals.mismatches > 0;
@@ -268,7 +432,8 @@ async function main() {
     process.stderr.write(
       `\n${summary.label}\n` +
       `roles: ${ROLES.map((r) => `${r} allow=${(summary.byRole as any)[r].observedAllow} deny=${(summary.byRole as any)[r].observedDeny} skip=${(summary.byRole as any)[r].skipped} mismatches=${(summary.byRole as any)[r].mismatches}`).join(" | ")}\n` +
-      `audit events=${(report.audit as any).events} chainOk=${(report.audit as any).chainOk} otel decision spans=${traceDecisions}\n` +
+      `upstream success=${summary.totals.upstreamSuccess} errors=${summary.totals.upstreamError} top=${JSON.stringify(summary.topUpstreamErrors)}\n` +
+      `drafts=${drafts.length} audit events=${(report.audit as any).events} chainOk=${(report.audit as any).chainOk} otel decision spans=${traceDecisions}\n` +
       `unauthenticated=${unauth} wrongPasswordRejected=${report.wrongPasswordRejected}\n` +
       `report: ${join(outDir, "report.json")}\n`,
     );

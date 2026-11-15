@@ -103,14 +103,28 @@ export function loadCatalog(): CatalogFile {
   return data;
 }
 
+/** Official catalog names have no prefix; the local uvx package uses `klaviyo_`. */
+export function canonicalToolName(name: string): string {
+  return name.startsWith("klaviyo_") ? name.slice("klaviyo_".length) : name;
+}
+
+export function toolNameAliases(name: string): string[] {
+  const c = canonicalToolName(name);
+  return c === name && !name.startsWith("klaviyo_") ? [c, `klaviyo_${c}`] : [name, c];
+}
+
 export function isDestructiveName(name: string): boolean {
-  return /delete/i.test(name) || /^bulk_delete_/.test(name) || name.startsWith("remove_") || LIVE_BLOCKLIST.has(name);
+  const c = canonicalToolName(name);
+  return /delete/i.test(c) || c.startsWith("bulk_delete_") || c.startsWith("remove_")
+    || LIVE_BLOCKLIST.has(c) || LIVE_BLOCKLIST.has(name)
+    || c.startsWith("unsubscribe_") || c.startsWith("subscribe_");
 }
 
 export function marketerAllowed(t: CatalogTool): boolean {
-  if (isDestructiveName(t.name)) return false;
+  const c = canonicalToolName(t.name);
+  if (isDestructiveName(c)) return false;
   if (t.readOnly && MARKETER_READ_CATEGORIES.has(t.category) && !t.hasUserGeneratedContent) return true;
-  return DRAFT_WRITES.has(t.name);
+  return DRAFT_WRITES.has(c);
 }
 
 export function supportAllowed(t: CatalogTool): boolean {
@@ -121,10 +135,36 @@ export function ownerAllowed(_t: CatalogTool): boolean {
   return true;
 }
 
-export function allowedFor(role: RoleName, t: CatalogTool): boolean {
-  if (role === "owner") return ownerAllowed(t);
-  if (role === "marketer") return marketerAllowed(t);
-  return supportAllowed(t);
+/** Local-only tools (present on uvx, not in the hosted 309-tool snapshot) are classified by name. */
+function inferLocalTool(name: string): CatalogTool {
+  const c = canonicalToolName(name);
+  const readOnly = /^(get|list|query|render)_/.test(c) || c.includes("_report");
+  let category = "Unknown";
+  if (/account/.test(c)) category = "Accounts";
+  else if (/campaign/.test(c)) category = "Campaigns";
+  else if (/catalog/.test(c)) category = "Catalogs";
+  else if (/segment|list/.test(c)) category = "Groups";
+  else if (/template/.test(c)) category = "Templates";
+  else if (/flow/.test(c)) category = "Flows";
+  else if (/image/.test(c)) category = "Images";
+  else if (/report/.test(c)) category = "Reporting";
+  else if (/profile/.test(c)) category = "Profiles";
+  else if (/event|metric/.test(c)) category = "Events";
+  const ugc = category === "Profiles" || c === "get_events" || c.startsWith("get_event");
+  return { name: c, category, description: "inferred from local MCP tool name", readOnly, hasUserGeneratedContent: ugc, availableOnRemote: false };
+}
+
+export function toolForName(name: string, catalog?: CatalogFile): CatalogTool {
+  const c = canonicalToolName(name);
+  const hit = (catalog ?? loadCatalog()).tools.find((t) => canonicalToolName(t.name) === c);
+  return hit ?? inferLocalTool(name);
+}
+
+export function allowedFor(role: RoleName, t: CatalogTool | string): boolean {
+  const tool = typeof t === "string" ? toolForName(t) : { ...t, name: canonicalToolName(t.name) };
+  if (role === "owner") return ownerAllowed(tool);
+  if (role === "marketer") return marketerAllowed(tool);
+  return supportAllowed(tool);
 }
 
 export function roleForEmail(email: string, env: NodeJS.ProcessEnv = process.env): RoleName | undefined {
@@ -138,11 +178,12 @@ export function roleForEmail(email: string, env: NodeJS.ProcessEnv = process.env
 
 export type DriverAction = "call" | "expect_deny_safe" | "skip_live_destructive" | "skip_live_unconfigured_write";
 
-export function driverAction(role: RoleName, t: CatalogTool, mode: "mock" | "live"): DriverAction {
-  const allow = allowedFor(role, t);
+export function driverAction(role: RoleName, t: CatalogTool | string, mode: "mock" | "live"): DriverAction {
+  const tool = typeof t === "string" ? toolForName(t) : toolForName(t.name);
+  const allow = allowedFor(role, tool);
   if (!allow) return "expect_deny_safe"; // guard denies before upstream; safe even live
   if (mode === "mock") return "call";
-  if (isDestructiveName(t.name)) return "skip_live_destructive";
-  if (!t.readOnly && !DRAFT_WRITES.has(t.name)) return "skip_live_unconfigured_write";
+  if (isDestructiveName(tool.name)) return "skip_live_destructive";
+  if (!tool.readOnly && !DRAFT_WRITES.has(canonicalToolName(tool.name))) return "skip_live_unconfigured_write";
   return "call";
 }

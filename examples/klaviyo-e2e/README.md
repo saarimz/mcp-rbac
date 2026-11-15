@@ -208,6 +208,13 @@ src/driver.ts                sign-in and per-tool matrix
 src/otel.ts                  file + optional OTLP export
 ```
 
+## Latest live verification
+
+A live run against the official local package and the test account was
+completed at 2:05 PM America/New_York on 2026-11-15. See
+[`LIVE-RESULTS.md`](LIVE-RESULTS.md) for per-role counts, upstream outcomes,
+latency, and draft IDs to delete. The private API key is not in that file.
+
 ## Latest mocked verification
 
 Run at 1:54 PM America/New_York on 2026-11-15 (`tsx src/driver.ts --mode=mock`).

@@ -5,7 +5,7 @@
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadCatalog, marketerAllowed, supportAllowed, type CatalogTool } from "./roles.ts";
+import { loadCatalog, marketerAllowed, supportAllowed, toolNameAliases, type CatalogTool } from "./roles.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const outPath = join(here, "..", "policy", "mcp-rbac.yaml");
@@ -16,7 +16,14 @@ function yamlList(items: string[], indent: number): string {
 }
 
 function names(tools: CatalogTool[], pred: (t: CatalogTool) => boolean): string[] {
-  return tools.filter(pred).map((t) => t.name);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const t of tools.filter(pred)) {
+    for (const n of toolNameAliases(t.name)) {
+      if (!seen.has(n)) { seen.add(n); out.push(n); }
+    }
+  }
+  return out;
 }
 
 const catalog = loadCatalog();

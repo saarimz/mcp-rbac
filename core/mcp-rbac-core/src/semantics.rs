@@ -25,7 +25,7 @@ pub struct Path { pub raw: String, pub segs: Vec<Seg> }
 impl Path {
     pub fn parse(s: &str) -> R<Path> {
         let b = s.as_bytes();
-        if s.len() > 256 || b.first() != Some(&b'$') { return Err(format!("invalid JSONPath {s:?} (must start with $)")) }
+        if s.len() > 256 || b.first() != Some(&b'$') || !b.iter().all(|c| (0x20..0x7f).contains(c)) { return Err(format!("invalid JSONPath {s:?} (printable ASCII, starting with $, at most 256 chars)")) }
         let mut i = 1;
         let mut segs = vec![];
         let name_ok = |c: u8| c.is_ascii_alphanumeric() || c == b'_' || c == b'-';
@@ -300,7 +300,7 @@ impl Semantics {
         let argv = Value::Object(args.clone());
         let mut resources = vec![];
         for p in &res_paths {
-            if let Some(v) = p.get(&argv) { if v.is_string() || v.is_number() { resources.push((p.raw.clone(), v.clone())) } }
+            if let Some(v) = p.get(&argv) { if v.is_string() || finite(v).is_some() { resources.push((p.raw.clone(), v.clone())) } }
         }
         let (mut amount, mut currency) = (None, None);
         if let Some(s) = &spend {

@@ -85,6 +85,10 @@ pub const OP_WARNINGS: u32 = 6;
 pub const OP_CHECK: u32 = 7;
 pub const OP_YAML_TO_JSON: u32 = 8;
 pub const OP_VERSION: u32 = 9;
+/// Post-call cost accounting: p1 = decision JSON, p2 = CallToolResult JSON.
+pub const OP_ACCOUNT: u32 = 10;
+/// Pure cost read: p1 = `{"decision":…,"result":…}` (handle ignored).
+pub const OP_COST: u32 = 11;
 
 /// One entry point for every string operation. `h` is ignored by CHECK / YAML_TO_JSON / VERSION.
 /// Errors (unknown handle, bad UTF-8, unknown op) come back as `{"error":"abi:<what>"}`.
@@ -99,6 +103,7 @@ pub unsafe extern "C" fn mrc_call(h: u32, op: u32, p1: u32, l1: u32, p2: u32, l2
         OP_YAML_TO_JSON => yaml_doc_json(a),
         OP_VERSION => mcp_rbac_core::VERSION.to_string(),
         OP_REDACT => redact_json(a, b),
+        OP_COST => mcp_rbac_core::semantics::cost_json(a),
         _ => ENGINES.with(|v| {
             let v = v.borrow();
             let Some(Some(e)) = v.get((h as usize).wrapping_sub(1)) else { return r#"{"error":"abi:handle"}"#.to_string() };
@@ -108,6 +113,7 @@ pub unsafe extern "C" fn mrc_call(h: u32, op: u32, p1: u32, l1: u32, p2: u32, l2
                 OP_AUTHORIZE => e.authorize(a, now_ms),
                 OP_AUTHORIZE_APPROVED => e.authorize_approved(a, now_ms),
                 OP_WARNINGS => e.warnings(),
+                OP_ACCOUNT => e.account(a, b, now_ms),
                 _ => r#"{"error":"abi:op"}"#.to_string(),
             }
         }),

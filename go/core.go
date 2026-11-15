@@ -28,6 +28,8 @@ const (
 	opCheck             = 7
 	opYAMLToJSON        = 8
 	opVersion           = 9
+	opAccount           = 10
+	opCost              = 11
 )
 
 // Runtime owns the compiled core module. Create one per process and share it; it is safe for concurrent use.
@@ -158,6 +160,11 @@ func (r *Runtime) Redact(ctx context.Context, resultJSON, decisionJSON string) (
 	return r.util.do(ctx, 0, opRedact, resultJSON, decisionJSON, 0)
 }
 
+// Cost reads a post-call cost (tool semantics) from {"decision":…,"result":…}: {"cost":…}.
+func (r *Runtime) Cost(ctx context.Context, req string) (string, error) {
+	return r.util.do(ctx, 0, opCost, req, "", 0)
+}
+
 // Version of the embedded core.
 func (r *Runtime) Version(ctx context.Context) (string, error) {
 	return r.util.do(ctx, 0, opVersion, "", "", 0)
@@ -239,6 +246,12 @@ func (e *Engine) Authorize(ctx context.Context, req string, nowMs float64) (stri
 // AuthorizeApproved is Authorize after a human approved a needs_approval decision.
 func (e *Engine) AuthorizeApproved(ctx context.Context, req string, nowMs float64) (string, error) {
 	return e.in.do(ctx, e.h, opAuthorizeApproved, req, "", nowMs)
+}
+
+// Account charges an allowed call's post-call cost (read from the result via the decision's semantics.spend) to
+// its deferred budgets. An unreadable cost charges each deferred budget's max (fail-closed).
+func (e *Engine) Account(ctx context.Context, decisionJSON, resultJSON string, nowMs float64) (string, error) {
+	return e.in.do(ctx, e.h, opAccount, decisionJSON, resultJSON, nowMs)
 }
 
 // Warnings for the loaded policy (JSON array).

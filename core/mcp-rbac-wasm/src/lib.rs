@@ -25,7 +25,13 @@ impl Engine {
     #[wasm_bindgen(js_name = authorizeApproved)]
     pub fn authorize_approved(&self, req: &str, now_ms: f64) -> String { self.0.authorize_approved(req, now_ms) }
     pub fn redact(&self, result: &str, decision: &str) -> String { redact_json(result, decision) }
+    /// Post-call cost accounting (tool semantics): charge the result's cost to the decision's deferred budgets.
+    pub fn account(&self, decision: &str, result: &str, now_ms: f64) -> String { self.0.account(decision, result, now_ms) }
 }
+
+/// Pure post-call cost read: `{"decision":…,"result":…}` → `{"cost":…}` (conformance `costJson`).
+#[wasm_bindgen]
+pub fn cost(req: &str) -> String { mcp_rbac_core::semantics::cost_json(req) }
 
 /// `{"ok":true,"warnings":[…]}` or `{"error":"policy_invalid","message":…}`.
 #[wasm_bindgen]

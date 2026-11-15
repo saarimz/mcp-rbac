@@ -21,11 +21,16 @@ impl Engine {
     fn authorize(&self, py: Python<'_>, req: &str, now_ms: f64) -> String { py.detach(|| self.0.authorize(req, now_ms)) }
     fn authorize_approved(&self, py: Python<'_>, req: &str, now_ms: f64) -> String { py.detach(|| self.0.authorize_approved(req, now_ms)) }
     fn redact(&self, py: Python<'_>, result: &str, decision: &str) -> String { py.detach(|| redact_json(result, decision)) }
+    fn account(&self, py: Python<'_>, decision: &str, result: &str, now_ms: f64) -> String { py.detach(|| self.0.account(decision, result, now_ms)) }
 }
 
 /// `{"ok":true,"warnings":[…]}` or `{"error":"policy_invalid","message":…}`.
 #[pyfunction]
 fn check(policy: &str) -> String { mcp_rbac_core::check_policy(policy) }
+
+/// Pure post-call cost read: `{"decision":…,"result":…}` → `{"cost":…}`.
+#[pyfunction]
+fn cost(req: &str) -> String { mcp_rbac_core::semantics::cost_json(req) }
 
 /// Portable YAML loader: `{"doc":…}` or `{"error":"yaml_invalid"}`.
 #[pyfunction]
@@ -36,6 +41,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Engine>()?;
     m.add_function(wrap_pyfunction!(check, m)?)?;
     m.add_function(wrap_pyfunction!(yaml_to_json, m)?)?;
+    m.add_function(wrap_pyfunction!(cost, m)?)?;
     m.add("__version__", mcp_rbac_core::VERSION)?;
     Ok(())
 }

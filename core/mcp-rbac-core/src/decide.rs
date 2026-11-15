@@ -278,10 +278,11 @@ impl Policy {
 
     /// Decide a request given as JSON text. Always returns canonical JSON (errors become denials).
     pub fn decide_json(&self, req: &str) -> String {
-        if !crate::json::depth_ok(req, 64) { return Decision::deny("invalid_input").to_json() }
+        let invalid = || { let mut d = Decision::deny("invalid_input"); if self.semantics.is_some() { d.sem = Some(None) } d.to_json() };
+        if !crate::json::depth_ok(req, 64) { return invalid() }
         match crate::json::parse_strict(req) {
             Ok(v) => self.decide(&v).to_json(),
-            Err(_) => Decision::deny("invalid_input").to_json(),
+            Err(_) => invalid(),
         }
     }
 

@@ -18,6 +18,9 @@ from .portable_regex import PortableRegexError, portable_regex
 Kind = Literal["tool", "resource", "prompt"]
 
 
+from . import semantics as _sem  # noqa: E402
+
+
 class PolicyError(ValueError):
     pass
 
@@ -468,6 +471,8 @@ class PLimit:
     shared: str
     burst: tuple[float, float] | None
     name: str | None
+    cls: str | None = None
+    spend: str | None = None
 
 
 @dataclass
@@ -501,6 +506,7 @@ class CompiledPolicy:
     tool_names: list[str]
     warnings: list[str]
     source: dict[str, Any] = field(default_factory=dict)
+    semantics: Any = None
 
 
 _SEG = re.compile(r"[A-Za-z0-9_-]+")
@@ -841,7 +847,7 @@ def compile_policy(doc: Any) -> CompiledPolicy:
         _fail("policy: invalid Unicode (lone surrogate)")
     _digit_keys(doc, "policy")
     top = _obj(doc, "policy")
-    _keys_ok(top, ["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation"], "policy")
+    _keys_ok(top, ["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation", "semantics"], "policy")
     if _finite(top.get("version")) != 1.0:
         _fail("version: unsupported policy version (expected 1)")
     for k in ("name", "description", "$schema"):
@@ -1192,12 +1198,47 @@ def compile_policy(doc: Any) -> CompiledPolicy:
             unknown_deny = actors is not None
         delegation = (actors, unknown_deny)
 
+    semantics = None
+    if "semantics" in top:
+        try:
+            semantics = _sem.compile_semantics(top["semantics"], list(own) + list(custom), {k: v[1] for k, v in own.items()})
+        except _sem.SemanticsError as e:
+            _fail(str(e))
+        for tn, _ in semantics.tools:
+            _pat(tn, f"semantics.tools.{tn}")
+        sv = top["semantics"]
+        if "budgets" in sv:
+            if not isinstance(sv["budgets"], list):
+                _fail("semantics.budgets: must be a list")
+            for i, x in enumerate(sv["budgets"]):
+                at = f"semantics.budgets[{i}]"
+                bm = _obj(x, at)
+                _keys_ok(bm, ["class", "tool", "max", "per", "currency", "shared", "burst", "name"], at)
+                cls = None
+                spend = None
+                if "class" in bm:
+                    if not _sem.is_class(bm["class"]):
+                        _fail(f"{at}.class: unknown class")
+                    cls = bm["class"]
+                if cls is None and "tool" not in bm:
+                    _fail(f"{at}: needs class or tool")
+                if "currency" in bm:
+                    if not _sem.is_denom(bm["currency"]):
+                        _fail(f"{at}.currency: must be a short code like USD")
+                    spend = bm["currency"]
+                rest = {k: v for k, v in bm.items() if k not in ("class", "currency")}
+                if "tool" not in rest:
+                    rest["tool"] = "*"
+                lim = _parse_limit(rest, None, at)
+                lim.cls, lim.spend = cls, spend
+                limits.append(lim)
+
     for rn, perms in roles.items():
         if rn != "@any" and not perms:
             warnings.append(f"roles.{rn}: grants nothing")
 
     return CompiledPolicy(top.get("name") if isinstance(top.get("name"), str) else None, tenant_key, roles, required, implies, wir, accounts, groups,
-                          approvals, limits, labels, label_rules, redact, keep, toolsets, delegation, tool_base, tool_names, warnings, top)
+                          approvals, limits, labels, label_rules, redact, keep, toolsets, delegation, tool_base, tool_names, warnings, top, semantics)
 
 
 def is_json_document(src: str) -> bool:
@@ -1453,6 +1494,13 @@ def _gate(p: CompiledPolicy, ident: _Ident, kind: str, name: str, toolsets: Opti
 
 def decide(p: CompiledPolicy, req: Any) -> dict[str, Any]:
     """Decide a parsed request (JSON model). Returns the decision as a dict (see ``decide_json``)."""
+    d = _decide(p, req)
+    if p.semantics is not None and "semantics" not in d:
+        d["semantics"] = None
+    return d
+
+
+def _decide(p: CompiledPolicy, req: Any) -> dict[str, Any]:
     req = _normalize(req)
     if not isinstance(req, dict):
         return _deny("invalid_request")
@@ -1511,13 +1559,25 @@ def decide(p: CompiledPolicy, req: Any) -> dict[str, Any]:
         else:
             resource.append((tk, ident.tenant))
     d["tenant"] = next((v for k, v in resource if k == tk), None)
+    eff = None
+    if p.semantics is not None and kind == "tool":
+        eff = _sem.resolve(p.semantics, name, req["toolMeta"] if "toolMeta" in req else _sem._ABSENT, args, matches)
+        if eff is None:
+            d["reason"] = "invalid_tool_meta"
+            return d
+        d["semantics"] = _sem.effective_json(eff)
     roles_at = [r for r, s in ident.assignments if _scope_allows(s, resource)]
+    class_approve = False
     if kind == "tool":
         for pt, l in p.labels:
             if matches(pt, name):
                 for x in l:
                     if x not in d["labels"]:
                         d["labels"].append(x)
+        if eff is not None:
+            for x in eff.sensitivity:
+                if x not in d["labels"]:
+                    d["labels"].append(x)
         if d["labels"]:
             for ls, dr, ar in p.label_rules:
                 if not all(l in d["labels"] for l in ls):
@@ -1528,6 +1588,11 @@ def decide(p: CompiledPolicy, req: Any) -> dict[str, Any]:
                 if ar is not None and not any(r in roles_at for r in ar):
                     d["reason"] = "label_requires_role:" + "+".join(ls)
                     return d
+        if eff is not None:
+            deny, class_approve = _sem.check_rules(p.semantics, eff.classes, roles_at)
+            if deny:
+                d["reason"] = deny
+                return d
     last = "no_matching_permission"
     rule = None
     for role, s in ident.assignments:
@@ -1555,6 +1620,15 @@ def decide(p: CompiledPolicy, req: Any) -> dict[str, Any]:
             break
         if rule is not None:
             break
+        if eff is not None and _sem.grants(p.semantics, role, eff.classes):
+            base = p.tool_base.get(name)
+            if base is not None:
+                cr = _check(base, args)
+                if cr:
+                    last = f"constraint:{cr}"
+                    continue
+            rule = f"{role}@{_fmt_scope(s)}:class:{'+'.join(eff.classes)}"
+            break
     if rule is None:
         d["reason"] = f"user:{last}"
         return d
@@ -1562,8 +1636,26 @@ def decide(p: CompiledPolicy, req: Any) -> dict[str, Any]:
     for i, lim in enumerate(p.limits):
         if lim.kind != kind or not matches(lim.pattern, name):
             continue
+        if lim.cls is not None and not (eff is not None and lim.cls in eff.classes):
+            continue
         amount = 1.0
-        if lim.sum is not None:
+        deferred = False
+        if lim.spend is not None:
+            why = None
+            if eff is None or eff.spend is None:
+                why = "unknown_spend"
+            elif eff.currency != lim.spend:
+                why = "currency_mismatch"
+            elif eff.amount is _sem._ABSENT:
+                deferred, amount = True, 0.0
+            elif eff.amount is None:
+                why = "unbudgetable_spend"
+            else:
+                amount = eff.amount
+            if why:
+                d["reason"], d["limits"] = f"limit_{i}:{why}", []
+                return d
+        elif lim.sum is not None:
             amt = _finite(args.get(lim.sum)) if lim.sum in args else None
             if amt is None or not amt >= 0:
                 d["reason"], d["limits"] = f"limit_{i}:unbudgetable_argument", []
@@ -1583,7 +1675,9 @@ def decide(p: CompiledPolicy, req: Any) -> dict[str, Any]:
         key = f"limit|{i}|{who}"
         d["limits"].append({"index": float(i), "name": lim.name if lim.name is not None else f"l{i}", "key": key, "amount": amount, "max": lim.max, "windowMs": lim.window_ms,
                             "burst": {"key": f"{key}|burst", "max": lim.burst[0], "windowMs": lim.burst[1]} if lim.burst else None})
-    needs = kind == "tool" and any(matches(pt, name) and (w is None or _check(w, args) is None) for pt, w in p.approvals)
+        if deferred:
+            d["limits"][-1]["deferred"] = True
+    needs = kind == "tool" and (class_approve or any(matches(pt, name) and (w is None or _check(w, args) is None) for pt, w in p.approvals))
     d["decision"] = "needs_approval" if needs else "allow"
     d["reason"] = "ok"
     if kind == "tool":
@@ -1601,23 +1695,54 @@ def decide(p: CompiledPolicy, req: Any) -> dict[str, Any]:
 
 def decide_json(p: CompiledPolicy, req: str) -> str:
     """Decide a request given as JSON text; always returns canonical JSON."""
+    def invalid() -> str:
+        d = _deny("invalid_input")
+        if p.semantics is not None:
+            d["semantics"] = None
+        return canonical(d)
     if not json_depth_ok(req):
-        return canonical(_deny("invalid_input"))
+        return invalid()
     try:
         v = parse_json(req)
     except (ValueError, RecursionError):
-        return canonical(_deny("invalid_input"))
+        return invalid()
     if not well_formed(v):
-        return canonical(_deny("invalid_input"))
+        return invalid()
     return canonical(decide(p, v))
 
 
-def visible(p: CompiledPolicy, identity: Any, names: list[str], toolsets: Optional[list[str]] = None) -> list[str]:
+def cost_json(req: str) -> str:
+    """Post-call cost (tool semantics): ``{"decision":…,"result":…}`` JSON → ``{"cost":…}`` (conformance ``costJson``)."""
+    bad = canonical({"error": "invalid_request"})
+    if not json_depth_ok(req):
+        return bad
+    try:
+        v = parse_json(req)
+    except (ValueError, RecursionError):
+        return bad
+    if not well_formed(v) or not isinstance(v, dict) or not isinstance(v.get("decision"), dict) or not isinstance(v.get("result"), dict):
+        return bad
+    return canonical(_sem.cost_value(v["decision"], v["result"], parse_json, json_depth_ok))
+
+
+def visible(p: CompiledPolicy, identity: Any, names: list[str], toolsets: Optional[list[str]] = None, tool_meta: Optional[dict[str, Any]] = None) -> list[str]:
     ident = parse_identity(p, _normalize(identity))
     if ident is None:
         return []
-    return [n for n in names if valid_tool_name(n) and _gate(p, ident, "tool", n, toolsets) is None
-            and any(any(pm.kind == "tool" and matches(pm.pattern, n) for pm in p.roles.get(r, [])) for r, _ in ident.assignments)]
+    all_roles = [r for r, _ in ident.assignments]
+    out = []
+    for n in names:
+        if not valid_tool_name(n) or _gate(p, ident, "tool", n, toolsets) is not None:
+            continue
+        eff = None
+        if p.semantics is not None:
+            eff = _sem.resolve(p.semantics, n, tool_meta[n] if tool_meta is not None and n in tool_meta else _sem._ABSENT, {}, matches)
+            if eff is None or _sem.check_rules(p.semantics, eff.classes, all_roles)[0] is not None:
+                continue
+        if any(any(pm.kind == "tool" and matches(pm.pattern, n) for pm in p.roles.get(r, []))
+               or (eff is not None and _sem.grants(p.semantics, r, eff.classes)) for r, _ in ident.assignments):
+            out.append(n)
+    return out
 
 
 def visible_json(p: CompiledPolicy, req: str) -> str:
@@ -1633,4 +1758,6 @@ def visible_json(p: CompiledPolicy, req: str) -> str:
     ts = _str_list(v, "toolsets")
     if names is None or names is _MISSING or ts is _MISSING:
         return canonical({"error": "invalid_request"})
-    return canonical({"visible": visible(p, v.get("identity"), names, ts)})
+    if "toolMeta" in v and not isinstance(v["toolMeta"], dict):
+        return canonical({"error": "invalid_request"})
+    return canonical({"visible": visible(p, v.get("identity"), names, ts, v.get("toolMeta"))})

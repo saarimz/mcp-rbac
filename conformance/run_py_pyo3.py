@@ -16,6 +16,9 @@ with open(path, encoding="utf-8") as f:
         if "yamlDoc" in v:
             out.append(core.yaml_to_json(v["yamlDoc"]))
             continue
+        if "costJson" in v:
+            out.append(core.cost(v["costJson"]))
+            continue
         key = ("y" + v["policyYaml"]) if "policyYaml" in v else ("j" + v["policyJson"])
         if key not in cache:
             try:

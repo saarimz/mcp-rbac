@@ -7,6 +7,7 @@
 import { parseDocument, parseAllDocuments, isMap, isSeq, isScalar, isAlias, type Node as YNode } from "yaml";
 import { isValidToolName, normalizePattern, matchesValidName } from "./patterns.js";
 import { portableRegex } from "./portable-regex.js";
+import { compileSemantics, resolveSemantics, checkClassRules, classGrants, effectiveToJson, isClass, isDenom, costValue, SemanticsError, type Semantics } from "./semantics.js";
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
 type Obj = { [k: string]: Json };
@@ -165,7 +166,7 @@ export interface Rule { min?: number; max?: number; integer: boolean; maxLength?
 export type Constraints = [string, Rule][];
 interface Pat { raw: string }
 export interface Perm { kind: Kind; pattern: string; constraints?: Constraints }
-export interface Limit { pattern: string; kind: Kind; max: number; windowMs: number; sum?: string; shared: string; burst?: [number, number]; name?: string }
+export interface Limit { pattern: string; kind: Kind; max: number; windowMs: number; sum?: string; shared: string; burst?: [number, number]; name?: string; class?: string; spend?: string }
 export interface RedactRule { tool?: string; label?: string; fields: string[]; unlessRoles: string[]; replacement: Json }
 
 export interface CompiledPolicy {
@@ -188,6 +189,8 @@ export interface CompiledPolicy {
   toolBase: Map<string, Constraints>;
   toolNames: string[];
   warnings: string[];
+  /** Tool semantics (spec/tool-semantics.md); absent when the policy has no `semantics` block. */
+  semantics?: Semantics;
   /** The source document (for exporters / diff). */
   source: Obj;
 }
@@ -341,7 +344,7 @@ export function compilePolicy(input: unknown): CompiledPolicy {
   if (!wellFormed(input)) fail("policy: invalid Unicode (lone surrogate)");
   digitKeys(input as Json, "policy");
   const top = obj(input, "policy");
-  keysOk(top, ["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation"], "policy");
+  keysOk(top, ["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation", "semantics"], "policy");
   if (top.version !== 1) fail("version: unsupported policy version (expected 1)");
   for (const k of ["name", "description", "$schema"]) if (has(top, k) && typeof top[k] !== "string") fail(`${k}: must be a string`);
   const tenantKey = has(top, "tenantKey") ? (typeof top.tenantKey === "string" && isIdent(top.tenantKey) ? top.tenantKey : fail("tenantKey: must be an identifier")) : "tenant";
@@ -603,11 +606,38 @@ export function compilePolicy(input: unknown): CompiledPolicy {
     delegation = { ...(actors ? { actors } : {}), unknownDeny };
   }
 
+  let semantics: Semantics | undefined;
+  if (has(top, "semantics")) {
+    const includes = new Map<string, string[]>([...own].map(([k, v]) => [k, v[1]]));
+    try { semantics = compileSemantics(top.semantics, [...own.keys(), ...custom.keys()], includes); } catch (e) { if (e instanceof SemanticsError) fail(e.message); throw e; }
+    for (const [name] of semantics.tools) pat(name, `semantics.tools.${name}`);
+    const sv = top.semantics as Obj;
+    if (has(sv, "budgets")) {
+      if (!Array.isArray(sv.budgets)) fail("semantics.budgets: must be a list");
+      (sv.budgets as Json[]).forEach((x, i) => {
+        const at = `semantics.budgets[${i}]`;
+        const m = obj(x, at);
+        keysOk(m, ["class", "tool", "max", "per", "currency", "shared", "burst", "name"], at);
+        let cls: string | undefined, spend: string | undefined;
+        if (has(m, "class")) { if (typeof m.class !== "string" || !isClass(m.class)) fail(`${at}.class: unknown class`); cls = m.class as string; }
+        if (cls === undefined && !has(m, "tool")) fail(`${at}: needs class or tool`);
+        if (has(m, "currency")) { if (typeof m.currency !== "string" || !isDenom(m.currency)) fail(`${at}.currency: must be a short code like USD`); spend = m.currency as string; }
+        const rest: Obj = { ...m };
+        delete rest.class; delete rest.currency;
+        if (!has(rest, "tool")) rest.tool = "*";
+        const l = parseLimit(rest, undefined, at);
+        if (cls !== undefined) l.class = cls;
+        if (spend !== undefined) l.spend = spend;
+        limits.push(l);
+      });
+    }
+  }
+
   for (const [rn, perms] of roles) if (rn !== "@any" && !perms.length) warnings.push(`roles.${rn}: grants nothing`);
 
   return {
     ...(typeof top.name === "string" ? { name: top.name } : {}), tenantKey, roles, required, implies, writeImpliesRead, accounts, groups, approvals, limits,
-    labels, labelRules, redact, unstructuredKeep, ...(toolsets ? { toolsets } : {}), ...(delegation ? { delegation } : {}), toolBase, toolNames, warnings, source: top,
+    labels, labelRules, redact, unstructuredKeep, ...(toolsets ? { toolsets } : {}), ...(delegation ? { delegation } : {}), toolBase, toolNames, warnings, ...(semantics ? { semantics } : {}), source: top,
   };
 }
 
@@ -640,8 +670,10 @@ export interface PortableDecision {
   labels: string[];
   redact: { fields: string[]; replacement: Json }[];
   withholdText: boolean;
-  limits: { index: number; name: string; key: string; amount: number; max: number; windowMs: number; burst: { key: string; max: number; windowMs: number } | null }[];
+  limits: { index: number; name: string; key: string; amount: number; max: number; windowMs: number; burst: { key: string; max: number; windowMs: number } | null; deferred?: true }[];
   tenant: string | null;
+  /** Effective tool semantics; present (possibly null) only when the policy has a `semantics` block. */
+  semantics?: Json;
 }
 
 type Scope = [string, string][];
@@ -779,6 +811,12 @@ function gate(p: CompiledPolicy, id: Ident, kind: Kind, name: string, toolsets: 
 
 /** Decide a parsed request. */
 export function decidePortable(p: CompiledPolicy, req: unknown): PortableDecision {
+  const d = decideInner(p, req);
+  if (p.semantics && !has(d, "semantics")) d.semantics = null;
+  return d;
+}
+
+function decideInner(p: CompiledPolicy, req: unknown): PortableDecision {
   if (!isObj(req)) return denyD("invalid_request");
   const name = req.tool;
   if (typeof name !== "string") return denyD("invalid_request");
@@ -809,13 +847,26 @@ export function decidePortable(p: CompiledPolicy, req: unknown): PortableDecisio
     else resource.push([tk, id.tenant]);
   }
   d.tenant = resource.find(([k]) => k === tk)?.[1] ?? null;
+  let eff: ReturnType<typeof resolveSemantics> = null;
+  if (p.semantics && kind === "tool") {
+    eff = resolveSemantics(p.semantics, name, has(req, "toolMeta") ? req.toolMeta : undefined, args, mt);
+    if (!eff) { d.reason = "invalid_tool_meta"; return d; }
+    d.semantics = effectiveToJson(eff);
+  }
   const rolesAt = id.assignments.filter((a) => scopeAllows(a.scope, resource)).map((a) => a.role);
+  let classApprove = false;
   if (kind === "tool") {
     for (const [pt, l] of p.labels) if (mt(pt, name)) for (const x of l) if (!d.labels.includes(x)) d.labels.push(x);
+    if (eff) for (const x of eff.sensitivity) if (!d.labels.includes(x)) d.labels.push(x);
     if (d.labels.length) for (const lr of p.labelRules) {
       if (!lr.labels.every((l) => d.labels.includes(l))) continue;
       if (lr.denyRoles?.some((r) => rolesAt.includes(r))) { d.reason = `label_denied:${lr.labels.join("+")}`; return d; }
       if (lr.allowRoles && !lr.allowRoles.some((r) => rolesAt.includes(r))) { d.reason = `label_requires_role:${lr.labels.join("+")}`; return d; }
+    }
+    if (p.semantics && eff) {
+      const cr = checkClassRules(p.semantics, eff.classes, rolesAt);
+      if (cr.deny) { d.reason = cr.deny; return d; }
+      classApprove = cr.approve;
     }
   }
   let last = "no_matching_permission";
@@ -832,14 +883,29 @@ export function decidePortable(p: CompiledPolicy, req: unknown): PortableDecisio
       rule = `${a.role}@${fmtScope(a.scope)}:${kind === "tool" ? "" : kind + ":"}${pm.pattern}`;
       break outer;
     }
+    if (p.semantics && eff && classGrants(p.semantics, a.role, eff.classes)) {
+      const base = p.toolBase.get(name);
+      if (base) { const cr = check(base, args); if (cr) { last = `constraint:${cr}`; continue; } }
+      rule = `${a.role}@${fmtScope(a.scope)}:class:${eff.classes.join("+")}`;
+      break outer;
+    }
   }
   if (rule === null) { d.reason = `user:${last}`; return d; }
   d.rule = rule;
   for (let i = 0; i < p.limits.length; i++) {
     const l = p.limits[i]!;
     if (l.kind !== kind || !mt(l.pattern, name)) continue;
+    if (l.class !== undefined && !(eff && eff.classes.includes(l.class))) continue;
     let amount = 1;
-    if (l.sum !== undefined) {
+    let deferred = false;
+    if (l.spend !== undefined) {
+      const failL = (why: string) => { d.reason = `limit_${i}:${why}`; d.limits = []; return d; };
+      if (!eff || !eff.spend) return failL("unknown_spend");
+      if (eff.currency !== l.spend) return failL("currency_mismatch");
+      if (eff.amount === undefined) { deferred = true; amount = 0; }
+      else if (eff.amount === null) return failL("unbudgetable_spend");
+      else amount = eff.amount === 0 ? 0 : eff.amount;
+    } else if (l.sum !== undefined) {
       const x = has(args, l.sum) ? finite(args[l.sum]) : undefined;
       if (x === undefined || !(x >= 0)) { d.reason = `limit_${i}:unbudgetable_argument`; d.limits = []; return d; }
       amount = x === 0 ? 0 : x;
@@ -847,9 +913,9 @@ export function decidePortable(p: CompiledPolicy, req: unknown): PortableDecisio
     const t = d.tenant !== null ? `t:${d.tenant}|` : "";
     const who = l.shared === "global" ? "*" : l.shared === "tenant" ? `t:${d.tenant ?? "-"}` : l.shared === "client" ? `${t}c:${id.clientId ?? agent}` : l.shared === "agent" ? `${t}a:${agent}` : `${t}u:${id.id}`;
     const key = `limit|${i}|${who}`;
-    d.limits.push({ index: i, name: l.name ?? `l${i}`, key, amount, max: l.max, windowMs: l.windowMs, burst: l.burst ? { key: `${key}|burst`, max: l.burst[0], windowMs: l.burst[1] } : null });
+    d.limits.push({ index: i, name: l.name ?? `l${i}`, key, amount, max: l.max, windowMs: l.windowMs, burst: l.burst ? { key: `${key}|burst`, max: l.burst[0], windowMs: l.burst[1] } : null, ...(deferred ? { deferred: true as const } : {}) });
   }
-  d.decision = kind === "tool" && p.approvals.some((a) => mt(a.pattern, name) && (!a.when || check(a.when, args) === null)) ? "needs_approval" : "allow";
+  d.decision = kind === "tool" && (classApprove || p.approvals.some((a) => mt(a.pattern, name) && (!a.when || check(a.when, args) === null))) ? "needs_approval" : "allow";
   d.reason = "ok";
   if (kind === "tool") {
     for (const rr of p.redact) {
@@ -865,19 +931,39 @@ export function decidePortable(p: CompiledPolicy, req: unknown): PortableDecisio
 
 /** Decide a request given as JSON text; always returns canonical JSON. */
 export function decidePortableJson(p: CompiledPolicy, req: string): string {
-  if (!jsonDepthOk(req)) return canonical(denyD("invalid_input"));
+  const invalid = () => canonical({ ...denyD("invalid_input"), ...(p.semantics ? { semantics: null } : {}) });
+  if (!jsonDepthOk(req)) return invalid();
   let v: unknown;
-  try { v = parseJsonStrict(req); } catch { return canonical(denyD("invalid_input")); }
-  if (!wellFormed(v)) return canonical(denyD("invalid_input"));
+  try { v = parseJsonStrict(req); } catch { return invalid(); }
+  if (!wellFormed(v)) return invalid();
   return canonical(decidePortable(p, v));
 }
 
+/** Post-call cost (tool semantics): `{"decision":…,"result":…}` JSON → `{"cost":…}` (conformance `costJson`). */
+export function costPortableJson(req: string): string {
+  const bad = canonical({ error: "invalid_request" });
+  if (!jsonDepthOk(req)) return bad;
+  let v: unknown;
+  try { v = parseJsonStrict(req); } catch { return bad; }
+  if (!wellFormed(v) || !isObj(v) || !has(v, "decision") || !isObj(v.decision) || !has(v, "result") || !isObj(v.result)) return bad;
+  return canonical(costValue(v.decision, v.result, parseJsonStrict, (s) => jsonDepthOk(s)));
+}
+
 /** tools/list filtering. */
-export function visiblePortable(p: CompiledPolicy, identity: unknown, names: string[], toolsets?: string[]): string[] {
+export function visiblePortable(p: CompiledPolicy, identity: unknown, names: string[], toolsets?: string[], toolMeta?: Obj): string[] {
   const id = parseIdentity(p, identity as Json);
   if (!id) return [];
-  return names.filter((n) => isValidToolName(n) && !gate(p, id, "tool", n, toolsets)
-    && id.assignments.some((a) => p.roles.get(a.role)?.some((pm) => pm.kind === "tool" && mt(pm.pattern, n))));
+  const allRoles = id.assignments.map((a) => a.role);
+  return names.filter((n) => {
+    if (!isValidToolName(n) || gate(p, id, "tool", n, toolsets)) return false;
+    let eff: ReturnType<typeof resolveSemantics> = null;
+    if (p.semantics) {
+      eff = resolveSemantics(p.semantics, n, toolMeta && has(toolMeta, n) ? toolMeta[n] : undefined, {}, mt);
+      if (!eff || checkClassRules(p.semantics, eff.classes, allRoles).deny) return false;
+    }
+    return id.assignments.some((a) => p.roles.get(a.role)?.some((pm) => pm.kind === "tool" && mt(pm.pattern, n))
+      || (!!p.semantics && !!eff && classGrants(p.semantics, a.role, eff.classes)));
+  });
 }
 export function visiblePortableJson(p: CompiledPolicy, req: string): string {
   if (!jsonDepthOk(req)) return canonical({ error: "invalid_request" });
@@ -887,7 +973,8 @@ export function visiblePortableJson(p: CompiledPolicy, req: string): string {
   const names = strList(v, "tools");
   const ts = strList(v, "toolsets");
   if (!names || ts === null) return canonical({ error: "invalid_request" });
-  return canonical({ visible: visiblePortable(p, has(v, "identity") ? v.identity : null, names, ts) });
+  if (has(v, "toolMeta") && !isObj(v.toolMeta)) return canonical({ error: "invalid_request" });
+  return canonical({ visible: visiblePortable(p, has(v, "identity") ? v.identity : null, names, ts, has(v, "toolMeta") ? (v.toolMeta as Obj) : undefined) });
 }
 
 /** `{"ok":true,"warnings":[...]}` or `{"error":"policy_invalid","message":...}` (same shape as the Rust core). */

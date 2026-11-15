@@ -18,6 +18,7 @@ type vector struct {
 	YAMLDoc     *string `json:"yamlDoc"`
 	RequestJSON *string `json:"requestJson"`
 	VisibleJSON *string `json:"visibleJson"`
+	CostJSON    *string `json:"costJson"`
 }
 
 func main() {
@@ -60,6 +61,8 @@ func main() {
 		var out string
 		if v.YAMLDoc != nil {
 			out = must(rt.YAMLToJSON(ctx, *v.YAMLDoc))
+		} else if v.CostJSON != nil {
+			out = must(rt.Cost(ctx, *v.CostJSON))
 		} else {
 			key := ""
 			if v.PolicyYAML != nil {

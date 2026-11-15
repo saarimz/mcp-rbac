@@ -1,7 +1,7 @@
 {
  "target": "policy-guard",
  "label": "mcp-policy-guard 0.2.0",
- "seconds": 16.5,
+ "seconds": 15.4,
  "notes": [
   "venue: stdio transport not part of the competitor run",
   "marketing: stdio transport not part of the competitor run"

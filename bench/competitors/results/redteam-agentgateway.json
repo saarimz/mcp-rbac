@@ -1,7 +1,7 @@
 {
  "target": "agentgateway",
  "label": "agentgateway 1.7.0",
- "seconds": 16.8,
+ "seconds": 17.0,
  "notes": [
   "venue: stdio transport not part of the competitor run",
   "marketing: stdio transport not part of the competitor run"

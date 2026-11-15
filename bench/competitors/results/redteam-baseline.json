@@ -1,7 +1,7 @@
 {
  "target": "baseline",
  "label": "No guard (same app code + JWT front)",
- "seconds": 13.2,
+ "seconds": 13.4,
  "notes": [
   "venue: stdio transport not part of the competitor run",
   "marketing: stdio transport not part of the competitor run"

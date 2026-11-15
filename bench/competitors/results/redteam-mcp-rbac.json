@@ -1,7 +1,7 @@
 {
  "target": "mcp-rbac",
  "label": "mcp-rbac 0.4 (in-process core)",
- "seconds": 17.3,
+ "seconds": 16.8,
  "notes": [],
  "checks": [
   {

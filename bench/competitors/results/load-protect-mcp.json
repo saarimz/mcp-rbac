@@ -1,0 +1,35 @@
+{
+ "target": "protect-mcp",
+ "tool": "list_events",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10.001,
+  "ok": 7771,
+  "errors": 0,
+  "rps": 777,
+  "p50_ms": 1.222,
+  "p90_ms": 1.604,
+  "p99_ms": 2.014,
+  "max_ms": 12.505,
+  "mean_ms": 1.279
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.03,
+  "ok": 14340,
+  "errors": 0,
+  "rps": 1429.7,
+  "p50_ms": 21.295,
+  "p90_ms": 24.951,
+  "p99_ms": 36,
+  "max_ms": 66.624,
+  "mean_ms": 22.346
+ },
+ "peak_rss_mb": {
+  "protect-mcp + stdio app": 461.3
+ },
+ "peak_rss_total_mb": 461.3,
+ "measured_at": "2026-11-15T14:21:23-0500",
+ "cpu": 8
+}

@@ -4,8 +4,9 @@
   "type": "module",
   "description": "Local head-to-head harness (bench/competitors). Not part of the published package.",
   "dependencies": {
+    "@openfga/syntax-transformer": "0.2.2",
     "mcp-policy-guard": "0.2.0",
     "protect-mcp": "0.32.4",
-    "@openfga/syntax-transformer": "0.2.2"
+    "undici": "^7.30.2"
   }
 }

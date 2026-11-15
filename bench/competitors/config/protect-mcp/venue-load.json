@@ -1,0 +1,4 @@
+{
+  "$comment": "protect-mcp load-run variant: same Cedar policies, no rate limits (every product runs the load without rate limits).",
+  "tools": { "refund_ticket": { "require_approval": true } }
+}

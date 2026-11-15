@@ -1,0 +1,138 @@
+{
+ "mcp-rbac": {
+  "config": {
+   "files": {
+    "examples/policies/venue.yaml": 66,
+    "examples/policies/marketing.yaml": 102
+   },
+   "total": 168
+  },
+  "integration": {
+   "files": {
+    "examples/servers/venue/server.ts [authz-begin..end]": 21,
+    "examples/servers/marketing/server.py [authz-begin..end]": 16
+   },
+   "total": 37
+  },
+  "extra_config_lines": 0,
+  "total": 205,
+  "shared_glue_needed": false,
+  "note": "policy YAML (roles, grants, argument limits, budgets, approvals, redaction, delegation) + guard wiring incl. the approval store and audit sink"
+ },
+ "cerbos": {
+  "config": {
+   "files": {
+    "bench/competitors/config/cerbos/conf.yaml": 10,
+    "bench/competitors/config/cerbos/policies/marketing_tool.yaml": 79,
+    "bench/competitors/config/cerbos/policies/venue_tool.yaml": 80
+   },
+   "total": 169
+  },
+  "integration": {
+   "files": {
+    "bench/competitors/adapters/ts/cerbos.ts": 32,
+    "bench/competitors/adapters/py/cerbos.py": 34
+   },
+   "total": 66
+  },
+  "extra_config_lines": 0,
+  "total": 235,
+  "shared_glue_needed": true,
+  "note": "resource policies + PDP config; adapters build principal/resource and call CheckResources / PlanResources"
+ },
+ "openfga": {
+  "config": {
+   "files": {
+    "bench/competitors/config/openfga/model.fga": 33,
+    "bench/competitors/config/openfga/policy.json": 44,
+    "bench/competitors/config/openfga/setup.mjs": 26
+   },
+   "total": 103
+  },
+  "integration": {
+   "files": {
+    "bench/competitors/adapters/ts/openfga.ts": 44,
+    "bench/competitors/adapters/py/openfga.py": 44
+   },
+   "total": 88
+  },
+  "extra_config_lines": 0,
+  "total": 191,
+  "shared_glue_needed": true,
+  "note": "model + role/tool tuples + store setup; adapters map claims to contextual tuples and conditions"
+ },
+ "policy-guard": {
+  "config": {
+   "files": {},
+   "total": 0
+  },
+  "integration": {
+   "files": {
+    "bench/competitors/adapters/ts/policy-guard.ts": 45
+   },
+   "total": 45
+  },
+  "extra_config_lines": 0,
+  "total": 45,
+  "shared_glue_needed": true,
+  "note": "venue only (TypeScript library); rules, predicates, confirmation store and rate limits are code"
+ },
+ "agentgateway": {
+  "config": {
+   "files": {
+    "bench/competitors/config/agentgateway/venue.yaml": 48,
+    "bench/competitors/config/agentgateway/marketing.yaml": 50
+   },
+   "total": 98
+  },
+  "integration": {
+   "files": {},
+   "total": 0
+  },
+  "extra_config_lines": 0,
+  "total": 98,
+  "shared_glue_needed": false,
+  "note": "jwtAuth + mcpAuthorization CEL + mcpGuardrails expressions; no app code"
+ },
+ "pomerium": {
+  "config": {
+   "files": {
+    "bench/competitors/config/pomerium/policies.yaml": 203
+   },
+   "total": 203
+  },
+  "integration": {
+   "files": {},
+   "total": 0
+  },
+  "extra_config_lines": 17,
+  "total": 220,
+  "shared_glue_needed": false,
+  "note": "generated PPL (policies.yaml) + ~17 lines of base config (TLS, IdP, secrets, route, claim headers, DCR flag); gen.py is optional tooling; needs an OIDC IdP"
+ },
+ "protect-mcp": {
+  "config": {
+   "files": {
+    "bench/competitors/config/protect-mcp/cedar/venue-project-manager.cedar": 21,
+    "bench/competitors/config/protect-mcp/venue-project-manager.json": 8
+   },
+   "total": 29
+  },
+  "integration": {
+   "files": {},
+   "total": 0
+  },
+  "extra_config_lines": 0,
+  "total": 29,
+  "shared_glue_needed": false,
+  "note": "ONE role (venue project_manager) only: one shared bearer token per deployment"
+ },
+ "_shared_glue": {
+  "files": {
+   "bench/competitors/servers/venue-alt.ts": 73,
+   "bench/competitors/servers/marketing_alt.py": 91
+  },
+  "total": 164,
+  "note": "per-call hook every in-process PDP/library variant needed here (wrap tools/call + tools/list, resolve the record owner, inject the caller); mcp-rbac's protectWithCore/CoreGuard provide this built in"
+ }
+}

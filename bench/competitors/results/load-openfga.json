@@ -1,0 +1,36 @@
+{
+ "target": "openfga",
+ "tool": "list_events",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10,
+  "ok": 5277,
+  "errors": 0,
+  "rps": 527.7,
+  "p50_ms": 1.781,
+  "p90_ms": 2.196,
+  "p99_ms": 3,
+  "max_ms": 36.054,
+  "mean_ms": 1.886
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.008,
+  "ok": 21590,
+  "errors": 0,
+  "rps": 2157.3,
+  "p50_ms": 13.748,
+  "p90_ms": 21.247,
+  "p99_ms": 28.12,
+  "max_ms": 75.75,
+  "mean_ms": 14.826
+ },
+ "peak_rss_mb": {
+  "app+adapter": 387.8,
+  "openfga": 78.5
+ },
+ "peak_rss_total_mb": 466.3,
+ "measured_at": "2026-11-15T14:19:41-0500",
+ "cpu": 8
+}

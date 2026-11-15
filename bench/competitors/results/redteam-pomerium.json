@@ -1,7 +1,7 @@
 {
  "target": "pomerium",
  "label": "Pomerium 0.34.1 (MCP route)",
- "seconds": 17.5,
+ "seconds": 18.1,
  "notes": [
   "venue: stdio transport not part of the competitor run",
   "marketing: stdio transport not part of the competitor run"

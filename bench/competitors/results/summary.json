@@ -1,0 +1,692 @@
+{
+ "redteam": {
+  "agentgateway": {
+   "label": "agentgateway 1.7.0",
+   "summary": {
+    "authz_total": 63,
+    "authz_applicable": 59,
+    "authz_expressible": 30,
+    "authz_pass_expressible": 30,
+    "authz_pass_raw": 31,
+    "cannot_express": 29,
+    "authn_total": 30,
+    "authn_scored_by_product": 30,
+    "authn_pass": 22,
+    "authn_cannot_express": 6,
+    "authn_shared_pass": 0
+   },
+   "status_counts": {
+    "pass": 52,
+    "cannot_express": 35,
+    "fail": 2,
+    "n/a": 4
+   },
+   "total_checks": 93
+  },
+  "baseline": {
+   "label": "No guard (same app code + JWT front)",
+   "summary": {
+    "authz_total": 63,
+    "authz_applicable": 59,
+    "authz_expressible": 59,
+    "authz_pass_expressible": 16,
+    "authz_pass_raw": 16,
+    "cannot_express": 0,
+    "authn_total": 30,
+    "authn_scored_by_product": 0,
+    "authn_pass": 0,
+    "authn_cannot_express": 0,
+    "authn_shared_pass": 30
+   },
+   "status_counts": {
+    "shared_auth": 30,
+    "fail": 43,
+    "pass": 16,
+    "n/a": 4
+   },
+   "total_checks": 93
+  },
+  "cerbos": {
+   "label": "Cerbos 0.57.0 PDP",
+   "summary": {
+    "authz_total": 63,
+    "authz_applicable": 59,
+    "authz_expressible": 35,
+    "authz_pass_expressible": 35,
+    "authz_pass_raw": 36,
+    "cannot_express": 24,
+    "authn_total": 30,
+    "authn_scored_by_product": 0,
+    "authn_pass": 0,
+    "authn_cannot_express": 0,
+    "authn_shared_pass": 30
+   },
+   "status_counts": {
+    "shared_auth": 30,
+    "pass": 35,
+    "cannot_express": 24,
+    "n/a": 4
+   },
+   "total_checks": 93
+  },
+  "mcp-rbac": {
+   "label": "mcp-rbac 0.4 (in-process core)",
+   "summary": {
+    "authz_total": 61,
+    "authz_applicable": 61,
+    "authz_expressible": 61,
+    "authz_pass_expressible": 61,
+    "authz_pass_raw": 61,
+    "cannot_express": 0,
+    "authn_total": 30,
+    "authn_scored_by_product": 0,
+    "authn_pass": 0,
+    "authn_cannot_express": 0,
+    "authn_shared_pass": 30
+   },
+   "status_counts": {
+    "shared_auth": 30,
+    "pass": 61
+   },
+   "total_checks": 91
+  },
+  "openfga": {
+   "label": "OpenFGA 1.22.1",
+   "summary": {
+    "authz_total": 63,
+    "authz_applicable": 59,
+    "authz_expressible": 35,
+    "authz_pass_expressible": 35,
+    "authz_pass_raw": 36,
+    "cannot_express": 24,
+    "authn_total": 30,
+    "authn_scored_by_product": 0,
+    "authn_pass": 0,
+    "authn_cannot_express": 0,
+    "authn_shared_pass": 30
+   },
+   "status_counts": {
+    "shared_auth": 30,
+    "pass": 35,
+    "cannot_express": 24,
+    "n/a": 4
+   },
+   "total_checks": 93
+  },
+  "policy-guard": {
+   "label": "mcp-policy-guard 0.2.0",
+   "summary": {
+    "authz_total": 62,
+    "authz_applicable": 28,
+    "authz_expressible": 26,
+    "authz_pass_expressible": 26,
+    "authz_pass_raw": 26,
+    "cannot_express": 2,
+    "authn_total": 30,
+    "authn_scored_by_product": 0,
+    "authn_pass": 0,
+    "authn_cannot_express": 0,
+    "authn_shared_pass": 15
+   },
+   "status_counts": {
+    "shared_auth": 15,
+    "pass": 26,
+    "n/a": 49,
+    "cannot_express": 2
+   },
+   "total_checks": 92
+  },
+  "pomerium": {
+   "label": "Pomerium 0.34.1 (MCP route)",
+   "summary": {
+    "authz_total": 63,
+    "authz_applicable": 59,
+    "authz_expressible": 19,
+    "authz_pass_expressible": 19,
+    "authz_pass_raw": 24,
+    "cannot_express": 40,
+    "authn_total": 30,
+    "authn_scored_by_product": 20,
+    "authn_pass": 10,
+    "authn_cannot_express": 6,
+    "authn_shared_pass": 0
+   },
+   "status_counts": {
+    "pass": 29,
+    "fail": 4,
+    "cannot_express": 46,
+    "n/a": 14
+   },
+   "total_checks": 93
+  },
+  "protect-mcp": {
+   "label": "protect-mcp 0.32.4",
+   "summary": {
+    "authz_expressible": 0,
+    "note": "see probe for what a single-role deployment does enforce"
+   },
+   "status_counts": {
+    "cannot_express": 43,
+    "n/a": 48
+   },
+   "total_checks": 91
+  }
+ },
+ "load": {
+  "baseline": {
+   "target": "baseline",
+   "tool": "list_events",
+   "transport": "http",
+   "latency_c1": {
+    "concurrency": 1,
+    "seconds": 10,
+    "ok": 35470,
+    "errors": 0,
+    "rps": 3547,
+    "p50_ms": 0.231,
+    "p90_ms": 0.368,
+    "p99_ms": 0.692,
+    "max_ms": 13.433,
+    "mean_ms": 0.28
+   },
+   "throughput_c32": {
+    "concurrency": 32,
+    "seconds": 10.005,
+    "ok": 53894,
+    "errors": 0,
+    "rps": 5386.7,
+    "p50_ms": 4.999,
+    "p90_ms": 9.755,
+    "p99_ms": 16.426,
+    "max_ms": 79.623,
+    "mean_ms": 5.937
+   },
+   "peak_rss_mb": {
+    "app": 350.1
+   },
+   "peak_rss_total_mb": 350.1,
+   "measured_at": "2026-11-15T14:18:25-0500",
+   "cpu": 8
+  },
+  "mcp-rbac": {
+   "target": "mcp-rbac",
+   "tool": "list_events",
+   "transport": "http",
+   "latency_c1": {
+    "concurrency": 1,
+    "seconds": 10,
+    "ok": 11564,
+    "errors": 0,
+    "rps": 1156.4,
+    "p50_ms": 0.717,
+    "p90_ms": 1.414,
+    "p99_ms": 2.088,
+    "max_ms": 52.142,
+    "mean_ms": 0.86
+   },
+   "throughput_c32": {
+    "concurrency": 32,
+    "seconds": 10.014,
+    "ok": 15102,
+    "errors": 0,
+    "rps": 1508.1,
+    "p50_ms": 19.467,
+    "p90_ms": 28.942,
+    "p99_ms": 46.939,
+    "max_ms": 67.154,
+    "mean_ms": 21.2
+   },
+   "peak_rss_mb": {
+    "app+guard": 367.6
+   },
+   "peak_rss_total_mb": 367.6,
+   "measured_at": "2026-11-15T14:18:50-0500",
+   "cpu": 8
+  },
+  "cerbos": {
+   "target": "cerbos",
+   "tool": "list_events",
+   "transport": "http",
+   "latency_c1": {
+    "concurrency": 1,
+    "seconds": 10,
+    "ok": 6337,
+    "errors": 0,
+    "rps": 633.7,
+    "p50_ms": 1.487,
+    "p90_ms": 1.91,
+    "p99_ms": 2.542,
+    "max_ms": 15.848,
+    "mean_ms": 1.57
+   },
+   "throughput_c32": {
+    "concurrency": 32,
+    "seconds": 10.006,
+    "ok": 22619,
+    "errors": 0,
+    "rps": 2260.5,
+    "p50_ms": 12.877,
+    "p90_ms": 19.053,
+    "p99_ms": 30.633,
+    "max_ms": 116.775,
+    "mean_ms": 14.148
+   },
+   "peak_rss_mb": {
+    "app+adapter": 379.1,
+    "cerbos PDP": 112.2
+   },
+   "peak_rss_total_mb": 491.3,
+   "measured_at": "2026-11-15T14:19:16-0500",
+   "cpu": 8
+  },
+  "openfga": {
+   "target": "openfga",
+   "tool": "list_events",
+   "transport": "http",
+   "latency_c1": {
+    "concurrency": 1,
+    "seconds": 10,
+    "ok": 5277,
+    "errors": 0,
+    "rps": 527.7,
+    "p50_ms": 1.781,
+    "p90_ms": 2.196,
+    "p99_ms": 3,
+    "max_ms": 36.054,
+    "mean_ms": 1.886
+   },
+   "throughput_c32": {
+    "concurrency": 32,
+    "seconds": 10.008,
+    "ok": 21590,
+    "errors": 0,
+    "rps": 2157.3,
+    "p50_ms": 13.748,
+    "p90_ms": 21.247,
+    "p99_ms": 28.12,
+    "max_ms": 75.75,
+    "mean_ms": 14.826
+   },
+   "peak_rss_mb": {
+    "app+adapter": 387.8,
+    "openfga": 78.5
+   },
+   "peak_rss_total_mb": 466.3,
+   "measured_at": "2026-11-15T14:19:41-0500",
+   "cpu": 8
+  },
+  "policy-guard": {
+   "target": "policy-guard",
+   "tool": "list_events",
+   "transport": "http",
+   "latency_c1": {
+    "concurrency": 1,
+    "seconds": 10,
+    "ok": 31329,
+    "errors": 0,
+    "rps": 3132.9,
+    "p50_ms": 0.267,
+    "p90_ms": 0.421,
+    "p99_ms": 0.732,
+    "max_ms": 10.468,
+    "mean_ms": 0.317
+   },
+   "throughput_c32": {
+    "concurrency": 32,
+    "seconds": 10.007,
+    "ok": 46233,
+    "errors": 0,
+    "rps": 4620.1,
+    "p50_ms": 5.79,
+    "p90_ms": 11.282,
+    "p99_ms": 17.613,
+    "max_ms": 202.107,
+    "mean_ms": 6.922
+   },
+   "peak_rss_mb": {
+    "app+adapter": 359.0
+   },
+   "peak_rss_total_mb": 359.0,
+   "measured_at": "2026-11-15T14:20:06-0500",
+   "cpu": 8
+  },
+  "agentgateway": {
+   "target": "agentgateway",
+   "tool": "list_events",
+   "transport": "http",
+   "latency_c1": {
+    "concurrency": 1,
+    "seconds": 10,
+    "ok": 14374,
+    "errors": 0,
+    "rps": 1437.4,
+    "p50_ms": 0.63,
+    "p90_ms": 0.933,
+    "p99_ms": 1.373,
+    "max_ms": 73.972,
+    "mean_ms": 0.691
+   },
+   "throughput_c32": {
+    "concurrency": 32,
+    "seconds": 10.004,
+    "ok": 67135,
+    "errors": 0,
+    "rps": 6710.8,
+    "p50_ms": 4.075,
+    "p90_ms": 7.637,
+    "p99_ms": 11.878,
+    "max_ms": 24.761,
+    "mean_ms": 4.765
+   },
+   "peak_rss_mb": {
+    "app": 356.0,
+    "agentgateway": 73.8
+   },
+   "peak_rss_total_mb": 429.8,
+   "measured_at": "2026-11-15T14:20:31-0500",
+   "cpu": 8
+  },
+  "pomerium": {
+   "target": "pomerium",
+   "tool": "list_events",
+   "transport": "https (self-signed)",
+   "latency_c1": {
+    "concurrency": 1,
+    "seconds": 10.004,
+    "ok": 1856,
+    "errors": 0,
+    "rps": 185.5,
+    "p50_ms": 5.265,
+    "p90_ms": 6.17,
+    "p99_ms": 7.566,
+    "max_ms": 17.332,
+    "mean_ms": 5.379
+   },
+   "throughput_c32": {
+    "concurrency": 32,
+    "seconds": 10.006,
+    "ok": 14618,
+    "errors": 0,
+    "rps": 1460.9,
+    "p50_ms": 20.905,
+    "p90_ms": 30.195,
+    "p99_ms": 47.782,
+    "max_ms": 110.207,
+    "mean_ms": 21.891
+   },
+   "peak_rss_mb": {
+    "app": 337.1,
+    "pomerium (+envoy)": 325.3
+   },
+   "peak_rss_total_mb": 662.4,
+   "measured_at": "2026-11-15T14:20:58-0500",
+   "cpu": 8
+  },
+  "protect-mcp": {
+   "target": "protect-mcp",
+   "tool": "list_events",
+   "transport": "http",
+   "latency_c1": {
+    "concurrency": 1,
+    "seconds": 10.001,
+    "ok": 7771,
+    "errors": 0,
+    "rps": 777,
+    "p50_ms": 1.222,
+    "p90_ms": 1.604,
+    "p99_ms": 2.014,
+    "max_ms": 12.505,
+    "mean_ms": 1.279
+   },
+   "throughput_c32": {
+    "concurrency": 32,
+    "seconds": 10.03,
+    "ok": 14340,
+    "errors": 0,
+    "rps": 1429.7,
+    "p50_ms": 21.295,
+    "p90_ms": 24.951,
+    "p99_ms": 36,
+    "max_ms": 66.624,
+    "mean_ms": 22.346
+   },
+   "peak_rss_mb": {
+    "protect-mcp + stdio app": 461.3
+   },
+   "peak_rss_total_mb": 461.3,
+   "measured_at": "2026-11-15T14:21:23-0500",
+   "cpu": 8
+  },
+  "mcp-rbac-noaudit": {
+   "target": "mcp-rbac-noaudit",
+   "tool": "list_events",
+   "transport": "http",
+   "latency_c1": {
+    "concurrency": 1,
+    "seconds": 10,
+    "ok": 23855,
+    "errors": 0,
+    "rps": 2385.5,
+    "p50_ms": 0.375,
+    "p90_ms": 0.522,
+    "p99_ms": 0.782,
+    "max_ms": 10.205,
+    "mean_ms": 0.416
+   },
+   "throughput_c32": {
+    "concurrency": 32,
+    "seconds": 10.008,
+    "ok": 32916,
+    "errors": 0,
+    "rps": 3289,
+    "p50_ms": 8.567,
+    "p90_ms": 15.379,
+    "p99_ms": 19.598,
+    "max_ms": 55.812,
+    "mean_ms": 9.723
+   },
+   "peak_rss_mb": {
+    "app+guard": 365.5
+   },
+   "peak_rss_total_mb": 365.5,
+   "measured_at": "2026-11-15T14:22:16-0500",
+   "cpu": 8
+  }
+ },
+ "loc": {
+  "mcp-rbac": {
+   "config": {
+    "files": {
+     "examples/policies/venue.yaml": 66,
+     "examples/policies/marketing.yaml": 102
+    },
+    "total": 168
+   },
+   "integration": {
+    "files": {
+     "examples/servers/venue/server.ts [authz-begin..end]": 21,
+     "examples/servers/marketing/server.py [authz-begin..end]": 16
+    },
+    "total": 37
+   },
+   "extra_config_lines": 0,
+   "total": 205,
+   "shared_glue_needed": false,
+   "note": "policy YAML (roles, grants, argument limits, budgets, approvals, redaction, delegation) + guard wiring incl. the approval store and audit sink"
+  },
+  "cerbos": {
+   "config": {
+    "files": {
+     "bench/competitors/config/cerbos/conf.yaml": 10,
+     "bench/competitors/config/cerbos/policies/marketing_tool.yaml": 79,
+     "bench/competitors/config/cerbos/policies/venue_tool.yaml": 80
+    },
+    "total": 169
+   },
+   "integration": {
+    "files": {
+     "bench/competitors/adapters/ts/cerbos.ts": 32,
+     "bench/competitors/adapters/py/cerbos.py": 34
+    },
+    "total": 66
+   },
+   "extra_config_lines": 0,
+   "total": 235,
+   "shared_glue_needed": true,
+   "note": "resource policies + PDP config; adapters build principal/resource and call CheckResources / PlanResources"
+  },
+  "openfga": {
+   "config": {
+    "files": {
+     "bench/competitors/config/openfga/model.fga": 33,
+     "bench/competitors/config/openfga/policy.json": 44,
+     "bench/competitors/config/openfga/setup.mjs": 26
+    },
+    "total": 103
+   },
+   "integration": {
+    "files": {
+     "bench/competitors/adapters/ts/openfga.ts": 44,
+     "bench/competitors/adapters/py/openfga.py": 44
+    },
+    "total": 88
+   },
+   "extra_config_lines": 0,
+   "total": 191,
+   "shared_glue_needed": true,
+   "note": "model + role/tool tuples + store setup; adapters map claims to contextual tuples and conditions"
+  },
+  "policy-guard": {
+   "config": {
+    "files": {},
+    "total": 0
+   },
+   "integration": {
+    "files": {
+     "bench/competitors/adapters/ts/policy-guard.ts": 45
+    },
+    "total": 45
+   },
+   "extra_config_lines": 0,
+   "total": 45,
+   "shared_glue_needed": true,
+   "note": "venue only (TypeScript library); rules, predicates, confirmation store and rate limits are code"
+  },
+  "agentgateway": {
+   "config": {
+    "files": {
+     "bench/competitors/config/agentgateway/venue.yaml": 48,
+     "bench/competitors/config/agentgateway/marketing.yaml": 50
+    },
+    "total": 98
+   },
+   "integration": {
+    "files": {},
+    "total": 0
+   },
+   "extra_config_lines": 0,
+   "total": 98,
+   "shared_glue_needed": false,
+   "note": "jwtAuth + mcpAuthorization CEL + mcpGuardrails expressions; no app code"
+  },
+  "pomerium": {
+   "config": {
+    "files": {
+     "bench/competitors/config/pomerium/policies.yaml": 203
+    },
+    "total": 203
+   },
+   "integration": {
+    "files": {},
+    "total": 0
+   },
+   "extra_config_lines": 17,
+   "total": 220,
+   "shared_glue_needed": false,
+   "note": "generated PPL (policies.yaml) + ~17 lines of base config (TLS, IdP, secrets, route, claim headers, DCR flag); gen.py is optional tooling; needs an OIDC IdP"
+  },
+  "protect-mcp": {
+   "config": {
+    "files": {
+     "bench/competitors/config/protect-mcp/cedar/venue-project-manager.cedar": 21,
+     "bench/competitors/config/protect-mcp/venue-project-manager.json": 8
+    },
+    "total": 29
+   },
+   "integration": {
+    "files": {},
+    "total": 0
+   },
+   "extra_config_lines": 0,
+   "total": 29,
+   "shared_glue_needed": false,
+   "note": "ONE role (venue project_manager) only: one shared bearer token per deployment"
+  },
+  "_shared_glue": {
+   "files": {
+    "bench/competitors/servers/venue-alt.ts": 73,
+    "bench/competitors/servers/marketing_alt.py": 91
+   },
+   "total": 164,
+   "note": "per-call hook every in-process PDP/library variant needed here (wrap tools/call + tools/list, resolve the record owner, inject the caller); mcp-rbac's protectWithCore/CoreGuard provide this built in"
+  }
+ },
+ "external": {
+  "permit_cloud_pdp": {
+   "source": "permit-research/PERMIT-HOSTED-BENCH.md (real Permit account, Development environment)",
+   "measured_at": "2026-11-15T14:12:15-05:00",
+   "correctness": {
+    "passed": 15,
+    "total": 15
+   },
+   "latency_ms": {
+    "n": 400,
+    "min": 182.963,
+    "p50": 234.3484,
+    "p90": 356.5031,
+    "p95": 373.2539,
+    "p99": 423.3592,
+    "max": 11622.01,
+    "mean": 285.2799
+   },
+   "throughput_rps_c1": 3.5,
+   "includes_internet_rtt": true,
+   "propagation_s": {
+    "unassign_to_deny_seconds": 0.2038,
+    "reassign_to_allow_seconds": 0.3555
+   },
+   "edge_pdp": {
+    "tested": false,
+    "reason": "docker was not installed on this box (command not found). The permitio/pdp-v2 image was not started. An Edge PDP also requires the same environment API key as PDP_API_KEY and would still connect to Permit's control plane at startup."
+   },
+   "mcp_gateway": {
+    "usable_with_this_key": false,
+    "reason": "no MCP Gateway API in the public v2 API; app.agent.security gateway/consent flow not set up; api.agent.security health returned 502"
+   }
+  },
+  "local_opa": {
+   "source": "permit-research/opal-opa-bench.json (OPA 1.22.4 on loopback, OPAL docker stack not started: no Docker)",
+   "measured_at": "2026-11-15T13:53:15-05:00",
+   "correctness": {
+    "passed": 15,
+    "total": 15,
+    "cases_path": "permit-research/opal-bench/expected.json"
+   },
+   "latency_ms": {
+    "min": 0.1797,
+    "p50": 0.2864,
+    "p90": 0.4322,
+    "p95": 0.4905,
+    "p99": 0.7,
+    "max": 1.5136,
+    "mean": 0.3186
+   }
+  },
+  "klaviyo_live": {
+   "source": "examples/klaviyo-e2e/LIVE-RESULTS.md",
+   "mismatches": 0,
+   "guard_overhead_p50_ms": "2.7 (get_lists) / 11.4 (get_campaigns)",
+   "note": "real Klaviyo MCP (28 tools), 3 roles; overhead = guarded p50 - direct p50, independent samples"
+  }
+ }
+}

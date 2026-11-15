@@ -282,6 +282,7 @@ def build(db: SerializedDB, identity_fn: Any) -> MCPServer:
         db.execute("INSERT INTO events (account, profile_id, metric, value, at) VALUES (?, ?, ?, ?, ?)", (acct, profile_id, metric, value, now()))
         return {"tracked": metric}
 
+    # authz-begin (mcp-rbac wiring: approval store, audit sink, guard; counted by bench/competitors/loc.py)
     def approve(call: dict[str, Any], d: dict[str, Any]) -> bool:
         sub = (call.get("identity") or {}).get("id")
         h = args_hash(call["tool"], call["args"])
@@ -300,6 +301,7 @@ def build(db: SerializedDB, identity_fn: Any) -> MCPServer:
 
     s.middleware.append(CoreGuard(POLICY, identity=identity_fn, approve=approve, on_decision=audit,
                                   resource=lambda tool, args, ident, ctx: resolve_resource(db, tool, args)))
+    # authz-end
     return s
 
 

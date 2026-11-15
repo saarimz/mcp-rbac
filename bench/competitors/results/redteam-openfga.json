@@ -1,7 +1,7 @@
 {
  "target": "openfga",
  "label": "OpenFGA 1.22.1",
- "seconds": 13.9,
+ "seconds": 13.3,
  "notes": [
   "venue: stdio transport not part of the competitor run",
   "marketing: stdio transport not part of the competitor run"

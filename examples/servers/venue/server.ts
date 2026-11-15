@@ -16,7 +16,8 @@ import { argsHash, canonical, resolveResource, venueTools } from "./tools.js";
 import { serveStreamable } from "../shared/http.js";
 
 export const AUDIENCE = "venue-mcp";
-const POLICY = readFileSync(new URL("../../policies/venue.yaml", import.meta.url), "utf8");
+// MCP_RBAC_POLICY_FILE: benchmark override (bench/competitors/load.py drops the global rate limit for load runs)
+const POLICY = readFileSync(process.env.MCP_RBAC_POLICY_FILE ?? new URL("../../policies/venue.yaml", import.meta.url), "utf8");
 
 function flag(name: string): string | undefined {
   const i = process.argv.indexOf(name);
@@ -26,6 +27,7 @@ function flag(name: string): string | undefined {
 export async function main() {
   const db = openDb(flag("--db") ?? ":memory:");
   if (process.argv[2] === "admin") return admin(db);
+  // authz-begin (mcp-rbac wiring: engine, approval store, audit sink; counted by bench/competitors/loc.py)
   const engine = createCoreEngine(POLICY);
   const now = () => new Date().toISOString();
   const guardOpts = (identity: (extra: any) => unknown) => ({
@@ -47,6 +49,7 @@ export async function main() {
   });
   const audit = (e: { tool: string; identity: unknown; decision: CoreDecision }) =>
     db.prepare("INSERT INTO audit (at, sub, tool, decision, reason) VALUES (?, ?, ?, ?, ?)").run(now(), (e.identity as any)?.id ?? null, e.tool, e.decision.decision, e.decision.reason);
+  // authz-end
 
   const httpPort = flag("--http");
   if (httpPort !== undefined) {
@@ -55,7 +58,7 @@ export async function main() {
     const h = await serveStreamable({
       port: Number(httpPort), audience: AUDIENCE, secret, revoked,
       newSession: async () => {
-        const { server } = await protectWithCore(venueTools(db), { ...guardOpts((extra: any) => extra?.authInfo?.extra?.identity), onDecision: audit });
+        const { server } = await protectWithCore(venueTools(db), { ...guardOpts((extra: any) => extra?.authInfo?.extra?.identity), onDecision: process.env.MCP_RBAC_BENCH_NO_AUDIT ? undefined : audit });  // env: diagnostic-only (bench/competitors/load.py)
         return server;
       },
     });

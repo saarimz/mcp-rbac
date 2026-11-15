@@ -1,7 +1,7 @@
 {
  "target": "cerbos",
  "label": "Cerbos 0.57.0 PDP",
- "seconds": 14.8,
+ "seconds": 14.0,
  "notes": [
   "venue: stdio transport not part of the competitor run",
   "marketing: stdio transport not part of the competitor run"

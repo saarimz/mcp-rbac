@@ -274,6 +274,7 @@ impl Semantics {
 
     /// Resolve a tool's effective semantics. `meta` is the tool's `tools/list` entry (or just `{annotations, _meta}`).
     /// Err = the server-declared metadata is malformed (the call is denied `invalid_tool_meta`).
+    #[allow(clippy::result_unit_err)] // the unit Err is the documented "malformed meta" signal; callers map it to invalid_tool_meta
     pub fn resolve(&self, name: &str, meta: Option<&Value>, args: &Map<String, Value>) -> Result<Effective, ()> {
         let pol = self.tools.iter().find(|(p, _)| p.matches(name)).map(|(_, t)| t.clone()).unwrap_or_default();
         let (mut srv, mut ann) = (ToolSem::default(), None);

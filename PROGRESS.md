@@ -131,3 +131,28 @@ All 5 targets ran in parallel on HEAD d3b58e6 (libFuzzer, nightly, no sanitizer,
 
 `tools/rerun-all.sh [OUT]` was added for P8g. It makes a fresh clone of HEAD, then runs bootstrap and every suite, conformance, the red team, the malformed/soak check, the Inspector e2e and the OTel e2e, writing logs and summary.json.
 
+### P8g: clean from-scratch re-run (done)
+
+`tools/rerun-all.sh` = fresh `git clone` of HEAD, then `tools/bootstrap.sh` and fresh Redis/Postgres, then every suite.
+- First run (owner, commit 84b31c8, /workspace/mcp-guard-rerun): every step passed except `otel_e2e`. **Root cause:** the Python mini server's OTLP setup (examples/core-servers/python/otlp.py) imports `opentelemetry-exporter-otlp-proto-http`, which the package never declared, so bootstrap never installed it. It had been installed by hand in the dev venv before the environment reset, so the dev tree had hidden the gap. The server died at import and the client saw "Connection closed" at initialize.
+- **Fix (c69b07a):**
+  - New `python[otlp]` extra (`opentelemetry-sdk`, `opentelemetry-exporter-otlp-proto-http`), installed by bootstrap.
+  - `tools/otel-e2e.sh` preflight that names the missing piece (exit 2).
+  - drive.py writes each server's stderr to `tools/otel-e2e/out/<lang>-server.stderr.log` and prints it with a header when a session fails. Both paths were verified by running with the exporter missing.
+  - rerun-all.sh exits nonzero if any step fails.
+- **Second run (commit c69b07a, /workspace/mcp-guard-rerun2, 09:44 to 10:05 ET): all 14 steps exit 0.**
+
+| step | result |
+|---|---|
+| bootstrap, typecheck, build, npm pack | ok |
+| TS (vitest, includes Inspector e2e) | 379 passed, 9 skipped (opt-in hosted network), 0 failed |
+| Python (pytest, real Redis 7.4.1 + Postgres 16.2) | 124 passed |
+| Go `-race` (go/ + go/examples/devops), gofmt + vet | 29 top-level tests, 2 packages ok |
+| Rust `--all-features` + clippy -D warnings | 46 passed, clippy clean |
+| conformance | 3620 vectors x 6 runners, byte-identical |
+| red team | 140/140 (privesc 46, confused deputy 11, token replay 30, injection 6, cross-tenant 11, budget 6, approval bypass 30) |
+| malformed + soak (3 servers, 1500 sequential + 64 concurrent sessions) | 0 failures, all alive; RSS growth venue +5.7 MiB (under a 96 MiB heap cap), marketing +5.4 MiB, devops +0.4 MiB |
+| OTel e2e (otelcol 0.165 + Jaeger 2.23) | ts/py/go/rust 19/19 checks each, 74 spans, 72 metric points, 28 log records, canaries absent |
+
+0.4.0 is complete.
+

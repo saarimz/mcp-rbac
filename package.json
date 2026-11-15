@@ -89,6 +89,8 @@
     "LICENSE",
     "CHANGELOG.md",
     "docs/*.md",
+    "packs",
+    "spec",
     "wasm-pkg"
   ],
   "scripts": {

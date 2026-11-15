@@ -38,7 +38,10 @@ export { OpenFgaEngine, type OpenFgaEngineOptions, type OpenFgaTuple } from "./e
 // ---- portable policies (mcp-rbac.yaml, docs/policy-format.md)
 export {
   loadPortablePolicy, loadPortablePolicyJson, compilePolicy, checkPortablePolicy, decidePortable, decidePortableJson,
-  visiblePortable, visiblePortableJson, canonical as canonicalPortableJson, PolicyError, type CompiledPolicy, type PortableDecision,
+  visiblePortable, visiblePortableJson, canonical as canonicalPortableJson, PolicyError, costPortableJson, type CompiledPolicy, type PortableDecision,
 } from "./portable.js";
+// ---- tool semantics + policy packs (spec/tool-semantics.md)
+export { resolvePacks, resolvePacksDoc, loadPolicyWithPacks, validatePack, type Pack, type PackRef, type ResolveOptions } from "./packs.js";
+export { CLASSES as SEMANTIC_CLASSES, SEMANTICS_META_KEY, annotationClasses, parsePath as parseSemanticsPath } from "./semantics.js";
 export { summarize as summarizePolicy, diffPolicies, formatDiff, type AccessSummary, type PolicyDiff, type DiffChange } from "./policy-diff.js";
 export { portableEngine, guardOptionsFromPolicy, protectOptionsFromPolicy, rolesFromPolicy, userFromIdentity, exportPolicy, type ExportInput } from "./policy-io.js";

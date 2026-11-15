@@ -407,6 +407,85 @@
           ]
         }
       }
+    },
+    "semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Tool semantics (spec/tool-semantics.md): side-effect classes, spend, resources and sensitivity per tool, class grants, class rules and class/spend budgets.",
+      "properties": {
+        "precedence": {
+          "enum": [
+            "policy",
+            "server"
+          ]
+        },
+        "serverMeta": {
+          "enum": [
+            "use",
+            "ignore"
+          ]
+        },
+        "default": {
+          "type": "object",
+          "required": [
+            "classes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "classes": {
+              "$ref": "#/$defs/semClasses"
+            }
+          }
+        },
+        "packs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/packRef"
+          }
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/toolSemantics"
+          }
+        },
+        "grants": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/semClasses"
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "classes"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "classes": {
+                "$ref": "#/$defs/semClasses"
+              },
+              "denyRoles": {
+                "$ref": "#/$defs/strings"
+              },
+              "allowRoles": {
+                "$ref": "#/$defs/strings"
+              },
+              "approve": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "budgets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/classBudget"
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -739,6 +818,182 @@
         "replacement": true
       },
       "additionalProperties": false
+    },
+    "semClass": {
+      "type": "string",
+      "pattern": "^(read|write|send|spend|destructive|external-comm|unknown|x-[a-z0-9-]{1,62})$"
+    },
+    "semClasses": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/semClass"
+      }
+    },
+    "jsonPath": {
+      "type": "string",
+      "pattern": "^\\$",
+      "maxLength": 256
+    },
+    "denom": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}$"
+    },
+    "toolSemantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "classes": {
+          "$ref": "#/$defs/semClasses"
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/jsonPath"
+          }
+        },
+        "sensitivity": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,64}$"
+          }
+        },
+        "spend": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "arg": {
+              "$ref": "#/$defs/jsonPath"
+            },
+            "result": {
+              "$ref": "#/$defs/jsonPath"
+            },
+            "currency": {
+              "$ref": "#/$defs/denom"
+            },
+            "currencyPath": {
+              "$ref": "#/$defs/jsonPath"
+            },
+            "unit": {
+              "enum": [
+                "major",
+                "minor"
+              ]
+            },
+            "minorExponent": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "arg"
+              ]
+            },
+            {
+              "required": [
+                "result"
+              ]
+            }
+          ]
+        },
+        "source": {
+          "type": "string"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "packRef": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "prefix": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]{0,32}$"
+            }
+          }
+        }
+      ]
+    },
+    "classBudget": {
+      "type": "object",
+      "required": [
+        "max",
+        "per"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "class": {
+          "$ref": "#/$defs/semClass"
+        },
+        "tool": {
+          "$ref": "#/$defs/pattern"
+        },
+        "max": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "per": {
+          "$ref": "#/$defs/per"
+        },
+        "currency": {
+          "$ref": "#/$defs/denom"
+        },
+        "shared": {
+          "enum": [
+            "delegation",
+            "user",
+            "global",
+            "tenant",
+            "client",
+            "agent"
+          ]
+        },
+        "burst": {
+          "type": "object",
+          "required": [
+            "max",
+            "per"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "max": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "per": {
+              "$ref": "#/$defs/per"
+            }
+          }
+        },
+        "name": {
+          "$ref": "#/$defs/setName"
+        }
+      }
     }
   }
 }

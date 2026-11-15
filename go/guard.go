@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -26,6 +27,16 @@ type Decision struct {
 	Rule     string            `json:"rule"`   // empty when no rule matched (JSON null)
 	Tenant   string            `json:"tenant"` // empty when the call has no tenant (JSON null)
 	Limits   []LimitUse        `json:"limits"`
+	// Semantics is the effective tool semantics (spec/tool-semantics.md); nil unless the policy has `semantics`.
+	Semantics json.RawMessage `json:"semantics,omitempty"`
+}
+
+// CostEvent is passed to GuardOptions.OnCost after post-call cost accounting (tool semantics, deferred spend budgets).
+type CostEvent struct {
+	Tool     string
+	Identity any
+	Decision Decision
+	Raw      string // {"cost":{"amount","currency"}|null,"error"?,"charged":[...]}
 }
 
 // Caller describes an allowed tools/call to the tool handler: see CallerFrom.
@@ -73,6 +84,39 @@ type GuardOptions struct {
 	OnDecision func(DecisionEvent)
 	// Telemetry enables OpenTelemetry (docs/otel.md). Nil = off.
 	Telemetry *Telemetry
+	// ToolMeta supplies a tool's tools/list entry ({"annotations":…,"_meta":…}) for tool semantics when the guard has
+	// not seen it in a tools/list response yet (optional; only used when the policy has `semantics`).
+	ToolMeta func(ctx context.Context, tool string) map[string]any
+	// OnCost observes post-call cost accounting for calls with a result-based spend.
+	OnCost func(CostEvent)
+
+	sem *semState
+}
+
+type semState struct {
+	once sync.Once
+	on   bool
+	mu   sync.RWMutex
+	meta map[string]map[string]any
+}
+
+func (e *Engine) semanticsOn(ctx context.Context, o *GuardOptions) bool {
+	o.sem.once.Do(func() {
+		raw, err := e.Decide(ctx, "{}")
+		o.sem.on = err == nil && strings.Contains(raw, `"semantics":`)
+	})
+	return o.sem.on
+}
+
+func toolMetaOf(t *mcp.Tool) map[string]any {
+	m := map[string]any{}
+	if t.Annotations != nil {
+		m["annotations"] = t.Annotations
+	}
+	if len(t.Meta) > 0 {
+		m["_meta"] = t.Meta
+	}
+	return m
 }
 
 func (o *GuardOptions) base(ctx context.Context, req mcp.Request) map[string]any {
@@ -100,6 +144,7 @@ func (o *GuardOptions) now() float64 {
 // Middleware returns go-sdk receiving middleware: filters tools/list, authorizes tools/call (deny, approval,
 // rate limits) and redacts allowed results. Other methods pass through.
 func (e *Engine) Middleware(opts GuardOptions) mcp.Middleware {
+	opts.sem = &semState{meta: map[string]map[string]any{}}
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			if method != "tools/list" && method != "tools/call" {
@@ -161,6 +206,17 @@ func (e *Engine) guardList(ctx context.Context, method string, req mcp.Request, 
 		names = append(names, t.Name)
 	}
 	base["tools"] = names
+	if e.semanticsOn(ctx, o) {
+		metas := make(map[string]any, len(lr.Tools))
+		o.sem.mu.Lock()
+		for _, t := range lr.Tools {
+			m := toolMetaOf(t)
+			o.sem.meta[t.Name] = m
+			metas[t.Name] = m
+		}
+		o.sem.mu.Unlock()
+		base["toolMeta"] = metas
+	}
 	in, _ := json.Marshal(base)
 	raw, err := e.Visible(ctx, string(in))
 	if err != nil {
@@ -210,6 +266,17 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	body := o.base(ctx, req)
 	body["tool"] = tool
 	body["args"] = args
+	if _, ok := body["identity"]; ok && e.semanticsOn(ctx, o) {
+		o.sem.mu.RLock()
+		m, seen := o.sem.meta[tool]
+		o.sem.mu.RUnlock()
+		if !seen && o.ToolMeta != nil {
+			m, seen = o.ToolMeta(ctx, tool), true
+		}
+		if seen && m != nil {
+			body["toolMeta"] = m
+		}
+	}
 	unresolved := false
 	if id, ok := body["identity"]; ok && o.Resource != nil {
 		r, rerr := o.Resource(ctx, cr, tool, args, id)
@@ -287,6 +354,26 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	}
 	ctx = context.WithValue(ctx, callerKey{}, caller)
 	res, err := next(ctx, method, req)
+	if err == nil && hasDeferred(d) {
+		// post-call spend: charge the result's cost to the deferred budgets (an unreadable cost charges max: fail-closed)
+		if rj, merr := json.Marshal(res); merr == nil {
+			if cost, aerr := e.Account(ctx, raw, string(rj), o.now()); aerr == nil {
+				if server != nil {
+					var c struct {
+						Cost *struct{ Amount float64 } `json:"cost"`
+					}
+					amt := -1.0
+					if json.Unmarshal([]byte(cost), &c) == nil && c.Cost != nil {
+						amt = c.Cost.Amount
+					}
+					server.SetAttributes(attribute.Float64("mcp_rbac.cost", amt))
+				}
+				if o.OnCost != nil {
+					o.OnCost(CostEvent{Tool: tool, Identity: body["identity"], Decision: d, Raw: cost})
+				}
+			}
+		}
+	}
 	if err != nil || (len(d.Redact) == 0 && len(d.Labels) == 0) {
 		return res, err
 	}
@@ -309,6 +396,15 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 		return nil, fmt.Errorf("mcp-rbac: redacted result: %w", err)
 	}
 	return out, nil
+}
+
+func hasDeferred(d Decision) bool {
+	for _, l := range d.Limits {
+		if l.Deferred {
+			return true
+		}
+	}
+	return false
 }
 
 // decodeDecision parses a core decision. An engine error object ({"error":...}) becomes an explicit

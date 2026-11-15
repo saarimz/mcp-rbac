@@ -241,6 +241,8 @@ type LimitUse struct {
 	Name string   `json:"name"`
 	Max  float64  `json:"max"`
 	Used *float64 `json:"used,omitempty"`
+	// Deferred: a post-call (result-based) spend budget, charged by Engine.Account after the call.
+	Deferred bool `json:"deferred,omitempty"`
 }
 
 type authzSpan struct {

@@ -1,0 +1,8 @@
+{
+ "pack": "demo-ads",
+ "version": "1",
+ "sources": [{"id": "test", "url": "examples/core-servers/semantics.yaml"}],
+ "tools": {
+  "boost": {"classes": ["spend", "write"], "spend": {"arg": "$.cents", "currency": "USD", "unit": "minor"}, "source": "test", "confidence": "high"}
+ }
+}

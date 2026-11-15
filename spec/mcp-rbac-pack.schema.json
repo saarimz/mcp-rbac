@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mcp-rbac.local/spec/mcp-rbac-pack.schema.json",
+  "title": "mcp-rbac policy pack",
+  "description": "Out-of-band tool semantics for one MCP server (spec/tool-semantics.md, 'Policy packs'). Tool entries use the same shape as semantics.tools in mcp-rbac.yaml.",
+  "type": "object",
+  "required": [
+    "pack",
+    "tools"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "pack": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+    },
+    "version": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "license": {
+      "type": "string"
+    },
+    "server": {
+      "type": "object"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "retrieved": {
+            "type": "string"
+          },
+          "what": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "https://mcp-rbac.local/spec/mcp-rbac.schema.json#/$defs/toolSemantics"
+      }
+    }
+  }
+}

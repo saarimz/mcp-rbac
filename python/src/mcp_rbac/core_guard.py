@@ -60,10 +60,20 @@ class CoreGuard:
         on_decision: Callable[[dict[str, Any]], None] | None = None,
         telemetry: CoreTelemetry | bool | None = None,
         resource: Callable[[str, dict[str, Any], Any, Any], dict[str, str] | None | Awaitable[dict[str, str] | None]] | None = None,
+        tool_meta: Callable[[str], dict[str, Any] | None] | None = None,
+        on_cost: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         """``resource(tool, args, identity, ctx)`` returns the resource the call touches, resolved from the host's own data
-        (never the caller's say-so); ``None`` = the caller's own scope. Raising denies with ``resource_unresolved``."""
+        (never the caller's say-so); ``None`` = the caller's own scope. Raising denies with ``resource_unresolved``.
+
+        Tool semantics (spec/tool-semantics.md, only when the policy has ``semantics``): each tool's tools/list entry
+        (``annotations``, ``_meta``) is remembered from the tools/list responses this guard filters; ``tool_meta(name)``
+        supplies it for tools not listed yet. ``on_cost`` receives post-call cost accounting results."""
         self.engine = load_core().Engine(policy)
+        self._semantics = "semantics" in json.loads(self.engine.decide("{}"))
+        self._meta: dict[str, dict[str, Any]] = {}
+        self._tool_meta = tool_meta
+        self._on_cost = on_cost
         self._identity = identity
         self._toolsets = toolsets
         self._approve = approve
@@ -106,7 +116,13 @@ class CoreGuard:
             if "identity" not in base:
                 return {**res, "tools": []}
             names = [t.get("name") for t in res.get("tools", [])]
-            vis = json.loads(self.engine.visible(json.dumps({**base, "tools": names})))
+            req_v: dict[str, Any] = {**base, "tools": names}
+            if self._semantics:
+                for t in res.get("tools", []):
+                    if isinstance(t.get("name"), str):
+                        self._meta[t["name"]] = {k: t[k] for k in ("annotations", "_meta") if k in t}
+                req_v["toolMeta"] = {n: self._meta.get(n, {}) for n in names if isinstance(n, str)}
+            vis = json.loads(self.engine.visible(json.dumps(req_v)))
             ok = set(vis.get("visible", []))
             return {**res, "tools": [t for t in res.get("tools", []) if t.get("name") in ok]}
         t0 = time.perf_counter()
@@ -124,7 +140,17 @@ class CoreGuard:
                     base["resource"] = r
             except Exception:  # noqa: BLE001 - any resolver failure fails closed
                 unresolved = True
-        req = json.dumps({"tool": tool, "args": args, **base})
+        rq: dict[str, Any] = {"tool": tool, "args": args, **base}
+        if self._semantics and "identity" in base and isinstance(tool, str):
+            meta = self._meta.get(tool)
+            if meta is None and self._tool_meta is not None:
+                try:
+                    meta = self._tool_meta(tool)
+                except Exception:  # noqa: BLE001 - no metadata: the policy pack / default classes decide
+                    meta = None
+            if meta is not None:
+                rq["toolMeta"] = meta
+        req = json.dumps(rq)
         tel = self.telemetry
         auth_span = tel.start_authorize(str(tool)) if tel is not None else None
         e0 = time.perf_counter()
@@ -166,6 +192,13 @@ class CoreGuard:
             res = _dump(await call_next(ctx))
         finally:
             _CALLER.reset(token)
+        if any(lim.get("deferred") for lim in d.get("limits", [])):
+            # post-call spend: charge the result's cost to the deferred budgets (unreadable cost charges max: fail-closed)
+            cost = json.loads(self.engine.account(raw, json.dumps(res), self._now()))
+            if server_span is not None:
+                server_span.set_attribute("mcp_rbac.cost", cost["cost"]["amount"] if cost.get("cost") else -1)
+            if self._on_cost is not None:
+                self._on_cost({"tool": tool, "identity": base.get("identity"), "decision": d, "cost": cost})
         if not d["redact"] and not d["labels"]:
             return res
         if server_span is not None and d["redact"]:

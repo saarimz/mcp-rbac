@@ -10,7 +10,8 @@ from .guard import ApprovalRequest, Approver, Decision, Guard, Limit, LimitStatu
 from .output import LABELS_META_KEY, LabelRule, OutputPolicy, RedactionRule, redact_fields
 from .policy_diff import diff_policies, format_diff, summarize
 from .policy_io import PortableEngine, export_policy, guard_from_policy, guard_kwargs_from_policy, identity_from_dict, roles_from_policy
-from .portable import CompiledPolicy, PolicyError, check_policy, compile_policy, decide, decide_json, load_policy_json, load_policy_yaml, visible, visible_json
+from .packs import load_policy_with_packs, resolve_packs, validate_pack
+from .portable import CompiledPolicy, PolicyError, check_policy, compile_policy, cost_json, decide, decide_json, load_policy_json, load_policy_yaml, visible, visible_json
 from .patterns import covers, is_valid_tool_name, matches
 from .roles import Assignment, BuiltinEngine, DecisionInput, EngineDecision, Identity, Permission, Role, load_policy, narrow_identity, scope_allows
 from .scopes import ScopePolicy, Toolsets, insufficient_scope_challenge, parse_toolsets, scope_satisfied
@@ -19,7 +20,7 @@ from .tenants import OrgDirectory, OrgRole, custom_role, org_assignments
 
 __version__ = "0.4.0"
 
-__all__ = [
+__all__ = ["load_policy_with_packs", "resolve_packs", "validate_pack", "cost_json", 
     "GENESIS", "LABELS_META_KEY", "ActorPolicy", "ApprovalRequest", "Approver", "Assignment", "AuthZenClient", "AuthZenEngine",
     "BuiltinEngine", "Constraint", "ConsumeItem", "Decision", "DecisionInput", "DelegationError", "DelegationOptions",
     "EngineDecision", "Guard", "Identity", "LabelRule", "Limit", "LimitStatus", "MemoryStore", "OrgDirectory", "OrgRole",

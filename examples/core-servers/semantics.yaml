@@ -1,0 +1,18 @@
+# Tool-semantics scenario shared by the TS, Python and Go guard tests (spec/tool-semantics.md).
+# Classes come from three places: a local pack file (boost), the server's MCP ToolAnnotations (list_items, wipe) and
+# inline policy entries (generate). Roles are granted classes, not tool names.
+version: 1
+roles:
+  owner: {includes: [staff]}
+  staff: {}
+semantics:
+  packs: [./semantics-pack.json]
+  tools:
+    generate: {classes: [spend], spend: {result: "$.usage.cost", currency: USD}}
+  grants:
+    staff: [read]
+    owner: [write, destructive, spend]
+  rules:
+    - {classes: [destructive], approve: true}
+  budgets:
+    - {class: spend, max: 1, per: day, currency: USD, name: daily-usd}

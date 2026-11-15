@@ -24,6 +24,8 @@ export interface CoreEngine {
   authorize(req: string, nowMs: number): string;
   authorizeApproved(req: string, nowMs: number): string;
   redact(result: string, decision: string): string;
+  /** Post-call cost accounting for tool semantics (deferred spend budgets). Optional for older engines. */
+  account?(decision: string, result: string, nowMs: number): string;
   free(): void;
 }
 interface CoreModule { Engine: new (policy: string) => CoreEngine; check(policy: string): string; version(): string }
@@ -61,6 +63,7 @@ class WellFormedEngine implements CoreEngine {
   authorize(req: string, nowMs: number) { return wf(req) ? this.e.authorize(req, nowMs) : this.e.authorize("", nowMs); }
   authorizeApproved(req: string, nowMs: number) { return wf(req) ? this.e.authorizeApproved(req, nowMs) : this.e.authorizeApproved("", nowMs); }
   redact(result: string, decision: string) { return wf(result) && wf(decision) ? this.e.redact(result, decision) : this.e.redact("", wf(decision) ? decision : ""); }
+  account(decision: string, result: string, nowMs: number) { return wf(result) && wf(decision) && this.e.account ? this.e.account(decision, result, nowMs) : '{"error":"invalid_request"}'; }
   free() { this.e.free(); }
 }
 
@@ -75,7 +78,12 @@ export interface CoreDecision {
   requiredScopes: string[];
   missingScopes: string[];
   tenant: string | null;
+  /** Effective tool semantics (classes, spend, resources, sensitivity); present only when the policy has `semantics`. */
+  semantics?: { classes: string[]; source: string; sensitivity: string[]; resources: { path: string; value: unknown }[]; spend: Record<string, unknown> | null } | null;
 }
+
+/** Result of post-call cost accounting (tool semantics). */
+export interface CoreCost { cost: { amount: number; currency: string } | null; error?: string; charged?: { key: string; amount: number; used: number }[] }
 
 export interface CoreGuardOptions {
   /** Policy text (YAML, or JSON starting with "{"). Ignored when `engine` is given. */
@@ -102,6 +110,8 @@ export interface CoreGuardOptions {
   now?: () => number;
   /** Observability hook, called once per tools/call decision. */
   onDecision?: (e: { tool: string; identity: unknown; decision: CoreDecision; durationMs: number; approved: boolean }) => void;
+  /** Called after an allowed call whose decision has a post-call (result-based) spend: the cost read and charged. */
+  onCost?: (e: { tool: string; identity: unknown; decision: CoreDecision; cost: CoreCost }) => void;
   /** OpenTelemetry (docs/otel.md): a CoreTelemetry, its options, or true for the global providers. Default off. */
   telemetry?: CoreTelemetry | CoreTelemetryOptions | boolean;
   /** Upstream request timeout (default 10 minutes). */
@@ -150,14 +160,38 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
     : opts.telemetry ? new CoreTelemetry(opts.telemetry === true ? {} : opts.telemetry) : undefined;
   const timeout = opts.forwardTimeoutMs ?? 600_000;
   if (!caps.tools) return { server: outer, engine };
+  // Tool semantics (spec/tool-semantics.md): only when the policy has a `semantics` block (an invalid request's denial
+  // then carries a `semantics` key). The server's tools/list entries (annotations, _meta) feed the engine as `toolMeta`.
+  const semanticsOn = (() => { try { return "semantics" in JSON.parse(engine.decide("{}")); } catch { return false; } })();
+  const toolMeta = new Map<string, { annotations?: unknown; _meta?: unknown }>();
+  let metaLoaded = false;
+  const remember = (tools: { name: string; annotations?: unknown; _meta?: unknown }[]) => {
+    for (const t of tools) toolMeta.set(t.name, { ...(t.annotations !== undefined ? { annotations: t.annotations } : {}), ...(t._meta !== undefined ? { _meta: t._meta } : {}) });
+    metaLoaded = true;
+  };
+  const metaFor = async (tool: string, extra: any) => {
+    if (!semanticsOn) return undefined;
+    if (!metaLoaded || !toolMeta.has(tool)) {
+      let cursor: string | undefined;
+      for (let page = 0; page < 50; page++) { // follow pagination (bounded)
+        const res = await client.request({ method: "tools/list", params: cursor ? { cursor } : {} }, ListToolsResultSchema, { signal: extra.signal, timeout });
+        remember(res.tools);
+        cursor = res.nextCursor;
+        if (!cursor) break;
+      }
+    }
+    return toolMeta.get(tool);
+  };
 
   outer.setRequestHandler(ListToolsRequestSchema, async (req, extra) => {
     const run = async () => {
       const res = await client.request({ method: "tools/list", params: req.params ?? {} }, ListToolsResultSchema, { signal: extra.signal, timeout });
+      if (semanticsOn) remember(res.tools);
       const identity = await opts.identity(extra);
       if (identity === undefined) return { ...res, tools: [] };
       const toolsets = opts.toolsets?.(extra);
-      const out = JSON.parse(engine.visible(JSON.stringify({ identity, tools: res.tools.map((t) => t.name), ...(toolsets ? { toolsets } : {}) }))) as { visible?: string[] };
+      const metaMap = semanticsOn ? Object.fromEntries(res.tools.map((t) => [t.name, toolMeta.get(t.name) ?? {}])) : undefined;
+      const out = JSON.parse(engine.visible(JSON.stringify({ identity, tools: res.tools.map((t) => t.name), ...(toolsets ? { toolsets } : {}), ...(metaMap ? { toolMeta: metaMap } : {}) }))) as { visible?: string[] };
       const ok = new Set(out.visible ?? []);
       return { ...res, tools: res.tools.filter((t) => ok.has(t.name)) };
     };
@@ -176,7 +210,9 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
       if (opts.resource && identity !== undefined) {
         try { resource = await opts.resource({ tool, args, identity }, extra); } catch { unresolved = true; }
       }
-      const reqJson = JSON.stringify({ tool, args, ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}), ...(resource ? { resource } : {}) });
+      let meta: unknown;
+      try { meta = identity === undefined ? undefined : await metaFor(tool, extra); } catch { meta = undefined; }
+      const reqJson = JSON.stringify({ tool, args, ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}), ...(resource ? { resource } : {}), ...(meta !== undefined ? { toolMeta: meta } : {}) });
       const authSpan = tel?.startAuthorize(tool);
       let e0 = performance.now();
       let raw = unresolved ? RESOURCE_UNRESOLVED : engine.authorize(reqJson, now());
@@ -205,6 +241,13 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
       // key cannot be spoofed) so it can scope its own queries to the caller's tenant.
       const caller = { identity, tenant: d.tenant, rule: d.rule, ...(resource ? { resource } : {}) };
       const result = await client.request({ method: "tools/call", params: { name: tool, arguments: args, _meta: { [CORE_CALLER_META_KEY]: caller } } }, CallToolResultSchema, { signal: extra.signal, timeout });
+      if (d.limits.some((l) => (l as { deferred?: boolean }).deferred)) {
+        // post-call spend (tool semantics): read the cost from the result and charge the deferred budgets; an
+        // unreadable cost charges each budget's max (fail-closed), so the next call is denied until the window ends
+        const cost = JSON.parse(engine.account ? engine.account(raw, JSON.stringify(result), now()) : '{"error":"invalid_request"}') as CoreCost;
+        server?.setAttribute("mcp_rbac.cost", cost.cost ? cost.cost.amount : -1);
+        opts.onCost?.({ tool, identity, decision: d, cost });
+      }
       if (!d.redact.length && !d.labels.length) return result;
       server?.setAttribute("mcp_rbac.redacted", d.redact.length > 0);
       const red = JSON.parse(engine.redact(JSON.stringify(result), raw));

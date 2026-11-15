@@ -11,5 +11,6 @@
     "declaration": true,
     "types": ["node"]
   },
-  "include": ["src", "examples", "test", "bench"]
+  "include": ["src", "examples", "test", "bench"],
+  "exclude": ["examples/itm-agents", "examples/klaviyo-e2e", "node_modules"]
 }

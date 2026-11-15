@@ -27,7 +27,7 @@ mcp-rbac-py = "mcp_rbac.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-mcp_rbac = ["py.typed"]
+mcp_rbac = ["py.typed", "packs_data/*/pack.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

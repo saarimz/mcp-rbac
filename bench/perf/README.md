@@ -62,3 +62,44 @@ cache-vs-limits, caller-`_meta` spoofing, resources fail-closed in both modes, a
 
 Reproduce: `python -m bench.competitors.load baseline mcp-rbac-nocache mcp-rbac mcp-rbac-inplace mcp-rbac-inplace-worker mcp-rbac-inplace-noaudit agentgateway`
 (target suffixes `-nocache`, `-inplace`, `-worker`, `-noaudit`, `-sync` combine).
+
+## P12: the fixes as defaults (0.5.0), re-measured
+
+0.5.0 makes the P11 fixes the defaults where they are safe: `protectWithCore` guards an `McpServer` (TS SDK v1) or a
+v2 server **in place**, the decision cache stays on, and the venue example opens its audit with `openAuditSink`
+(**worker** by default, batched fallback). Same harness and box as P11, Sunday 15 Nov 2026 (ET), two back-to-back runs
+on a quiet box (17:36-17:46 ET). Raw: `bench/competitors/results/p12/run{1,2}.txt` and `run{1,2}/*.json`. Targets:
+`mcp-rbac` = the 0.5 defaults (in place + cache + worker audit); `-batched` = batched audit on the main thread;
+`-hop-batched-nocache` = the P11 "before" configuration; `-noaudit` = diagnostic ceiling.
+
+| Target | c=32 req/s run1 | run2 | c=1 p50 ms run1 / run2 | c=32 p99 ms run1 / run2 |
+|---|---:|---:|---|---|
+| no guard (baseline) | 5,845 | 5,815 | 0.208 / 0.223 | 12.8 / 13.1 |
+| agentgateway 1.7.0 (trust-mode upstream) | 7,173 | 7,290 | 0.582 / 0.576 | 10.8 / 10.6 |
+| **mcp-rbac 0.5 defaults** | **5,209** | **5,475** | **0.247 / 0.225** | 12.7 / 11.2 |
+| mcp-rbac, batched audit on the main thread | 4,064 | 4,777 | 0.295 / 0.257 | 19.4 / 15.2 |
+| mcp-rbac P11 "before" (hop, no cache, batched) | 3,019 | 3,046 | 0.439 / 0.401 | 22.1 / 20.2 |
+| mcp-rbac, no audit (diagnostic) | 4,524 | 5,425 | 0.237 / 0.228 | 18.2 / 13.0 |
+
+Errors were 0 in every phase. Reading:
+
+- With the defaults, mcp-rbac keeps **89-94% of no-guard throughput** (5,209/5,845 and 5,475/5,815) while writing a
+  hash-chained audit row for every decision, and adds **0.002-0.039 ms** at c=1 p50. Versus the P11 "before"
+  configuration that is **1.7-1.8x** the throughput.
+- agentgateway still has the most raw throughput here (7.2-7.3k req/s, faster than the no-guard Node server: it is a
+  multi-threaded Rust proxy and its upstream skips HS256 verification), but adds about 0.35-0.37 ms at c=1 p50 and
+  writes no per-call audit record and cannot see arguments in its MCP authorization.
+- Noise: the box is shared with other agents. `-noaudit` run1 (4,524) is below the audited default in the same run,
+  which is not plausible as a real effect; treat differences under ~10% between adjacent rows as noise.
+- An earlier pair of runs at 17:30-17:35 ET overlapped a 16 s `cargo build` on the same box; those numbers are kept
+  in `results/p12/concurrent-compile/` for completeness and not used above (mcp-rbac defaults 5,260 / 5,171 req/s,
+  baseline 5,566 / 5,955).
+
+Correctness with the 0.5 defaults: TS suite 411 passed / 19 skipped, both default (in place) and
+`MCP_RBAC_TEST_HOP=1`; Python 131 passed / 10 skipped; red team 140/140 with the venue server on its defaults
+(in place + worker audit). One real bug found on the way: with the worker audit, the venue app's own SQLite connection
+got `database is locked` because it had no `busy_timeout`; fixed in the example and documented in docs/AUDIT.md.
+
+Reproduce: `python -m bench.competitors.load baseline agentgateway mcp-rbac mcp-rbac-batched mcp-rbac-hop-batched-nocache mcp-rbac-noaudit`
+(suffixes `-hop`, `-batched`, `-sync`, `-nocache`, `-noaudit` combine; `-inplace` and `-worker` are accepted and are
+now no-ops).

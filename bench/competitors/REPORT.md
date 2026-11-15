@@ -267,3 +267,11 @@ The §2 tables above are the P10 runs and are unchanged. P11 profiled the gap an
 an in-place guard and an off-thread audit sink. With all three, venue c=32 throughput went from a median of 3,049 to
 4,778-5,114 req/s and c=1 p50 from 0.39 to 0.26 ms on this box. Method, profile, all runs and caveats:
 `bench/perf/README.md`; raw results: `results/p11/`.
+
+## P12 update: 0.5 defaults (2026-11-15)
+
+In place + decision cache + worker audit are now the defaults. Two quiet runs: mcp-rbac **5,209 / 5,475 req/s** at
+c=32 (no guard 5,845 / 5,815; agentgateway 7,173 / 7,290), c=1 p50 **0.247 / 0.225 ms** (no guard 0.208 / 0.223;
+agentgateway 0.582 / 0.576). The competitor rows in §2 are the P10 runs (same harness and box, different day) and
+were not re-run. Details and caveats: `bench/perf/README.md` (P12); raw: `results/p12/`.
+

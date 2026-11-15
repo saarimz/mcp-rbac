@@ -1,0 +1,35 @@
+{
+ "target": "mcp-rbac",
+ "tool": "list_events",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10,
+  "ok": 34807,
+  "errors": 0,
+  "rps": 3480.7,
+  "p50_ms": 0.247,
+  "p90_ms": 0.355,
+  "p99_ms": 0.628,
+  "max_ms": 9.964,
+  "mean_ms": 0.285
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.005,
+  "ok": 52622,
+  "errors": 0,
+  "rps": 5259.6,
+  "p50_ms": 5.47,
+  "p90_ms": 6.905,
+  "p99_ms": 12.98,
+  "max_ms": 81.527,
+  "mean_ms": 6.081
+ },
+ "peak_rss_mb": {
+  "app+guard": 389.0
+ },
+ "peak_rss_total_mb": 389.0,
+ "measured_at": "2026-11-15T17:31:22-0500",
+ "cpu": 8
+}

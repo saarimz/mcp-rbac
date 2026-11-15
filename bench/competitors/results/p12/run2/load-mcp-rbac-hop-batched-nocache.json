@@ -1,0 +1,35 @@
+{
+ "target": "mcp-rbac-hop-batched-nocache",
+ "tool": "list_events",
+ "transport": "http",
+ "latency_c1": {
+  "concurrency": 1,
+  "seconds": 10,
+  "ok": 22063,
+  "errors": 0,
+  "rps": 2206.3,
+  "p50_ms": 0.401,
+  "p90_ms": 0.592,
+  "p99_ms": 0.849,
+  "max_ms": 13.511,
+  "mean_ms": 0.45
+ },
+ "throughput_c32": {
+  "concurrency": 32,
+  "seconds": 10.009,
+  "ok": 30491,
+  "errors": 0,
+  "rps": 3046.4,
+  "p50_ms": 9.469,
+  "p90_ms": 15.25,
+  "p99_ms": 20.249,
+  "max_ms": 83.852,
+  "mean_ms": 10.497
+ },
+ "peak_rss_mb": {
+  "app+guard": 370.7
+ },
+ "peak_rss_total_mb": 370.7,
+ "measured_at": "2026-11-15T17:40:39-0500",
+ "cpu": 8
+}

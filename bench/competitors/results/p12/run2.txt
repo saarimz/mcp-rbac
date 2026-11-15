@@ -1,0 +1,7 @@
+baseline       c1 p50 0.223 p99 0.665 ms (0 err) | c32 5815.2 rps p50 4.68 p99 13.11 (0 err) | rss 351.7 MB
+agentgateway   c1 p50 0.576 p99 1.124 ms (0 err) | c32 7289.5 rps p50 3.764 p99 10.555 (0 err) | rss 424.2 MB
+mcp-rbac       c1 p50 0.225 p99 0.583 ms (0 err) | c32 5475.4 rps p50 5.351 p99 11.224 (0 err) | rss 391.9 MB
+mcp-rbac-batched c1 p50 0.257 p99 0.709 ms (0 err) | c32 4777.4 rps p50 6.043 p99 15.221 (0 err) | rss 367.4 MB
+mcp-rbac-hop-batched-nocache c1 p50 0.401 p99 0.849 ms (0 err) | c32 3046.4 rps p50 9.469 p99 20.249 (0 err) | rss 370.7 MB
+mcp-rbac-noaudit c1 p50 0.228 p99 0.648 ms (0 err) | c32 5425.4 rps p50 5.137 p99 12.963 (0 err) | rss 378.4 MB
+ALLDONE

@@ -10,7 +10,8 @@ documented description, recorded per tool with `source` and `confidence`:
   - delete_* / bulk_delete_* / request_profile_deletion / merge_profiles -> destructive (high: irreversible per name)
   - webhooks, upload_image_from_url, sending domains   -> external-comm (data leaves / enters from arbitrary URLs)
   - coupons create/update                              -> x-discount (money-like codes, no direct spend)
-  - profile / event / review / custom-object data      -> sensitivity pii; hasUserGeneratedContent -> ugc
+  - profile / event / review / custom-object data      -> sensitivity pii (not metric definitions or aggregates);
+    hasUserGeneratedContent -> ugc
 Run: python3 tools/packs/gen_klaviyo.py  (deterministic; commits the diff)."""
 import json
 import pathlib
@@ -60,7 +61,7 @@ for t in cat["tools"]:
         notes.append("sends the model's task description to Klaviyo")
     e["classes"] = classes
     sens = []
-    if c in PII_CATS or "profiles" in n:
+    if (c in PII_CATS and "metric" not in n) or "profiles" in n:  # metric definitions/aggregates are not personal data
         sens.append("pii")
     if t["hasUserGeneratedContent"]:
         sens.append("ugc")

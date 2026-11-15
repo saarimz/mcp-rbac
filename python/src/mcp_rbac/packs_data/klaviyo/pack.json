@@ -509,9 +509,6 @@
    "classes": [
     "read"
    ],
-   "sensitivity": [
-    "pii"
-   ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
   },
@@ -519,18 +516,12 @@
    "classes": [
     "read"
    ],
-   "sensitivity": [
-    "pii"
-   ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
   },
   "query_metric_aggregates": {
    "classes": [
     "read"
-   ],
-   "sensitivity": [
-    "pii"
    ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
@@ -550,18 +541,12 @@
    "classes": [
     "read"
    ],
-   "sensitivity": [
-    "pii"
-   ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
   },
   "get_mapped_metric": {
    "classes": [
     "read"
-   ],
-   "sensitivity": [
-    "pii"
    ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
@@ -570,18 +555,12 @@
    "classes": [
     "read"
    ],
-   "sensitivity": [
-    "pii"
-   ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
   },
   "get_custom_metrics": {
    "classes": [
     "read"
-   ],
-   "sensitivity": [
-    "pii"
    ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
@@ -590,18 +569,12 @@
    "classes": [
     "read"
    ],
-   "sensitivity": [
-    "pii"
-   ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
   },
   "get_flows_triggered_by_metric": {
    "classes": [
     "read"
-   ],
-   "sensitivity": [
-    "pii"
    ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
@@ -610,18 +583,12 @@
    "classes": [
     "write"
    ],
-   "sensitivity": [
-    "pii"
-   ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
   },
   "update_custom_metric": {
    "classes": [
     "write"
-   ],
-   "sensitivity": [
-    "pii"
    ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
@@ -631,18 +598,12 @@
     "write",
     "destructive"
    ],
-   "sensitivity": [
-    "pii"
-   ],
    "source": "klaviyo-tools-page",
    "confidence": "high"
   },
   "update_mapped_metric": {
    "classes": [
     "write"
-   ],
-   "sensitivity": [
-    "pii"
    ],
    "source": "klaviyo-tools-page",
    "confidence": "high"

@@ -1,15 +1,54 @@
 # Changelog
 
-## Unreleased (P11 perf, local only)
+## 0.5.0 (release candidate; local only, not published)
+
+The first version meant for the registries: a narrower default surface, faster defaults, and release plumbing.
+
+**Breaking**
+- **Experimental entry point.** Spend budgets in currency, delegation (RFC 8693), multi-tenant permission sets and
+  custom roles, and the AuthZEN / OpenFGA / Cedar / Cerbos / Casbin / Permit engines moved out of the default API to
+  `mcp-rbac/experimental` (plus `mcp-rbac/experimental/pdp`, `mcp-rbac/experimental/cedar`) and
+  `mcp_rbac.experimental`. Nothing was deleted; the policy keys still work, and `mcp-rbac check` prints a note when a
+  file uses them. `mcp-rbac/pdp` and `mcp-rbac/cedar` are now `mcp-rbac/experimental/pdp` and `.../cedar`.
+  See docs/experimental/README.md.
+- **`protectWithCore` guards in place by default** for an `McpServer` (SDK v1) and every SDK v2 server: the
+  server's own handlers are wrapped, no in-memory hop. Registering resources, prompts or completion handlers after
+  protecting, or replacing tools/call / tools/list, now throws (fail-closed). `inPlace: false` keeps the hop for v1;
+  v2 is in place only.
+
+**Added**
+- **TypeScript SDK v2** (`@modelcontextprotocol/server` 2.4+): `protectWithCore` accepts v2 servers (stdio, in-memory
+  and `createMcpHandler` HTTP), with `authInfoOf(ctx)` / `callerOf(ctx)` helpers; SDK v1 1.32+ keeps working. 15 tests
+  run the same matrix on both.
+- **`audit` option** on `protectWithCore` (`"audit.db"`, `{ path, mode, table }`, or a shared writer) and
+  `openAuditSink(path, { mode })`: hash-chained SQLite audit, on a worker thread by default, batched fallback if a
+  worker cannot start.
+- **`mcp-rbac demo`**: the quickstart in one command (allow, deny, rate limit, approval, argument limit, verified audit
+  chain; prints the time to first deny). `--save-policy mcp-rbac.yaml` writes the policy.
+- **Release plumbing**: GitHub Actions CI (lint, TS on Node 22/24 x in-place/hop, Python on Linux/macOS x 3.11/3.13,
+  Go, Rust, conformance, docs, red team, package dry run) and a release workflow with npm / PyPI / crates.io trusted
+  publishing, dry run by default; actions pinned by SHA; `tools/release-dry-run.sh`; docs/RELEASING.md.
+- **Package metadata**: npm `mcp-rbac` (files allowlist, `publishConfig.provenance`), PyPI `mcp-rbac` (depends on
+  `mcp-rbac-core==0.5.0`) and `mcp-rbac-core` (abi3 wheels), crates.io `mcp-rbac-core` (README, include list).
+
+**Fixed**
+- `mcp-rbac check --json` printed `invalid:` on stderr for valid files.
+- Venue example: `database is locked` under the worker audit (the app's own SQLite connection had no `busy_timeout`).
+- Python: 6 `mypy --strict` errors with mypy 2.x.
+
+**Performance** (venue `list_events`, c=32, same harness as 0.4; bench/perf/README.md P12): 5,209-5,475 req/s with the
+defaults (no guard 5,815-5,845; 0.4-era configuration 3,019-3,046), c=1 p50 0.225-0.247 ms (no guard 0.208-0.223).
+
+### Included from the P11 perf work
 
 - **Decision cache** (`protectWithCore({ decisionCache })`, default on, 4096 entries): decisions that consulted no rate
   limits or budgets and need no approval are pure in (policy, exact request JSON), so repeats skip the WASM call.
   Decisions with limits, approvals or deferred spend are never cached (tested). `decisionCache: false` turns it off.
-- **In-place guard** (`protectWithCore(mcpServer, { inPlace: true })`, opt-in): wraps the McpServer's own tools/list and
+- **In-place guard** (`protectWithCore(mcpServer, { inPlace: true })`; the default since 0.5): wraps the McpServer's own tools/list and
   tools/call handlers instead of an in-memory client/server hop. Same decisions, same trusted caller `_meta`, still
   fail-closed for resources/prompts/completion (removed). The full TS suite (393 tests) and the 140-check red team pass
   with it on. Uses SDK 1.x `Protocol#_requestHandlers` (feature-detected; throws if absent).
-- **Off-thread audit** (`mcp-rbac/audit-worker`, `WorkerAuditSink`): same table and hash chain as `SqliteAuditSink`
+- **Off-thread audit** (`mcp-rbac/audit-worker`, `WorkerAuditSink`; the default sink of `openAuditSink` since 0.5): same table and hash chain as `SqliteAuditSink`
   batched mode, with hashing, canonical JSON and SQLite commits on a worker thread. `flush()`/`close()`/exit/signals block
   until the worker has committed. Verified with `verifyAuditTable`, from source and from the packed tarball.
 - Venue load (c=32, `list_events`), median of runs on this box: 3,049 req/s before -> 4,778-5,114 req/s with all three

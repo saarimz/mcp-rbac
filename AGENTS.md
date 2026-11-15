@@ -7,9 +7,11 @@ repository.
 
 1. **Pick the integration** (details in `docs/quickstart.md`):
    - The server isn't theirs, or they want no code changes: `mcp-rbac proxy --preset <read-only|no-destructive|approve-writes|approve-destructive> -- <server command>`.
-   - Their own server, TypeScript: `protectWithCore(server, { policy, identity })` from `mcp-rbac/core`.
+   - Their own server, TypeScript (SDK v1 or v2): `protectWithCore(server, { policy, identity, audit: "audit.db" })` from
+     `mcp-rbac/core`. Call it after every tool is registered: it guards the server in place and refuses later resource/prompt
+     registrations.
    - Python: `protect_with_core(server, policy, identity=...)` from `mcp_rbac.core_guard`.
-   - Go: `rt.NewEngine(ctx, policy)` then `engine.Protect(server, mcprbac.GuardOptions{Identity: ...})`.
+   - Go (preview, not published in 0.5): `rt.NewEngine(ctx, policy)` then `engine.Protect(server, mcprbac.GuardOptions{Identity: ...})`.
    - Rust (rmcp): `Guarded` in `core/mcp-rbac-rmcp`.
 2. **Write `mcp-rbac.yaml`** (`docs/policy-format.md`, schema `spec/mcp-rbac.schema.json`). Validate it with
    `mcp-rbac check mcp-rbac.yaml`. Copy the shape of `docs/snippets/mcp-rbac.yaml`.
@@ -25,6 +27,10 @@ repository.
    returns "Approval required for <tool>" and never runs.
 7. **Check your work:** call the tools as each role and assert the exact denial strings (`Denied: user:no_matching_permission`,
    `Denied: rate_limited:N`, `Approval required for X`). The snippets in `docs/snippets/` show the pattern.
+
+Stable vs experimental: currency budgets (`spend`), `delegation`, `tenants`/`permissionSets`/`customRoles`, and the
+external engines live in `mcp-rbac/experimental` / `mcp_rbac.experimental`; `mcp-rbac check` notes when a policy uses
+them. Prefer the stable features unless the user asks for these.
 
 Common mistakes: putting identity in arguments; forgetting `includes` (role inheritance); currency budgets on tools
 with no `spend` declared (they deny with `limit_N:unknown_spend`, by design); expecting `labelRules` to hide tools

@@ -7,7 +7,10 @@ Authorization layers (mcp-rbac, gateways, audit tools) need to see and veto ever
 1. **Replace handlers** with `server.setRequestHandler(...)`. This collides with `McpServer`, which installs its own handlers lazily, and registration order then decides who wins.
 2. **Proxy**: put an outer `Server` in front of the real one through an in-memory transport pair and a `Client`. mcp-rbac does this, using public APIs only. It works for any server and costs about 14 µs per call in-process, but every capability has to be re-declared and every notification forwarded by hand. New protocol features (tasks, sampling/elicitation from server to client) also need explicit plumbing before they pass through.
 
-mcp-rbac v0.1 patched private fields instead. v0.2 removed that.
+mcp-rbac v0.1 patched private fields instead; v0.2 removed that. Since 0.5 the default for `McpServer` (SDK v1) and every
+SDK v2 server is to wrap the registered handlers **in place** through `Protocol`'s private `_requestHandlers` map,
+because the hop was most of the guard's CPU per call (bench/perf/README.md). That is fast but depends on a private
+field in both SDK versions; this hook would make it public.
 
 ## Proposal
 

@@ -14,3 +14,5 @@ wasm-pkg/
 conformance/.go-runner
 tools/otel-e2e/out/
 test/_deprecation_*.ts
+site/
+tools/docs-check/.tmp/

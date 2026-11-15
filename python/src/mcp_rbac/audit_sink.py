@@ -59,7 +59,8 @@ def audit_record_from_decision(e: Mapping[str, Any], at: str | None = None) -> d
     """Map a CoreGuard ``on_decision`` event to an audit record."""
     from datetime import datetime, timezone
 
-    ident = e.get("identity") if isinstance(e.get("identity"), Mapping) else {}
+    raw_ident = e.get("identity")
+    ident: Mapping[str, Any] = raw_ident if isinstance(raw_ident, Mapping) else {}
     d = e["decision"]
     sub = ident.get("id")
     tenant = d.get("tenant") or (ident.get("tenant") if isinstance(ident.get("tenant"), str) else None)

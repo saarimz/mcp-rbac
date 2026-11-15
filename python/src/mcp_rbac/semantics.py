@@ -10,7 +10,7 @@ import json
 import math
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, NoReturn
 
 CLASSES = ("read", "write", "send", "spend", "destructive", "external-comm", "unknown")
 META_KEY = "mcp-rbac/semantics"
@@ -20,7 +20,7 @@ class SemanticsError(ValueError):
     pass
 
 
-def _fail(m: str) -> Any:
+def _fail(m: str) -> NoReturn:
     raise SemanticsError(m)
 
 
@@ -255,8 +255,9 @@ def annotation_classes(a: dict[str, Any]) -> Optional[list[str]]:
     def hint(k: str) -> Optional[bool]:
         if k not in a or a[k] is None:
             return None
-        if isinstance(a[k], bool):
-            return a[k]
+        v = a[k]
+        if isinstance(v, bool):
+            return v
         return _fail(f"annotations.{k}: must be a boolean")
     ro, de, ow = hint("readOnlyHint"), hint("destructiveHint"), hint("openWorldHint")
     hint("idempotentHint")

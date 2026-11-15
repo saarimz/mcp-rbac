@@ -1,0 +1,198 @@
+# Release: npm `mcp-rbac`, PyPI `mcp-rbac` + `mcp-rbac-core` (PyO3 wheels), crates.io `mcp-rbac-core`.
+#
+# Every registry uses trusted publishing (OIDC, no long-lived tokens). One-time setup, by the owner, before the
+# first real run (see docs/RELEASING.md): create the GitHub environments `npm`, `pypi` and `crates` with required
+# reviewers, and register this workflow file (release.yml) as the trusted publisher on each registry.
+#
+# Dry run (default for manual runs): builds and checks every artifact, runs `npm publish --dry-run` and
+# `cargo publish --dry-run`, and stops before anything is uploaded. A real publish needs a `v*` tag push, or a manual
+# run with dry_run=false, plus an approval on each environment.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and check everything, publish nothing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - id: v
+        name: Versions agree (package.json, pyproject x2, Cargo workspace, tag)
+        run: |
+          set -euo pipefail
+          npm_v=$(node -p "require('./package.json').version")
+          py_v=$(python3 -c "import tomllib;print(tomllib.load(open('python/pyproject.toml','rb'))['project']['version'])")
+          pycore_v=$(python3 -c "import tomllib;print(tomllib.load(open('core/mcp-rbac-py/pyproject.toml','rb'))['project']['version'])")
+          cargo_v=$(python3 -c "import tomllib;print(tomllib.load(open('core/Cargo.toml','rb'))['workspace']['package']['version'])")
+          echo "npm=$npm_v py=$py_v pycore=$pycore_v cargo=$cargo_v ref=$GITHUB_REF_NAME"
+          test "$npm_v" = "$py_v" && test "$py_v" = "$pycore_v" && test "$pycore_v" = "$cargo_v"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then test "$GITHUB_REF_NAME" = "v$npm_v"; fi
+          echo "version=$npm_v" >> "$GITHUB_OUTPUT"
+
+  npm-build:
+    needs: check-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - run: cargo install --locked wasm-pack
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:wasm
+      - run: npm pack
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: npm
+          path: mcp-rbac-*.tgz
+
+  npm-publish:
+    needs: npm-build
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # trusted publishing; npm adds the provenance attestation itself
+    steps:
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: npm >= 11.5.1 (trusted publishing)
+        run: npm install -g npm@^11.5.1
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: npm
+      - name: Publish
+        run: |
+          set -euo pipefail
+          tgz=$(ls mcp-rbac-*.tgz)
+          if [ "$DRY_RUN" = "true" ]; then npm publish --dry-run --access public "$tgz"; else npm publish --access public "$tgz"; fi
+
+  py-core-wheels:
+    needs: check-version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64, manylinux: auto }
+          - { os: ubuntu-latest, target: aarch64, manylinux: auto }
+          - { os: macos-latest, target: aarch64 }
+          - { os: macos-15-intel, target: x86_64 }
+          - { os: windows-latest, target: x64 }
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
+        with:
+          working-directory: core/mcp-rbac-py
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux || '' }}
+          args: --release --out dist
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: py-core-${{ matrix.os }}-${{ matrix.target }}
+          path: core/mcp-rbac-py/dist/*.whl
+
+  py-core-sdist:
+    needs: check-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
+        with:
+          working-directory: core/mcp-rbac-py
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: py-core-sdist
+          path: core/mcp-rbac-py/dist/*.tar.gz
+
+  py-build:
+    needs: check-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install build twine
+      - run: python -m build python --outdir dist-py
+      - run: python -m twine check --strict dist-py/*
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: py
+          path: dist-py/*
+
+  pypi-publish:
+    needs: [py-core-wheels, py-core-sdist, py-build]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write # PyPI trusted publishing (PEP 740 attestations are generated by the action)
+    steps:
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: py*
+          path: dist
+          merge-multiple: true
+      - run: ls -l dist
+      - name: Check (dry run stops here)
+        run: |
+          python3 -m pip install twine
+          python3 -m twine check --strict dist/*
+      - name: Publish mcp-rbac-core then mcp-rbac
+        if: env.DRY_RUN != 'true'
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
+        with:
+          packages-dir: dist
+
+  crates-publish:
+    needs: check-version
+    runs-on: ubuntu-latest
+    environment: crates
+    permissions:
+      contents: read
+      id-token: write # crates.io trusted publishing
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
+      - name: cargo publish --dry-run
+        working-directory: core
+        run: cargo publish --dry-run -p mcp-rbac-core
+      - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1
+        if: env.DRY_RUN != 'true'
+        id: auth
+      - name: cargo publish
+        if: env.DRY_RUN != 'true'
+        working-directory: core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish -p mcp-rbac-core

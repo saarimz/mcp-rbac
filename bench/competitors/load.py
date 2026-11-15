@@ -71,17 +71,18 @@ def start(target: str, tmp: str) -> tuple[str, str, dict[str, int], list[Any], b
     db = f"{tmp}/venue.db"
     procs: list[Any] = []
     if target.startswith("mcp-rbac") and "@" not in target:
-        # -sync: audit committed per decision; -noaudit: diagnostic only (P9); P11 suffixes: -nocache (decision cache off),
-        # -inplace (guard wraps the McpServer's own handlers, no in-memory hop); combinable, e.g. mcp-rbac-inplace-noaudit
+        # v0.5 defaults: guard in place, decision cache on, audit on a worker thread. Suffixes (combinable):
+        # -hop (P9-P11 in-memory hop), -batched (audit group commit on the main thread), -sync (audit committed per
+        # decision), -nocache (decision cache off), -noaudit (diagnostic only). -inplace / -worker are accepted and are
+        # now the defaults. e.g. mcp-rbac-hop-batched-nocache = the P11 "before" configuration.
         pol = pathlib.Path(tmp) / "venue-nolimits.yaml"
         txt = (ROOT / "examples/policies/venue.yaml").read_text()
         pol.write_text(re.sub(r"\nlimits:\n(  - .*\n)+", "\n", txt))
         assert "per-client" not in pol.read_text()
         os.environ["MCP_RBAC_POLICY_FILE"] = str(pol)
         knobs = {"MCP_RBAC_BENCH_NO_AUDIT": "1" if "-noaudit" in target else None,
-                 "MCP_RBAC_AUDIT_MODE": "sync" if "-sync" in target else "batched",
-                 "MCP_RBAC_AUDIT_WORKER": "1" if "-worker" in target else None,
-                 "MCP_RBAC_GUARD_INPLACE": "1" if "-inplace" in target else None,
+                 "MCP_RBAC_AUDIT_MODE": "sync" if "-sync" in target else "batched" if "-batched" in target else "worker",
+                 "MCP_RBAC_GUARD_INPLACE": "0" if "-hop" in target else None,
                  "MCP_RBAC_DECISION_CACHE": "0" if "-nocache" in target else None}
         for k, v in knobs.items():
             if v is not None:

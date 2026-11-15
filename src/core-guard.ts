@@ -5,8 +5,14 @@
  *
  * Decisions, rate limits and redaction come from mcp-rbac-core compiled to WebAssembly (wasm-pkg/, built by
  * `npm run build:wasm`), so they are byte-identical to the Python (PyO3), Go (wazero) and Rust (rmcp) bindings.
- * Only tools are proxied: resources/prompts of the inner server are not reachable through this wrapper (fail-closed).
- * Uses only public SDK surface (Server#setRequestHandler, Client#request, InMemoryTransport).
+ * Only tools are guarded: resources/prompts of the inner server are not reachable through this wrapper (fail-closed).
+ *
+ * Two modes:
+ *  - in place (default for an McpServer, TS SDK v1 >= 1.32 or v2 >= 2.4, and for a v2 low-level Server): the guarded
+ *    tools/list and tools/call handlers replace the server's own and call the originals directly. No second JSON-RPC
+ *    round trip. Uses the SDK's request-handler map (feature-detected; private in both SDK majors, pinned by tests).
+ *  - hop (`inPlace: false`, an upstream Client, or a v1 low-level Server):
+ *    client ──► outer Server ──in-memory MCP──► your server. Public v1 surface only.
  */
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -15,6 +21,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { CoreTelemetry, type CoreTelemetryOptions } from "./core-otel.js";
+import type { AuditSinkMode, AuditWriter } from "./audit-worker.js";
 import { CallToolRequestSchema, CallToolResultSchema, ListToolsRequestSchema, ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 
 /** The WASM engine: JSON text in, canonical JSON text out (see core/mcp-rbac-core/src/engine.rs). */
@@ -117,13 +124,22 @@ export interface CoreGuardOptions {
   /** Upstream request timeout (default 10 minutes). */
   forwardTimeoutMs?: number;
   /**
-   * Guard an in-process McpServer in place instead of behind an in-memory MCP client/server hop (P11 perf). The
-   * guarded tools/list and tools/call handlers replace the McpServer's own and call its original handlers directly, so
-   * there is no second JSON-RPC round trip or result re-validation. Fail-closed like the hop: the server's
-   * resources/prompts/completion handlers are removed (the hop never proxied them either). Register every tool before
-   * calling. Ignored for an upstream Client or a low-level Server. Default false.
+   * Guard an in-process McpServer in place instead of behind an in-memory MCP client/server hop. The guarded
+   * tools/list and tools/call handlers replace the McpServer's own and call its original handlers directly, so there
+   * is no second JSON-RPC round trip or result re-validation. Fail-closed like the hop: the server's
+   * resources/prompts/completion handlers are removed, and registering one (or replacing the tools handlers) after
+   * this call throws. Register at least one tool before calling.
+   * Default (undefined): in place for an McpServer that has tools (SDK v1 or v2) and for an SDK v2 low-level Server;
+   * the hop otherwise. `false` forces the hop (SDK v1 only). `true` throws if in place is not possible.
    */
   inPlace?: boolean;
+  /**
+   * Hash-chained decision audit (docs/AUDIT.md), written once per tools/call decision (after `onDecision`).
+   * A SQLite path or `{ path, mode }` opens a sink for this guard (mode "worker" by default: hashing and commits on a
+   * worker thread, falling back to "batched" where a worker cannot start). For per-session guards of one HTTP server,
+   * open one sink with `openAuditSink(path)` (mcp-rbac/audit-worker) and pass the same object to every guard.
+   */
+  audit?: string | { path: string; mode?: AuditSinkMode; table?: string } | AuditWriter;
   /**
    * Memoize core decisions that carry no rate limits or budgets (P11). Such a decision is a pure function of the
    * (immutable) policy and the exact request JSON, so a repeat of the same request text gets the same answer without
@@ -140,35 +156,73 @@ export const CORE_CALLER_META_KEY = "mcp-rbac/caller";
 const RESOURCE_UNRESOLVED = JSON.stringify({ decision: "deny", labels: [], limits: [], missingScopes: [], reason: "resource_unresolved",
   redact: [], requiredScopes: [], rule: null, tenant: null, withholdText: false });
 
-/** Wrap an McpServer / Server (or an upstream Client) behind the WASM core. Returns the outer server to connect. */
-export async function protectWithCore(inner: McpServer | Server | Client, opts: CoreGuardOptions): Promise<{ server: Server; engine: CoreEngine }> {
+/** Anything with the SDK's connect/close (the guarded server of either SDK major). */
+export interface ConnectableServer { connect(transport: any): Promise<void>; close(): Promise<void> }
+/** An SDK v2 McpServer (`@modelcontextprotocol/server`) or v2 low-level Server, matched structurally. */
+export type SdkV2Server = { server: ConnectableServer } | (ConnectableServer & { setRequestHandler: (...a: any[]) => unknown });
+export interface ProtectedCore<S> { server: S; engine: CoreEngine; /** The audit sink this guard writes to (when `audit` was given). */ audit?: AuditWriter }
+
+/** The caller's verified auth info from a handler context: v1 `extra.authInfo`, v2 `ctx.http.authInfo`. */
+export function authInfoOf(extra: any): any {
+  return extra?.authInfo ?? extra?.http?.authInfo;
+}
+/** Inside an allowed tool: `{identity, tenant, rule, resource?}` from the guard (v1 `extra._meta`, v2 `ctx.mcpReq._meta`). */
+export function callerOf(extra: any): { identity: unknown; tenant: string | null; rule: string | null; resource?: Record<string, string> } | undefined {
+  return (extra?._meta ?? extra?.mcpReq?._meta)?.[CORE_CALLER_META_KEY];
+}
+
+type HandlerMap = Map<string, (req: any, extra: any) => Promise<any>>;
+const UNGUARDED = /^(resources|prompts|completion)\//;
+const GUARDED = /^tools\/(call|list)$/;
+
+/**
+ * Wrap an McpServer / Server (SDK v1 or v2) or an upstream v1 Client behind the WASM core. Returns the server to
+ * connect: the same server object when guarded in place, a new outer Server for the hop.
+ */
+export async function protectWithCore(inner: McpServer | Server | Client, opts: CoreGuardOptions): Promise<ProtectedCore<Server>>;
+export async function protectWithCore(inner: SdkV2Server, opts: CoreGuardOptions): Promise<ProtectedCore<ConnectableServer>>;
+export async function protectWithCore(inner: McpServer | Server | Client | SdkV2Server, opts: CoreGuardOptions): Promise<ProtectedCore<any>> {
   if (!opts.engine && opts.policy === undefined) throw new Error("protectWithCore: pass `policy` or `engine`");
   const engine = opts.engine ?? createCoreEngine(opts.policy!);
   const timeout = opts.forwardTimeoutMs ?? 600_000;
   type Fwd = (params: Record<string, unknown>, extra: any) => Promise<any>;
   type ListRes = { tools: { name: string; annotations?: unknown; _meta?: unknown }[]; nextCursor?: string; [k: string]: unknown };
   let callInner: Fwd, listInner: (params: Record<string, unknown>, extra: any) => Promise<ListRes>;
-  let outer: Server;
+  let outer: any;
   let hasTools: boolean;
-  const mcpInner = !(inner instanceof Client) && !(inner instanceof Server) ? inner as McpServer : undefined;
-  // MCP_RBAC_TEST_INPLACE=1: run a whole test suite with in-place as the default (parity check; tests only)
-  if ((opts.inPlace ?? process.env.MCP_RBAC_TEST_INPLACE === "1") && mcpInner) {
-    // in place: wrap the McpServer's own handlers (SDK 1.x keeps them in Protocol#_requestHandlers; feature-detected)
-    outer = mcpInner.server;
-    const handlers = (outer as unknown as { _requestHandlers?: Map<string, (req: any, extra: any) => Promise<any>> })._requestHandlers;
-    const ic = handlers?.get("tools/call"), il = handlers?.get("tools/list");
-    if (!handlers || !ic || !il) throw new Error("protectWithCore(inPlace): register the server's tools first (no tools/call handler found)");
-    for (const m of [...handlers.keys()]) if (/^(resources|prompts|completion)\//.test(m)) handlers.delete(m);
+  // Where the request handlers live: McpServer (v1/v2) -> its .server; a v2 low-level Server -> itself.
+  const v1Client = inner instanceof Client, v1Server = inner instanceof Server;
+  const any = inner as any;
+  const host: any = v1Client || v1Server ? undefined
+    : any?.server?._requestHandlers instanceof Map ? any.server
+    : any?._requestHandlers instanceof Map && typeof any._wrapHandler === "function" ? any : undefined;
+  const isMcpServer = !!host && host !== any;
+  const v2 = !!host && typeof host._wrapHandler === "function";
+  if (!v1Client && !v1Server && !host) throw new Error("protectWithCore: unsupported server object (expected an McpServer or Server from @modelcontextprotocol/sdk >= 1.32 or @modelcontextprotocol/server >= 2.4, or a Client)");
+  const handlers = host?._requestHandlers as HandlerMap | undefined;
+  const ic = handlers?.get("tools/call"), il = handlers?.get("tools/list");
+  // MCP_RBAC_TEST_HOP=1: run a whole test suite with the hop as the default (parity check; tests only)
+  const want = opts.inPlace ?? (process.env.MCP_RBAC_TEST_HOP === "1" && !v2 ? false : undefined);
+  const canInPlace = !!handlers && !!ic && !!il && (isMcpServer || v2);
+  if (want === true && !canInPlace) throw new Error("protectWithCore(inPlace): register the server's tools first (no tools/call handler found)");
+  if (v2 && want === false) throw new Error("protectWithCore: SDK v2 servers are guarded in place only (drop inPlace: false)");
+  if (v2 && !canInPlace) throw new Error("protectWithCore: register the server's tools first (no tools/call handler found)");
+  const inPlace = want ?? canInPlace;
+  if (inPlace) {
+    outer = host;
+    for (const m of [...handlers!.keys()]) if (UNGUARDED.test(m)) handlers!.delete(m);
     // the forwarded _meta is only ours: a client-supplied mcp-rbac/caller never reaches the tool (same as the hop)
-    callInner = (params, extra) => ic({ method: "tools/call", params }, { ...extra, _meta: params._meta });
-    listInner = (params, extra) => il({ method: "tools/list", params }, { ...extra, _meta: undefined });
+    const ctxWith = (extra: any, meta: unknown) => v2 ? { ...extra, mcpReq: { ...extra?.mcpReq, _meta: meta } } : { ...extra, _meta: meta };
+    const rpc = (method: string, params: Record<string, unknown>, extra: any) => ({ jsonrpc: "2.0", id: extra?.requestId ?? extra?.mcpReq?.id ?? 0, method, params });
+    callInner = (params, extra) => ic!(rpc("tools/call", params, extra), ctxWith(extra, params._meta));
+    listInner = (params, extra) => il!(rpc("tools/list", params, extra), ctxWith(extra, undefined));
     hasTools = true;
   } else {
     let client: Client;
     if (inner instanceof Client) client = inner;
     else {
       const [ct, st] = InMemoryTransport.createLinkedPair();
-      await inner.connect(st);
+      await (inner as McpServer | Server).connect(st);
       client = new Client({ name: "mcp-rbac-core", version: loadCoreWasm().version() });
       await client.connect(ct);
     }
@@ -180,6 +234,19 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
     callInner = (params, extra) => client.request({ method: "tools/call", params: params as any }, CallToolResultSchema, { signal: extra.signal, timeout });
     listInner = (params, extra) => client.request({ method: "tools/list", params: params as any }, ListToolsResultSchema, { signal: extra.signal, timeout });
     hasTools = !!caps.tools;
+  }
+  // v1: setRequestHandler(zodSchema, h); v2: setRequestHandler("method", h). Both hand h (validated request, ctx).
+  const setHandler = (method: "tools/list" | "tools/call", schema: unknown, h: (req: any, extra: any) => Promise<any>) =>
+    v2 ? outer.setRequestHandler(method, h) : outer.setRequestHandler(schema, h);
+  let sink: AuditWriter | undefined;
+  let toRecord: ((e: Parameters<NonNullable<CoreGuardOptions["onDecision"]>>[0]) => any) | undefined;
+  if (opts.audit !== undefined && hasTools) {
+    const { openAuditSink } = await import("./audit-worker.js");
+    const { auditRecordFromDecision } = await import("./audit-sink.js");
+    toRecord = auditRecordFromDecision;
+    const a = opts.audit;
+    sink = typeof a === "object" && "write" in a ? a
+      : typeof a === "string" ? openAuditSink(a) : openAuditSink(a.path, { ...(a.mode ? { mode: a.mode } : {}), ...(a.table ? { table: a.table } : {}) });
   }
   const cacheMax = opts.decisionCache === false ? 0 : opts.decisionCache ?? 4096;
   const cache = new Map<string, string>();
@@ -205,11 +272,12 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
       return res;
     };
   }
-  const ids = (extra: any) => idsOf(extra, protocolVersion);
+  const ids = (extra: any) => idsOf(extra, protocolVersion ?? outer._negotiatedProtocolVersion);
   const now = opts.now ?? Date.now;
   const tel = opts.telemetry instanceof CoreTelemetry ? opts.telemetry
     : opts.telemetry ? new CoreTelemetry(opts.telemetry === true ? {} : opts.telemetry) : undefined;
   if (!hasTools) return { server: outer, engine };
+  const audit = sink;
   // Tool semantics (spec/tool-semantics.md): only when the policy has a `semantics` block (an invalid request's denial
   // then carries a `semantics` key). The server's tools/list entries (annotations, _meta) feed the engine as `toolMeta`.
   const semanticsOn = (() => { try { return "semantics" in JSON.parse(engine.decide("{}")); } catch { return false; } })();
@@ -233,7 +301,7 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
     return toolMeta.get(tool);
   };
 
-  outer.setRequestHandler(ListToolsRequestSchema, async (req, extra) => {
+  setHandler("tools/list", ListToolsRequestSchema, async (req: any, extra: any) => {
     const run = async () => {
       const res = await listInner(req.params ?? {}, extra);
       if (semanticsOn) remember(res.tools);
@@ -248,7 +316,7 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
     return tel ? tel.serverSpan("tools/list", undefined, req.params?._meta, ids(extra), run) : run();
   });
 
-  outer.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
+  setHandler("tools/call", CallToolRequestSchema, async (req: any, extra: any) => {
     const tool = req.params.name;
     const run = async (server?: import("@opentelemetry/api").Span) => {
       const t0 = performance.now();
@@ -282,7 +350,9 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
         } else approval = "rejected";
       }
       if (tel && authSpan && server) tel.endAuthorize(authSpan, server, tool, d, approval, engineMs / 1000);
-      opts.onDecision?.({ tool, identity, decision: d, durationMs: performance.now() - t0, approved });
+      const ev = { tool, identity, decision: d, durationMs: performance.now() - t0, approved };
+      opts.onDecision?.(ev);
+      if (audit) audit.write(toRecord!(ev));
       if (d.decision !== "allow") {
         const text = d.decision === "needs_approval" ? `Approval required for ${tool}` : `Denied: ${d.reason}`;
         return { content: [{ type: "text" as const, text }], isError: true, _meta: { [DENIAL_META_KEY]: { decision: d.decision, reason: d.reason } } };
@@ -308,9 +378,18 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
     };
     return tel ? tel.serverSpan("tools/call", tool, req.params._meta, ids(extra), (span) => run(span)) : run();
   });
-  return { server: outer, engine };
+  if (inPlace) {
+    // fail closed: nothing may later register an unguarded resources/prompts/completion handler or replace ours
+    const set = handlers!.set.bind(handlers!);
+    handlers!.set = (k: string, v: any) => {
+      if (UNGUARDED.test(k) || GUARDED.test(k))
+        throw new Error(`mcp-rbac: cannot register a ${k} handler after protectWithCore (only tools are guarded; register tools before protecting)`);
+      return set(k, v);
+    };
+  }
+  return { server: outer, engine, ...(audit ? { audit } : {}) };
 }
 
 function idsOf(extra: any, protocolVersion: string | undefined): { requestId?: string | number; sessionId?: string; protocolVersion?: string } {
-  return { requestId: extra?.requestId, sessionId: extra?.sessionId, protocolVersion };
+  return { requestId: extra?.requestId ?? extra?.mcpReq?.id, sessionId: extra?.sessionId, protocolVersion };
 }

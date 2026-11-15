@@ -1,4 +1,4 @@
-# One policy core, four languages (0.4)
+# One policy core, four languages (0.5)
 
 The policy engine is a single Rust crate, `core/mcp-rbac-core` (`#![forbid(unsafe_code)]`). Every binding loads the same
 compiled core. So for the same policy, identity, request and clock, every language returns the **byte-identical**
@@ -7,7 +7,7 @@ asks the core, and applies the answer.
 
 | Language | Package / import | How the core runs | Guard entry point | Caller context inside a tool |
 |---|---|---|---|---|
-| TypeScript (Node ≥ 22.13) | `mcp-rbac/core` | WASM (wasm-bindgen) | `protectWithCore(server, opts)` | `_meta["mcp-rbac/caller"]` on the forwarded call |
+| TypeScript (Node ≥ 22.13), SDK v1 ≥ 1.32 or v2 ≥ 2.4 | `mcp-rbac/core` | WASM (wasm-bindgen) | `protectWithCore(server, opts)` | `callerOf(extra)` (`_meta["mcp-rbac/caller"]`) |
 | Python ≥ 3.11 | `mcp_rbac.core_guard` (+ `mcp-rbac-core` wheel) | PyO3 native extension (abi3) | `CoreGuard(policy, identity=...)` as MCPServer middleware | `current_caller()` |
 | Go | `github.com/mcp-rbac/mcp-rbac-go` | WASM in wazero (pure Go, **no cgo**) | `engine.Protect(server, GuardOptions{...})` | `mcprbac.CallerFrom(ctx)` |
 | Rust | `mcp-rbac-rmcp` | native | `protect(handler, &policy, GuardOptions::with_identity(...))` | `Extension<Caller>` |
@@ -20,10 +20,20 @@ All four guards take the same options: `identity` (who is calling; the shape is 
 
 ```ts
 // TypeScript
-import { createCoreEngine, protectWithCore } from "mcp-rbac/core";
+import { authInfoOf, createCoreEngine, protectWithCore } from "mcp-rbac/core";
 const engine = createCoreEngine(readFileSync("mcp-rbac.yaml", "utf8")); // share one engine across sessions
-const { server } = await protectWithCore(myMcpServer, { engine, identity: (extra) => extra.authInfo?.extra?.identity });
+const { server } = await protectWithCore(myMcpServer, {
+  engine,
+  identity: (extra) => authInfoOf(extra)?.extra?.identity, // v1 extra.authInfo, v2 ctx.http.authInfo
+  audit: sink,                                              // openAuditSink("audit.db") from mcp-rbac/audit-worker, shared
+});
 ```
+
+TypeScript details (0.5): an `McpServer` (SDK v1 or v2) and a v2 low-level `Server` are guarded **in place**: the
+guarded `tools/list` / `tools/call` handlers replace the server's own and call the originals directly (no in-memory
+hop; `bench/perf/README.md`). Resources, prompts and completions are removed, and registering one after
+`protectWithCore` throws, so nothing unguarded is served. `inPlace: false` keeps the 0.4 hop on SDK v1. A decision
+cache (default 4096 entries) skips the WASM call for repeat requests whose decision has no limits, approvals or spend.
 
 ```python
 # Python

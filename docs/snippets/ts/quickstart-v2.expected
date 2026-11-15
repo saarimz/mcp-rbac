@@ -1,0 +1,5 @@
+tools: list_events, checkin
+checked in t1
+Denied: user:no_matching_permission
+refunded 20 on t1
+Approval required for refund

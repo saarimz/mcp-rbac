@@ -11,8 +11,8 @@
 import { readFileSync } from "node:fs";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createCoreEngine, protectWithCore, type CoreDecision } from "../../../src/core-guard.js";
-import { SqliteAuditSink, auditRecordFromDecision, type AuditMode } from "../../../src/audit-sink.js";
-import { WorkerAuditSink } from "../../../src/audit-worker.js";
+import { SqliteAuditSink, auditRecordFromDecision } from "../../../src/audit-sink.js";
+import { openAuditSink, type AuditSinkMode } from "../../../src/audit-worker.js";
 import { openDb } from "./db.js";
 import { argsHash, canonical, resolveResource, venueTools } from "./tools.js";
 import { serveStreamable } from "../shared/http.js";
@@ -50,10 +50,10 @@ export async function main() {
       return false;
     },
   });
-  // Hash-chained decision audit; batched group commit by default (MCP_RBAC_AUDIT_MODE=sync commits before the call proceeds).
-  // MCP_RBAC_AUDIT_WORKER=1 (P11): same chain/table, hashing + commit on a worker thread (src/audit-worker.ts)
-  const sink = process.env.MCP_RBAC_AUDIT_WORKER === "1" ? new WorkerAuditSink(dbPath)
-    : new SqliteAuditSink(dbPath, { mode: (process.env.MCP_RBAC_AUDIT_MODE as AuditMode | undefined) ?? "batched" });
+  // Hash-chained decision audit (docs/AUDIT.md). Default: hashing + commits on a worker thread (falls back to batched
+  // where a worker can't start). MCP_RBAC_AUDIT_MODE=batched|sync selects the main-thread modes. One sink for all sessions.
+  const mode = process.env.MCP_RBAC_AUDIT_MODE ?? (process.env.MCP_RBAC_AUDIT_WORKER === "0" ? "batched" : "worker");
+  const sink = openAuditSink(dbPath, { mode: mode as AuditSinkMode });
   const audit = (e: Parameters<typeof auditRecordFromDecision>[0]) => sink.write(auditRecordFromDecision(e));
   // authz-end
 
@@ -64,14 +64,14 @@ export async function main() {
     const h = await serveStreamable({
       port: Number(httpPort), audience: AUDIENCE, secret, revoked,
       newSession: async () => {
-        // env knobs (bench/competitors/load.py): NO_AUDIT is diagnostic-only; INPLACE / DECISION_CACHE=0 select the P11 variants
+        // env knobs (bench/competitors/load.py): NO_AUDIT is diagnostic-only; GUARD_INPLACE=0 (hop) / DECISION_CACHE=0 select older variants
         const { server } = await protectWithCore(venueTools(db), { ...guardOpts((extra: any) => extra?.authInfo?.extra?.identity), onDecision: process.env.MCP_RBAC_BENCH_NO_AUDIT ? undefined : audit,
-          inPlace: process.env.MCP_RBAC_GUARD_INPLACE === "1", decisionCache: process.env.MCP_RBAC_DECISION_CACHE === "0" ? false : undefined });
+          inPlace: process.env.MCP_RBAC_GUARD_INPLACE === "0" ? false : undefined, decisionCache: process.env.MCP_RBAC_DECISION_CACHE === "0" ? false : undefined });
         return server;
       },
     });
     process.stdout.write(`venue-ops listening on ${h.url}\n`);
-    const stop = async () => { await h.close(); sink.close(); db.close(); process.exit(0); };
+    const stop = async () => { await h.close(); sink.close?.(); db.close(); process.exit(0); };
     process.on("SIGTERM", stop);
     process.on("SIGINT", stop);
     return;

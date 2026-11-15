@@ -34,15 +34,26 @@ export class WorkerAuditSink {
     const { shutdownHooks, ...rest } = opts;
     // the worker loads this same module; from TypeScript sources (tests, tsx) it registers tsx first
     const self = import.meta.url;
+    // boot handshake: the worker sets ready[0] = 1 once the sink is open, 2 if it failed (bad path, no TS loader, ...)
+    const ready = new SharedArrayBuffer(4);
     const boot = `const { workerData } = require("node:worker_threads");
-(async () => { if (workerData.self.endsWith(".ts")) (await import("tsx/esm/api")).register(); await import(workerData.self); })()
-  .catch((e) => { process.stderr.write("mcp-rbac audit worker failed to start: " + (e && e.stack || e) + "\\n"); process.exit(1); });`;
-    this.w = new Worker(boot, { eval: true, workerData: { mcpRbacAuditWorker: true, self, path, opts: { ...rest, mode: "batched", shutdownHooks: false } } });
+const fail = (e) => { process.stderr.write("mcp-rbac audit worker failed to start: " + (e && e.stack || e) + "\\n");
+  const a = new Int32Array(workerData.ready); Atomics.store(a, 0, 2); Atomics.notify(a, 0); process.exit(1); };
+(async () => { if (workerData.self.endsWith(".ts")) (await import("tsx/esm/api")).register(); await import(workerData.self); })().catch(fail);`;
+    this.w = new Worker(boot, { eval: true, workerData: { mcpRbacAuditWorker: true, self, path, ready, opts: { ...rest, mode: "batched", shutdownHooks: false } } });
     this.w.on("exit", (code) => { if (code !== 0 && !this.closed) process.stderr.write(`mcp-rbac audit worker exited with code ${code}\n`); });
     this.w.on("error", (e) => process.stderr.write(`mcp-rbac audit worker: ${String(e)}\n`));
     this.w.unref();
     process.on("exit", this.onExit);
     if (shutdownHooks ?? true) for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, this.onSignal);
+    const st = Atomics.wait(new Int32Array(ready), 0, 0, 30_000);
+    if (st === "timed-out" || Atomics.load(new Int32Array(ready), 0) !== 1) {
+      this.closed = true;
+      process.off("exit", this.onExit);
+      for (const sig of ["SIGINT", "SIGTERM"] as const) process.off(sig, this.onSignal);
+      void this.w.terminate();
+      throw new Error(st === "timed-out" ? "mcp-rbac audit worker did not start within 30 s" : `mcp-rbac audit worker failed to start (${path})`);
+    }
     this.sync("f"); // open + schema created before the first write returns (fail fast on a bad path)
   }
 
@@ -91,9 +102,10 @@ export class WorkerAuditSink {
 }
 
 if (!isMainThread && (workerData as { mcpRbacAuditWorker?: boolean } | null)?.mcpRbacAuditWorker) {
-  const { path, opts } = workerData as { path: string; opts: AuditSinkOptions };
+  const { path, opts, ready } = workerData as { path: string; opts: AuditSinkOptions; ready: SharedArrayBuffer };
   let err: string | undefined;
   const sink = new SqliteAuditSink(path, { ...opts, onError: (e) => { err = String(e); process.stderr.write(`mcp-rbac audit: ${err}\n`); } });
+  { const a = new Int32Array(ready); Atomics.store(a, 0, 1); Atomics.notify(a, 0); }
   parentPort!.on("message", (m: Msg) => {
     if (m.t === "w") { for (const r of m.rs) sink.write(r); return; }
     try {
@@ -106,4 +118,28 @@ if (!isMainThread && (workerData as { mcpRbacAuditWorker?: boolean } | null)?.mc
     Atomics.store(a, 0, 1);
     Atomics.notify(a, 0);
   });
+}
+
+/** An audit sink chosen by mode. */
+export type AuditSinkMode = "worker" | "batched" | "sync";
+/** What protectWithCore needs from an audit sink: `write` per decision; `flush`/`close` for shutdown. */
+export interface AuditWriter { write(r: AuditRecord): void; flush?(): void; close?(): void }
+
+/**
+ * Open the hash-chained SQLite decision audit (docs/AUDIT.md). `worker` (default): chain hashing and commits on a
+ * worker thread; if a worker cannot start here (no worker_threads, a bundler that drops the module, ...) it falls back
+ * to `batched` on the main thread and says so on stderr. `batched`: group commit on the main thread. `sync`: every
+ * record committed before `write()` returns. Same table and chain in every mode (`mcp-rbac audit-verify`).
+ * Open ONE sink per database and share it between per-session guards.
+ */
+export function openAuditSink(path: string, opts: Omit<AuditSinkOptions, "mode"> & { mode?: AuditSinkMode } = {}): AuditWriter {
+  const { mode = "worker", ...rest } = opts;
+  if (mode === "worker") {
+    const { onError: _onError, ...workerOpts } = rest;
+    try { return new WorkerAuditSink(path, workerOpts); } catch (e) {
+      if (!/failed to start|did not start|Worker|worker_threads/i.test(String(e))) throw e;
+      process.stderr.write(`mcp-rbac: audit worker unavailable (${(e as Error).message}); using batched audit on the main thread\n`);
+    }
+  }
+  return new SqliteAuditSink(path, { ...rest, mode: mode === "sync" ? "sync" : "batched" });
 }

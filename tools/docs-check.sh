@@ -17,6 +17,7 @@ step "npm run build" bash -c 'npm run build >/tmp/docs-check-build.log 2>&1'
 step "snippet blocks match files" $PY tools/docs-check/check_docs.py sync ${1:-}
 step "llms.txt links" $PY tools/docs-check/check_docs.py llms
 step "snippet ts/quickstart" run_snippet ts-quickstart docs/snippets/ts/quickstart.expected npx tsx docs/snippets/ts/quickstart.ts
+step "snippet ts/quickstart-v2 (SDK v2)" run_snippet ts-quickstart-v2 docs/snippets/ts/quickstart-v2.expected npx tsx docs/snippets/ts/quickstart-v2.ts
 step "snippet ts/semantics" run_snippet ts-semantics docs/snippets/ts/semantics.expected npx tsx docs/snippets/ts/semantics.ts
 step "snippet ts/proxy-check" run_snippet ts-proxy docs/snippets/ts/proxy-check.expected npx tsx docs/snippets/ts/proxy-check.ts
 step "snippet py/quickstart" run_snippet py-quickstart docs/snippets/py/quickstart.expected $PY docs/snippets/py/quickstart.py

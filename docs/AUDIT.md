@@ -15,14 +15,30 @@ and `python/tests/test_audit_sink.py` write with one language, append with anoth
 
 ## Modes
 
-| | `sync` | `batched` (default) |
-|---|---|---|
-| When `write()` returns | after the record's own transaction commits | after the record is queued |
-| Commit | one transaction per record | group commit: up to `maxBatch` records (default 512) per transaction, after at most `flushInterval` (default 5 ms) |
-| Request-path cost | INSERT + COMMIT | an array push / queue put |
-| Use when | the audit record must exist before the tool runs (regulated workloads) | throughput matters; a crash may lose the last few ms of records |
+| | `sync` | `batched` | `worker` (TypeScript default since 0.5) |
+|---|---|---|---|
+| When `write()` returns | after the record's own transaction commits | after the record is queued | after an array push |
+| Commit | one transaction per record | group commit: up to `maxBatch` records (default 512) per transaction, after at most `flushInterval` (default 5 ms) | the `batched` sink, running on a worker thread (hashing, canonical JSON and the commit leave the event loop) |
+| Request-path cost | INSERT + COMMIT | an array push / queue put + hashing on the event loop | an array push; one `postMessage` per event-loop turn |
+| Use when | the audit record must exist before the tool runs (regulated workloads) | a worker thread is not available | throughput matters; a crash may lose the last few ms of records |
 
-Pick the mode with `mode: "sync" | "batched"` (Go: `Mode`). The example servers read `MCP_RBAC_AUDIT_MODE`.
+TypeScript: the simplest wiring is the core guard's `audit` option, which opens a `worker` sink:
+
+```ts
+const { server } = await protectWithCore(mcpServer, { policy, identity, audit: "audit.db" });  // or { path, mode }
+```
+
+For one HTTP server with a guard per session, open one sink and share it:
+`const sink = openAuditSink("audit.db")` from `mcp-rbac/audit-worker`, then `audit: sink` in every guard.
+`openAuditSink` falls back to `batched` (and says so on stderr) where a worker thread cannot start.
+
+Pick the mode with `mode: "sync" | "batched" | "worker"` (Go and Python: `sync` / `batched`). The example servers
+read `MCP_RBAC_AUDIT_MODE`.
+
+**Sharing a file with your app's data.** In `worker` mode the audit commits come from a second SQLite connection on
+another thread. If the audit table lives in the same database file as your own tables, give your own connection a
+`PRAGMA busy_timeout` (the venue example uses 5000 ms) or use a separate audit file; otherwise a write of yours can
+fail with `database is locked` while a batch commits. (Found by the 0.5 test run; the example server now sets it.)
 
 ## Crash-safety semantics
 

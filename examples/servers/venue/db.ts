@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS approvals (id INTEGER PRIMARY KEY AUTOINCREMENT, sub 
 
 export function openDb(path = ":memory:"): DatabaseSync {
   const db = new DatabaseSync(path);
-  db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
+  // busy_timeout: the decision audit (worker thread by default) commits to this same file from a second connection
+  db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
   db.exec(SCHEMA);
   const n = (db.prepare("SELECT count(*) AS n FROM venues").get() as { n: number }).n;
   if (n === 0) seed(db);

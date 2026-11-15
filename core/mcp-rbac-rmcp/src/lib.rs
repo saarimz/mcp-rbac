@@ -277,6 +277,10 @@ impl<S: Service<RoleServer>> Guarded<S> {
         }
         let s = serde_json::to_string(&ctr).map_err(|e| internal(format!("mcp-rbac: result: {e}")))?;
         let red = redact_json(&s, &raw);
+        if red.starts_with(r#"{"error":"#) {
+            // the core could not redact (e.g. a result nested deeper than it parses): withhold the whole result, explicitly
+            return Ok(ServerResult::CallToolResult(denial(&tool, &json!({"decision": "deny", "reason": "redaction_failed"}))));
+        }
         let out: CallToolResult = serde_json::from_str(&red).map_err(|e| internal(format!("mcp-rbac: redacted result: {e}")))?;
         Ok(ServerResult::CallToolResult(out))
     }

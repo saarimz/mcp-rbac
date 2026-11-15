@@ -42,23 +42,41 @@ pub fn enforce(store: &dyn CounterStore, d: &mut Decision, now_ms: f64) -> Resul
 }
 
 /// In-memory store (single process). Fixed windows: window index = floor(now / window); a key's count resets
-/// when its window changes, so memory stays bounded by the number of live keys.
-#[derive(Default)]
-pub struct MemoryStore { m: Mutex<HashMap<String, (i64, f64)>> }
+/// when its window changes. Keys whose window has ended are swept once the map passes max(4096, 2x the survivors
+/// of the last sweep). That keeps memory bounded by the number of *live* keys at amortised O(1) per call;
+/// live counters are never dropped.
+pub struct MemoryStore { m: Mutex<Counters> }
+
+struct Counters { map: HashMap<String, (i64, f64, f64)>, sweep_at: usize } // key -> (window index, count, window end ms)
+
+impl Default for MemoryStore {
+    fn default() -> Self { MemoryStore { m: Mutex::new(Counters { map: HashMap::new(), sweep_at: 4096 }) } }
+}
+
+impl MemoryStore {
+    /// Number of counter keys held (live plus not yet swept).
+    pub fn len(&self) -> usize { self.m.lock().unwrap_or_else(|e| e.into_inner()).map.len() }
+    pub fn is_empty(&self) -> bool { self.len() == 0 }
+}
 
 impl CounterStore for MemoryStore {
     fn consume_many(&self, items: &[Consume], now_ms: f64) -> Result<Vec<f64>, usize> {
-        let mut m = self.m.lock().unwrap_or_else(|e| e.into_inner());
+        let mut g = self.m.lock().unwrap_or_else(|e| e.into_inner());
         let win = |c: &Consume| (now_ms / c.window_ms).floor() as i64;
-        let used = |m: &HashMap<String, (i64, f64)>, c: &Consume| match m.get(&c.key) { Some((w, n)) if *w == win(c) => *n, _ => 0.0 };
+        let used = |m: &HashMap<String, (i64, f64, f64)>, c: &Consume| match m.get(&c.key) { Some((w, n, _)) if *w == win(c) => *n, _ => 0.0 };
+        let m = &mut g.map;
         for (i, c) in items.iter().enumerate() {
-            if used(&m, c) + c.amount > c.max { return Err(i) }
+            if used(m, c) + c.amount > c.max { return Err(i) }
         }
         let mut totals = Vec::with_capacity(items.len());
         for c in items {
-            let n = used(&m, c) + c.amount;
-            m.insert(c.key.clone(), (win(c), n));
+            let n = used(m, c) + c.amount;
+            m.insert(c.key.clone(), (win(c), n, (win(c) + 1) as f64 * c.window_ms));
             totals.push(n);
+        }
+        if g.map.len() > g.sweep_at {
+            g.map.retain(|_, v| v.2 > now_ms);
+            g.sweep_at = (g.map.len() * 2).max(4096);
         }
         Ok(totals)
     }
@@ -77,5 +95,21 @@ mod tests {
         assert_eq!(s.consume_many(std::slice::from_ref(&a), 20.0), Ok(vec![2.0])); // a wasn't consumed by the failed batch
         assert_eq!(s.consume_many(std::slice::from_ref(&a), 30.0), Err(0));
         assert!(s.consume_many(&[a, b], 1000.0).is_ok());
+    }
+
+    #[test]
+    fn sweeps_expired_keys_but_never_live_ones() {
+        let s = MemoryStore::default();
+        let day = 86_400_000.0;
+        let v = Consume { key: "victim".into(), amount: 1.0, max: 5.0, window_ms: day };
+        for _ in 0..5 { assert!(s.consume_many(std::slice::from_ref(&v), 0.0).is_ok()) }
+        let mut peak = 0;
+        for i in 0..200_000u32 { // 100 new callers per 1 s window; the victim's daily window stays live throughout
+            let c = Consume { key: format!("c{i}"), amount: 1.0, max: 9.0, window_ms: 1000.0 };
+            s.consume_many(&[c], i as f64 * 10.0).unwrap();
+            peak = peak.max(s.len());
+        }
+        assert!(peak <= 4097, "peak {peak}");
+        assert_eq!(s.consume_many(std::slice::from_ref(&v), 2_000_000.0), Err(0), "live budget must survive sweeps");
     }
 }

@@ -86,7 +86,9 @@ export class MemoryStore implements GuardStore {
   private grants = new Map<string, StoredGrant>();
   private tokens = new Map<string, string>();
   private audit: AuditEvent[] = [];
-  private counters = new Map<string, number>();
+  /** bucket key → count and the time after which the bucket's window is over (only expired buckets are evicted) */
+  private counters = new Map<string, { n: number; exp: number }>();
+  private sweepAt = 50_000;
   private approvals = new Map<string, StoredApproval>();
   constructor(private readonly auditCap = 10_000) {}
 
@@ -125,14 +127,21 @@ export class MemoryStore implements GuardStore {
   queryAudit(q: AuditQuery) { return filterAudit(this.audit, q); }
   consume(key: string, amount: number, max: number, windowMs: number, now: number) {
     const k = `${key}|${Math.floor(now / windowMs)}`;
-    const cur = this.counters.get(k) ?? 0;
+    const cur = this.counters.get(k)?.n ?? 0;
     if (cur + amount > max) return { ok: false, total: cur };
-    this.counters.set(k, cur + amount);
-    if (this.counters.size > 50_000) this.gc(now);
+    this.counters.set(k, { n: cur + amount, exp: (Math.floor(now / windowMs) + 1) * windowMs });
+    if (this.counters.size > this.sweepAt) this.gc(now);
     return { ok: true, total: cur + amount };
   }
-  peek(key: string, windowMs: number, now: number) { return this.counters.get(`${key}|${Math.floor(now / windowMs)}`) ?? 0; }
-  private gc(now: number) { void now; this.counters.clear(); }
+  peek(key: string, windowMs: number, now: number) { return this.counters.get(`${key}|${Math.floor(now / windowMs)}`)?.n ?? 0; }
+  /** number of live counter buckets (for leak checks) */
+  counterCount() { return this.counters.size; }
+  // Evict only buckets whose window has ended. (Before 0.4 this cleared *every* counter past 50k buckets, which reset live
+  // budgets.) The next sweep happens at max(50k, 2x what survived), so sweeping stays amortised O(1) per consume.
+  private gc(now: number) {
+    for (const [k, v] of this.counters) if (v.exp <= now) this.counters.delete(k);
+    this.sweepAt = Math.max(50_000, this.counters.size * 2);
+  }
 }
 
 export function filterAudit(all: readonly AuditEvent[], q: AuditQuery): AuditEvent[] {

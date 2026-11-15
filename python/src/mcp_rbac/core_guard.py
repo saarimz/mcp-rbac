@@ -170,7 +170,12 @@ class CoreGuard:
             return res
         if server_span is not None and d["redact"]:
             server_span.set_attribute("mcp_rbac.redacted", True)
-        return json.loads(self.engine.redact(json.dumps(res), raw))
+        red = json.loads(self.engine.redact(json.dumps(res), raw))
+        if isinstance(red, dict) and "error" in red and "content" not in red:
+            # the core could not redact (e.g. a result nested deeper than it parses): withhold the whole result, explicitly
+            return {"resultType": "complete", "content": [{"type": "text", "text": "Denied: redaction_failed"}], "isError": True,
+                    "_meta": {DENIAL_META_KEY: {"decision": "deny", "reason": "redaction_failed"}}}
+        return red
 
 
 def protect_with_core(server: Any, policy: str, **kw: Any) -> CoreGuard:

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
+from typing import Any, Iterator
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, name TEXT NOT NULL);
@@ -29,9 +31,53 @@ CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT 
 """
 
 
-def open_db(path: str = ":memory:") -> sqlite3.Connection:
-    db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
-    db.row_factory = sqlite3.Row
+class _Result:
+    """A statement's rows and counts, read while the lock was held."""
+
+    def __init__(self, cur: sqlite3.Cursor) -> None:
+        self._rows = cur.fetchall()
+        self.rowcount, self.lastrowid = cur.rowcount, cur.lastrowid
+
+    def fetchall(self) -> list[Any]:
+        return self._rows
+
+    def fetchone(self) -> Any:
+        return self._rows[0] if self._rows else None
+
+    def __iter__(self) -> Iterator[Any]:
+        return iter(self._rows)
+
+
+class SerializedDB:
+    """One sqlite3 connection shared by MCPServer's worker threads (sync tools run in a thread pool) and the guard's
+    audit hook. sqlite3 connections are not safe for concurrent use: unserialized, 16 threads produced IndexError,
+    InterfaceError ("bad parameter or other API misuse") and a CPython SystemError. Every statement runs, and its rows
+    are fetched, under one lock."""
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._c, self._lock = conn, threading.RLock()
+
+    def execute(self, sql: str, params: Any = ()) -> _Result:
+        with self._lock:
+            return _Result(self._c.execute(sql, params))
+
+    def executemany(self, sql: str, seq: Any) -> _Result:
+        with self._lock:
+            return _Result(self._c.executemany(sql, seq))
+
+    def executescript(self, sql: str) -> None:
+        with self._lock:
+            self._c.executescript(sql)
+
+    def close(self) -> None:
+        with self._lock:
+            self._c.close()
+
+
+def open_db(path: str = ":memory:") -> SerializedDB:
+    conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    db = SerializedDB(conn)
     db.execute("PRAGMA foreign_keys = ON")
     db.execute("PRAGMA journal_mode = WAL")
     db.executescript(SCHEMA)
@@ -40,7 +86,7 @@ def open_db(path: str = ":memory:") -> sqlite3.Connection:
     return db
 
 
-def _seed(db: sqlite3.Connection) -> None:
+def _seed(db: SerializedDB) -> None:
     db.executemany("INSERT INTO accounts VALUES (?, ?)", [("acme", "Acme Co"), ("globex", "Globex"), ("initech", "Initech"), ("umbrella", "Umbrella")])
     people = [
         ("P-acme-1", "acme", "wile@acme.example", "+1-555-1001", "Wile", "Coyote", "Phoenix", "US"),

@@ -24,6 +24,8 @@ export interface HttpHostOptions {
 function deny(res: ServerResponse, status: number, error: string, desc: string) {
   const h: Record<string, string> = { "content-type": "application/json" };
   if (status === 401) h["www-authenticate"] = `Bearer error="${error}", error_description="${desc}"`;
+  // the rest of an oversize body is never read, so the connection can't be reused: tell the client and close it
+  if (status === 413) h.connection = "close";
   res.writeHead(status, h).end(JSON.stringify({ error, error_description: desc }));
 }
 
@@ -74,6 +76,8 @@ export async function serveStreamable(o: HttpHostOptions): Promise<{ url: string
       transport.onclose = () => { if (transport.sessionId) sessions.delete(transport.sessionId); };
       await server.connect(transport);
       await transport.handleRequest(req, res, body);
+      // the SDK rejected the initialize (bad content type / Accept / version): don't leak the guarded server it was given
+      if (!transport.sessionId) await server.close().catch(() => {});
     } catch (e) {
       if (!res.headersSent) deny(res, 500, "internal", "internal error");
       process.stderr.write(`http error: ${(e as Error).stack}\n`);

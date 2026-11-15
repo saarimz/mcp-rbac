@@ -154,3 +154,34 @@ async def test_http_session_bound_to_subject(http_server: tuple[str, pathlib.Pat
         r2 = await hc.post(url, json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
                            headers={**hdr, "mcp-session-id": sid, "authorization": f"Bearer {tok(sub='ana', tenant='acme', roles=['account_admin'])}"})
         assert r2.status_code == 403
+
+
+def test_db_is_safe_under_worker_threads(tmp_path: pathlib.Path) -> None:
+    """P8c regression: sync tools run in a thread pool against one sqlite3 connection. Unserialized, 64 concurrent
+    sessions intermittently got "Error executing tool" (IndexError / InterfaceError / SystemError underneath)."""
+    import importlib.util
+    import threading
+
+    spec = importlib.util.spec_from_file_location("marketing_db", ROOT / "examples/servers/marketing/db.py")
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    db = mod.open_db(str(tmp_path / "d.sqlite"))
+    errors: list[str] = []
+
+    def work() -> None:
+        for i in range(300):
+            try:
+                if i % 3 == 0:
+                    db.execute("INSERT INTO audit (at, sub, tool, decision, reason) VALUES ('t', 'u', 'x', 'allow', 'ok')")
+                assert db.execute("SELECT * FROM profiles WHERE account = ? AND deleted = 0 ORDER BY id LIMIT ?", ("acme", 50)).fetchall()
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"{type(e).__name__}: {e}")
+
+    ts = [threading.Thread(target=work) for _ in range(16)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert errors == []
+    assert db.execute("SELECT count(*) FROM audit").fetchone()[0] == 16 * 100

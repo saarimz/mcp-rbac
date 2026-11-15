@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
@@ -228,7 +230,10 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	}
 	e0 := time.Now()
 	raw, err := resourceUnresolved, error(nil)
-	if !unresolved {
+	switch {
+	case !utf8.Valid(in): // json.Marshal copies RawMessage arguments verbatim; the core only takes valid UTF-8
+		raw = denyJSON("invalid_input")
+	case !unresolved:
 		raw, err = e.Authorize(ctx, string(in), o.now())
 	}
 	engine := time.Since(e0)
@@ -238,9 +243,9 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 		}
 		return nil, err
 	}
-	var d Decision
-	if err := json.Unmarshal([]byte(raw), &d); err != nil {
-		return nil, fmt.Errorf("mcp-rbac: decision: %w (%s)", err, raw)
+	d, raw, err := decodeDecision(raw)
+	if err != nil {
+		return nil, err
 	}
 	approved := false
 	approval := "none"
@@ -259,9 +264,8 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 				}
 				return nil, err
 			}
-			d = Decision{}
-			if err := json.Unmarshal([]byte(raw), &d); err != nil {
-				return nil, fmt.Errorf("mcp-rbac: decision: %w (%s)", err, raw)
+			if d, raw, err = decodeDecision(raw); err != nil {
+				return nil, err
 			}
 			approved = d.Decision == "allow"
 		default:
@@ -297,11 +301,34 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	if err != nil {
 		return nil, err
 	}
+	if strings.HasPrefix(red, `{"error":`) { // the core could not redact: withhold the whole result, explicitly
+		return denial(tool, Decision{Decision: "deny", Reason: "redaction_failed"}), nil
+	}
 	out := &mcp.CallToolResult{}
 	if err := json.Unmarshal([]byte(red), out); err != nil {
 		return nil, fmt.Errorf("mcp-rbac: redacted result: %w", err)
 	}
 	return out, nil
+}
+
+// decodeDecision parses a core decision. An engine error object ({"error":...}) becomes an explicit
+// "engine_error" denial rather than an empty Decision.
+func decodeDecision(raw string) (Decision, string, error) {
+	var d Decision
+	if err := json.Unmarshal([]byte(raw), &d); err != nil {
+		return d, raw, fmt.Errorf("mcp-rbac: decision: %w (%s)", err, raw)
+	}
+	if d.Decision == "" {
+		raw = denyJSON("engine_error")
+		d = Decision{Decision: "deny", Reason: "engine_error"}
+	}
+	return d, raw, nil
+}
+
+// denyJSON is a guard-level denial with the same shape as a core decision.
+func denyJSON(reason string) string {
+	q, _ := json.Marshal(reason)
+	return strings.Replace(resourceUnresolved, `"resource_unresolved"`, string(q), 1)
 }
 
 // resourceUnresolved is the guard-level denial when GuardOptions.Resource fails (same shape as a core decision).

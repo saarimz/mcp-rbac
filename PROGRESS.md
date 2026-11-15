@@ -89,3 +89,25 @@ Plus `test_redteam_injection.py` (12: hijacked agent per server × role, stdio +
 - Decision, median: native 13.3 µs · PyO3 15.1 µs · WASM 20.9 µs · wazero 47.0 µs. Guarded call overhead: TS 28 µs, Py 55 µs (self 37), Go 58 µs (self 65).
 - Found and fixed a benchmark bug: the policy's 3000/min limit turned most guarded calls into denials, which made guarded calls look faster. All timed calls are now asserted allowed.
 - Not done: rmcp guarded-call bench; HTTP load numbers.
+
+### P8c: leaks, concurrency, malformed input (done)
+New checks: `go/robust_test.go`, `test/robust-core.test.ts`, `test/store-memory-gc.test.ts`, `python/tests/test_robust_core.py`,
+`core/mcp-rbac-core/tests/robust.rs`, `core/mcp-rbac-rmcp/tests/robust.rs`, `redteam/malformed.py` (+ `python/tests/test_malformed_servers.py`).
+
+**Real bugs found and fixed:**
+1. **TS `MemoryStore` reset every budget** once it held more than 50k counter buckets (`gc()` was `counters.clear()`), so a busy process silently refilled every live budget. It now evicts only expired buckets. A regression test fails on the old code.
+2. **Rust core `MemoryStore` never evicted anything**: memory grew with every distinct caller ever seen. It now does an amortised sweep of ended windows and never drops a live counter (test: 200k callers peak ≤ 4097 keys, live daily budget intact).
+3. **Unredactable results** (a tool result nested ~127+ levels, deeper than the core parses) were handled four different ways. TS returned `{"error":"invalid_result"}` as a *non-error* tool result; Python crashed in pydantic validation; Go returned an empty result; rmcp gave an internal error. All four now return an explicit `isError` denial, `redaction_failed`, and the secret is never returned.
+4. **Go guard and invalid UTF-8 arguments**: `json.Marshal` copies RawMessage bytes verbatim, the ABI answered `{"error":"abi:utf8"}`, and the guard decoded that into an empty decision. The call was denied only by accident, with an empty audit reason. The guard now returns an explicit `invalid_input` denial, and any engine error object becomes `engine_error`.
+5. **TS/WASM lone surrogates**: wasm-bindgen turned a raw lone surrogate into U+FFFD, so `u\uD800` was *allowed* and distinct ids collapsed into one rate-limit key. `createCoreEngine` now rejects non-well-formed strings with the core's invalid-input answer, matching Python (raises) and Go (ABI error). Over MCP this was never reachable, because JSON.stringify escapes lone surrogates and the core rejects those.
+6. **Marketing server: one sqlite3 connection shared by worker threads** with no lock. Under 64 concurrent sessions it intermittently failed with "Error executing tool"; 16 threads reproduced IndexError, InterfaceError and a CPython SystemError. Every statement and its fetch now run under one lock (`SerializedDB`), with a regression test.
+7. **Venue HTTP front**: the 413 response left an unread body on a keep-alive connection, so the client's *next* request on it failed. It now sends `Connection: close`. A rejected initialize also leaked the guarded server built for it; it is now closed.
+8. **Packaging**: the Python package imports PyYAML (portable YAML loader, `export_policy`) but did not declare it. This was found by the from-scratch reinstall; `pyyaml>=6` is now a dependency.
+
+**Results:**
+- Leaks: RSS / heap / wasm memory flat after warm-up in every binding. 3000 engine create/free plus 200k authorize: Rust 3→3 MiB, PyO3 88→88 MiB, Go heap 5712→5712 KiB with wasm memory 1536→1536 KiB, TS 97→98 MiB (2M authorize calls: 115.5→115.8 MiB).
+- Session soak against the 3 real HTTP servers (1500 sequential sessions + 64 concurrent): all calls answered. Process-tree RSS plateaus; venue runs under a 96 MiB V8 heap cap so a leak would crash it. Without the cap, 5000 sessions stayed at 201→203 MiB.
+- Concurrency: exact budgets with 16 OS threads on one engine (Rust, Python/PyO3, Go -race).
+- Malformed input: 15 transport cases (bad JSON, invalid UTF-8, 100k-deep nesting, 2 MiB → 413, batches, NUL, wrong content type, missing or unknown session) and 13 protocol cases (900 KB args, 5000-deep args, lone surrogates, invalid UTF-8 inside args, non-object args, a duplicate `name` key with the forbidden tool last, a forged approval) on each server. No 5xx, no crash, never a forbidden success. Engine-level malformed input never allows in any binding.
+
+**Environment note:** between P8b and P8c the box lost node_modules, the Python venvs, /opt/tools (Inspector, otelcol, Jaeger), the Rust toolchains and the Redis/Postgres servers, and some uncommitted P8c test files (rewritten). `tools/bootstrap.sh [--tools]` and `tools/test-services.sh` now recreate everything from npm, PyPI, GitHub releases and packages.redis.io. apt's Debian mirror was unreachable from the box. Postgres is now 16.2 (pgserver wheel), Redis 7.4.1, rustc 1.100.0.

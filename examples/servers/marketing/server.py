@@ -29,7 +29,7 @@ ROOT = HERE.parents[2]
 sys.path[:0] = [str(ROOT / "python/src"), str(HERE.parent / "shared"), str(HERE)]
 
 from auth import BearerFront, bearer, identity_of, verify  # noqa: E402
-from db import open_db  # noqa: E402
+from db import SerializedDB, open_db  # noqa: E402
 from mcp.server.mcpserver import MCPServer  # noqa: E402
 from mcp.server.mcpserver.exceptions import ToolError  # noqa: E402
 from mcp.server.transport_security import TransportSecuritySettings  # noqa: E402
@@ -54,7 +54,7 @@ class Denied(ToolError):
     """A business-rule failure, reported to the caller as a tool error (isError)."""
 
 
-def resolve_resource(db: sqlite3.Connection, tool: str, a: dict[str, Any]) -> dict[str, str] | None:
+def resolve_resource(db: SerializedDB, tool: str, a: dict[str, Any]) -> dict[str, str] | None:
     """The account that owns the record a call touches (never trusted from arguments)."""
     def owner(table: str, key: str) -> dict[str, str]:
         v = a.get(key)
@@ -70,7 +70,7 @@ def resolve_resource(db: sqlite3.Connection, tool: str, a: dict[str, Any]) -> di
     return {"account": acct} if isinstance(acct, str) else None  # explicit target account, else the caller's own
 
 
-def build(db: sqlite3.Connection, identity_fn: Any) -> MCPServer:
+def build(db: SerializedDB, identity_fn: Any) -> MCPServer:
     s = MCPServer("marketing-platform", version="0.4.0")
 
     def acct_of() -> str:
@@ -303,7 +303,7 @@ def build(db: sqlite3.Connection, identity_fn: Any) -> MCPServer:
     return s
 
 
-def http_identity(secret: str, db: sqlite3.Connection) -> Any:
+def http_identity(secret: str, db: SerializedDB) -> Any:
     def ident(ctx: Any) -> dict[str, Any] | None:
         req = getattr(ctx, "request", None)
         tok = bearer(getattr(req, "headers", None))
@@ -314,7 +314,7 @@ def http_identity(secret: str, db: sqlite3.Connection) -> Any:
     return ident
 
 
-def admin(db: sqlite3.Connection, cmd: str, arg: str | None) -> None:
+def admin(db: SerializedDB, cmd: str, arg: str | None) -> None:
     if cmd == "pending":
         # the approver sees the exact arguments they are approving (an injected call shows its injected arguments)
         out: Any = [{**dict(r), "args": json.loads(r["args"])} for r in db.execute("SELECT id, sub, tool, args, created_at FROM approvals WHERE status = 'pending'")]

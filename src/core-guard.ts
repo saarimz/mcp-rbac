@@ -43,7 +43,25 @@ export function loadCoreWasm(): CoreModule {
 }
 /** Load a YAML/JSON policy into a WASM engine. Throws with the loader's message if invalid. */
 export function createCoreEngine(policy: string): CoreEngine {
-  return new (loadCoreWasm().Engine)(policy);
+  if (!wf(policy)) throw new Error("mcp-rbac: policy is not well-formed Unicode (lone surrogate)");
+  return new WellFormedEngine(new (loadCoreWasm().Engine)(policy));
+}
+
+/**
+ * Crossing into WASM encodes strings as UTF-8, which silently turns a lone surrogate into U+FFFD. Distinct identities
+ * would collapse into one (and an escaped surrogate is rejected while a raw one passes). So a string that is not
+ * well-formed gets the core's own answer for invalid input: the same as Python (which raises) and Go (ABI error).
+ */
+// String.prototype.isWellFormed: Node >= 20 (package engines: >= 22.13); not in the ES2022 lib typings
+const wf = (s: string) => (s as unknown as { isWellFormed(): boolean }).isWellFormed();
+class WellFormedEngine implements CoreEngine {
+  constructor(private readonly e: CoreEngine) {}
+  decide(req: string) { return wf(req) ? this.e.decide(req) : this.e.decide(""); }
+  visible(req: string) { return wf(req) ? this.e.visible(req) : this.e.visible(""); }
+  authorize(req: string, nowMs: number) { return wf(req) ? this.e.authorize(req, nowMs) : this.e.authorize("", nowMs); }
+  authorizeApproved(req: string, nowMs: number) { return wf(req) ? this.e.authorizeApproved(req, nowMs) : this.e.authorizeApproved("", nowMs); }
+  redact(result: string, decision: string) { return wf(result) && wf(decision) ? this.e.redact(result, decision) : this.e.redact("", wf(decision) ? decision : ""); }
+  free() { this.e.free(); }
 }
 
 export interface CoreDecision {
@@ -189,7 +207,11 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
       const result = await client.request({ method: "tools/call", params: { name: tool, arguments: args, _meta: { [CORE_CALLER_META_KEY]: caller } } }, CallToolResultSchema, { signal: extra.signal, timeout });
       if (!d.redact.length && !d.labels.length) return result;
       server?.setAttribute("mcp_rbac.redacted", d.redact.length > 0);
-      return JSON.parse(engine.redact(JSON.stringify(result), raw));
+      const red = JSON.parse(engine.redact(JSON.stringify(result), raw));
+      // the core could not redact (e.g. a result nested deeper than it parses): withhold the whole result, explicitly
+      if (red && typeof red === "object" && "error" in red && !("content" in red))
+        return { content: [{ type: "text" as const, text: "Denied: redaction_failed" }], isError: true, _meta: { [DENIAL_META_KEY]: { decision: "deny", reason: "redaction_failed" } } };
+      return red;
     };
     return tel ? tel.serverSpan("tools/call", tool, req.params._meta, ids(extra), (span) => run(span)) : run();
   });

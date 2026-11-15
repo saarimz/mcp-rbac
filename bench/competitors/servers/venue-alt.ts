@@ -3,6 +3,7 @@
  * authorization layer is swappable so competitors can be measured on identical app code.
  *
  *   tsx venue-alt.ts --http PORT --db FILE --authz none|cerbos|openfga|policy-guard [--front verify|trust]
+ *   tsx venue-alt.ts --stdio --db FILE                 (no authz; caller from MCP_RBAC_IDENTITY; for stdio wrappers like protect-mcp)
  *   tsx venue-alt.ts admin ...   (delegates to the real server's admin CLI)
  *
  * --front verify: the demo JWT layer (signature, aud, exp, nbf, lifetime, jti revocation, session binding), shared with mcp-rbac.
@@ -33,16 +34,13 @@ async function main() {
     : (await import(`../adapters/ts/${kind}.js`)).venue(db);
   const secret = process.env.MCP_DEMO_JWT_SECRET ?? "x".repeat(32);
   const trust = flag("--front") === "trust";
-  const h = await serveStreamable({
-    port: Number(flag("--http") ?? 0), audience: "venue-mcp", secret,
-    revoked: (jti) => !!db.prepare("SELECT 1 FROM revoked_tokens WHERE jti = ?").get(jti),
-    ...(trust ? { verifyToken: trustDecode, dnsRebindingProtection: false, bindSession: false } : {}),
-    newSession: async () => {
+  const stdioIdentity = process.argv.includes("--stdio") ? JSON.parse(process.env.MCP_RBAC_IDENTITY ?? '{"id":"stdio","roles":[]}') as Identity : undefined;
+  const newSession = async () => {
       const mcp = venueTools(db);
       const srv: any = mcp.server;
       const inner = srv._requestHandlers.get("tools/call");
       const callerOf = (extra: any, tool: string, args: Record<string, unknown>): Caller => {
-        const identity = (extra?.authInfo?.extra?.identity ?? { id: "anonymous", roles: [] }) as Identity;
+        const identity = (stdioIdentity ?? extra?.authInfo?.extra?.identity ?? { id: "anonymous", roles: [] }) as Identity;
         return { identity, tenant: identity.tenant ?? identity.scope?.venue ?? null, resource: resolveResource(db, tool, args) };
       };
       // app plumbing every variant needs: hand the tool its caller (never trusting a client-supplied one)
@@ -67,7 +65,17 @@ async function main() {
       }
       if (kind === "policy-guard") (await import("../adapters/ts/policy-guard.js")).guardVenue(mcp, db);
       return mcp.server;
-    },
+  };
+  if (stdioIdentity) {
+    const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
+    await (await newSession()).connect(new StdioServerTransport());
+    return;
+  }
+  const h = await serveStreamable({
+    port: Number(flag("--http") ?? 0), audience: "venue-mcp", secret,
+    revoked: (jti) => !!db.prepare("SELECT 1 FROM revoked_tokens WHERE jti = ?").get(jti),
+    ...(trust ? { verifyToken: trustDecode, dnsRebindingProtection: false, bindSession: false } : {}),
+    newSession,
   });
   process.stdout.write(`venue-alt(${kind}${trust ? ",trust" : ""}) listening on ${h.url}\n`);
   const stop = async () => { await h.close(); db.close(); process.exit(0); };

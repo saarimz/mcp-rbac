@@ -1,0 +1,8 @@
+{
+  "$comment": "protect-mcp JSON policy for the venue project_manager deployment: rate limits and approval (applied after a Cedar permit).",
+  "tools": {
+    "*": { "rate_limit": "600/minute" },
+    "book_booth_space": { "rate_limit": "3/day" },
+    "refund_ticket": { "require_approval": true }
+  }
+}

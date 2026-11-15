@@ -133,3 +133,23 @@ def start_agentgateway(server: str, upstream: str) -> tuple[str, subprocess.Pope
             raise RuntimeError("agentgateway exited: " + (pathlib.Path(d) / "agentgateway.log").read_text()[-500:])
         time.sleep(0.1)
     return f"http://127.0.0.1:{port}/mcp", p
+
+
+PROTECT_TOKEN = "protect-mcp-bench-token-0123456789abcdef"
+
+
+def start_protect_mcp(db: str, role: str = "project_manager", identity: dict[str, Any] | None = None) -> tuple[str, subprocess.Popen[Any]]:
+    """protect-mcp --http wrapping the no-guard venue server over stdio (one deployment = one role, one shared token)."""
+    init_db("venue", db)
+    port = free_port()
+    pol = HERE / "config/protect-mcp"
+    d = tempfile.mkdtemp(prefix="protect-mcp-")
+    log = open(pathlib.Path(d) / "protect-mcp.log", "w")
+    ident = identity or {"id": "pat", "roles": [role], "tenant": "bk"}
+    p = subprocess.Popen([str(HERE / "node_modules/.bin/protect-mcp"), "--http", "--port", str(port), "--enforce",
+                          "--policy", str(pol / f"venue-{role.replace('_', '-')}.json"), "--cedar", str(pol / "cedar"),
+                          "--", TSX, str(HERE / "servers/venue-alt.ts"), "--stdio", "--db", db],
+                         cwd=d, stdout=log, stderr=log,
+                         env={**os.environ, "PROTECT_MCP_HTTP_TOKEN": PROTECT_TOKEN, "MCP_RBAC_IDENTITY": json.dumps(ident)})
+    wait_http(f"http://127.0.0.1:{port}/health")
+    return f"http://127.0.0.1:{port}/mcp", p

@@ -58,16 +58,16 @@ Portability restrictions on top of YAML 1.2 (each found by differential fuzzing;
 | `tenantKey` | identifier | resource-scope key holding the tenant (default `tenant`) |
 | `roles` | map name → Role | required (may be `{}`) |
 | `roleSets` | map name → [role] | usable in `tools.*.allow` as `@name` |
-| `permissionSets` | map set → level → [pattern] | building blocks for `customRoles` |
-| `customRoles` | map name → {set: level} | roles composed from permission sets (order: picks, then patterns) |
+| `permissionSets` | map set → level → [pattern] | building blocks for `customRoles` **Experimental** ([why](experimental/README.md)). |
+| `customRoles` | map name → {set: level} | roles composed from permission sets (order: picks, then patterns) **Experimental** ([why](experimental/README.md)). |
 | `tools` | map exact tool name → Tool | rules next to each tool |
 | `scopes` | {required?, implies?, writeImpliesRead?} | OAuth scope policy |
-| `tenants` | {accounts, groups?} | org directory for `identity.orgRoles` |
+| `tenants` | {accounts, groups?} | org directory for `identity.orgRoles` **Experimental** ([why](experimental/README.md)). |
 | `approvals` | [{tool: pattern, when?: Constraints}] | global approval rules |
 | `limits` | [Limit] | global rate limits / budgets |
 | `output` | {labels?, labelRules?, redact?, unstructuredText?} | output controls |
 | `toolsets` | {sets?, ungrouped?: show\|hide, default?} | client-selectable tool groups (not a boundary) |
-| `delegation` | {actors?: {name: {tools?, scopes?}}, unknownActors?: deny\|allow} | RFC 8693 actor ceilings |
+| `delegation` | {actors?: {name: {tools?, scopes?}}, unknownActors?: deny\|allow} | RFC 8693 actor ceilings **Experimental** ([why](experimental/README.md)). |
 
 Unknown keys anywhere are errors. Names: role/role-set/custom-role names match
 `^[A-Za-z](?:[A-Za-z0-9_ .:-]{0,62}[A-Za-z0-9_.:-])?$`; identifiers (tenantKey, scope keys) match

@@ -339,7 +339,7 @@ owner delete_file: needs_approval (ok) classes=write+destructive+x-code-change
 owner some_new_tool: deny (user:no_matching_permission) classes=unknown
 ```
 
-Spend budgets in currency, post-call cost accounting, precedence and the pack format:
+Precedence, the pack format, and the experimental spend budgets in currency:
 [spec/tool-semantics.md](../spec/tool-semantics.md). A live run of a class-only policy against Klaviyo's official
 server: [LIVE-RESULTS-CLASSES.md](../examples/klaviyo-e2e/LIVE-RESULTS-CLASSES.md).
 

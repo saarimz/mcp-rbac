@@ -10,7 +10,7 @@ below is also readable as Markdown on its own.
 
 ## Write policy
 - [Policy format](policy-format.md): `mcp-rbac.yaml` v1
-- [Tool semantics](../spec/tool-semantics.md): classes, spend budgets, post-call cost, packs
+- [Tool semantics](../spec/tool-semantics.md): classes, packs (spend budgets are experimental)
 - [JSON Schema](../spec/mcp-rbac.schema.json) and [pack schema](../spec/mcp-rbac-pack.schema.json)
 
 ## Use it from your language
@@ -18,6 +18,9 @@ below is also readable as Markdown on its own.
 - [Python](python.md)
 - [One core, four languages](polyglot.md): WASM, PyO3, wazero, rmcp
 - [Migration](MIGRATION.md) and [API design](API-DESIGN.md)
+
+## Experimental
+- [Experimental features](experimental/README.md): tenants, delegation, spend budgets, AuthZEN, OpenFGA, Cedar and other engine adapters
 
 ## Operate
 - [Audit log](AUDIT.md): batched sinks, hash chain, verification

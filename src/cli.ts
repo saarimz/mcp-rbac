@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { experimentalFeatures } from "./experimental-features.js";
 import { existsSync, realpathSync, writeFileSync } from "node:fs";
 import { introspectModule, introspectStdio } from "./introspect.js";
 import { toJsonPolicy, toTsPolicy, plan as planInv } from "./init.js";
@@ -109,6 +110,10 @@ export async function main(argv = process.argv.slice(2)) {
       const r = JSON.parse(out) as { ok?: boolean; warnings?: string[]; message?: string };
       if (flags.json) process.stdout.write(out + "\n");
       else if (r.ok) process.stdout.write(`ok: ${f}${r.warnings!.length ? `\n${r.warnings!.map((w) => `  warning: ${w}`).join("\n")}` : ""}\n`);
+      if (r.ok && !flags.json) {
+        const exp = experimentalFeatures(readFileSync(f, "utf8"));
+        if (exp.length) process.stderr.write(`  note: uses experimental features (may change in a minor release): ${exp.join(", ")}\n`);
+      }
       else process.stderr.write(`invalid: ${f}\n  ${r.message}\n`);
       if (!r.ok) process.exitCode = 1;
       return;

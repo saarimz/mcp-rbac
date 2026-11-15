@@ -6,10 +6,12 @@ from typing import Any
 
 import pytest
 
-from mcp_rbac import (ActorPolicy, Assignment, Constraint, DelegationError, DelegationOptions, Guard, Identity, LabelRule, Limit,
-                      MemoryStore, OrgDirectory, OrgRole, OutputPolicy, RedactionRule, Role, ScopePolicy, Toolsets, ToolRule, actors_from_claims,
-                      c, canonical_json, check_constraints, covers, custom_role, load_policy, matches, may_act, narrow_identity,
-                      org_assignments, verify_audit_chain)
+from mcp_rbac import (Assignment, Constraint, Guard, Identity, LabelRule, Limit,
+                      MemoryStore, OutputPolicy, RedactionRule, Role, ScopePolicy, Toolsets, ToolRule,
+                      c, canonical_json, check_constraints, covers, load_policy, matches, narrow_identity,
+                      verify_audit_chain)
+from mcp_rbac.experimental import (ActorPolicy, DelegationError, DelegationOptions, OrgDirectory, OrgRole, actors_from_claims,
+                                   custom_role, may_act, org_assignments)
 from mcp_rbac.roles import BuiltinEngine, DecisionInput
 
 from conftest import ts_eval

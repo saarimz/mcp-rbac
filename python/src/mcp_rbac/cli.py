@@ -72,6 +72,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _portable_cmd(a: Any) -> int:
     from .policy_diff import diff_policies, format_diff
+    from .experimental import experimental_features
     from .portable import canonical, check_policy, decide_json, load_policy_yaml, visible_json
 
     def read(f: str) -> str:
@@ -85,6 +86,9 @@ def _portable_cmd(a: Any) -> int:
             print(out)
         elif r.get("ok"):
             print(f"ok: {a.policy}" + "".join(f"\n  warning: {w}" for w in r["warnings"]))
+            exp = experimental_features(read(a.policy))
+            if exp:
+                print("  note: uses experimental features (may change in a minor release): " + ", ".join(exp), file=sys.stderr)
         else:
             print(f"invalid: {a.policy}\n  {r['message']}", file=sys.stderr)
         return 0 if r.get("ok") else 1

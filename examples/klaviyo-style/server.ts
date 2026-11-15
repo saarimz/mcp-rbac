@@ -18,7 +18,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { customRole, orgAssignments, permissionSets, rbac, type Identity, type OrgRole } from "../../src/index.js";
+import { rbac, type Identity } from "../../src/index.js";
+import { customRole, orgAssignments, permissionSets, type OrgRole } from "../../src/experimental.js";
 import { serveGuardedHttp } from "../../src/http.js";
 
 const here = dirname(fileURLToPath(import.meta.url));

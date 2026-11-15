@@ -3,7 +3,8 @@ import type { AddressInfo } from "node:net";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { newEnforcer } from "casbin";
-import { BuiltinEngine, CasbinEngine, CerbosEngine, Guard, PermitEngine, type DecisionEngine } from "../src/index.js";
+import { BuiltinEngine, Guard, type DecisionEngine } from "../src/index.js";
+import { CasbinEngine, CerbosEngine, PermitEngine } from "../src/experimental.js";
 import { createItmServer, createStore, itmGuardOptions, roles } from "../examples/itm.js";
 import { call } from "./helpers.js";
 

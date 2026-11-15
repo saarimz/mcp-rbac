@@ -11,7 +11,8 @@ from typing import Any
 import httpx
 import pytest
 
-from mcp_rbac import AuthZenClient, AuthZenEngine, Guard, Identity, PdpError, load_policy
+from mcp_rbac import Guard, Identity, load_policy
+from mcp_rbac.experimental import AuthZenClient, AuthZenEngine, PdpError
 from mcp_rbac.authzen import pdp_app
 from mcp_rbac.roles import Assignment
 

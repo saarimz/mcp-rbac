@@ -35,7 +35,7 @@ const outer = await protect(server, { identity: ({ claims }) => ({ id: claims.su
 - **Tools, resources (including templates) and prompts** are filtered in lists and checked at call time.
 - **Shared state.** `new SqliteStore(path)` from `mcp-rbac/sqlite` gives several processes shared revocation, budgets and audit (tested with 3 processes).
 - **HTTP.** `serveGuardedHttp` from `mcp-rbac/http` serves Streamable HTTP. It needs a bearer token: missing auth gets 401 + `WWW-Authenticate`, and RFC 9728 protected-resource metadata is served. Sessions are bound to an identity. Use `jwtVerifier({ jwksUrl, issuer, audience })` from `mcp-rbac/jwt` (needs `jose`), or your own verifier.
-- **Engines.** The built-in engine is the default. `CerbosEngine` uses Cerbos's HTTP check API; it's tested against a mock, so the request shape follows the Cerbos docs. `CasbinEngine` is tested with real casbin. `PermitEngine` is a documented stub tested with a fake. Grants always narrow on top of any engine.
+- **Engines.** The built-in engine is the default. External engines (Cerbos, Casbin, Permit, OpenFGA, AuthZEN, Cedar) are experimental: `mcp-rbac/experimental`, see [experimental/README.md](experimental/README.md).
 - **Generate a starter policy.** `mcp-rbac init --stdio "<cmd>"` or `--module server.ts` writes a TS or JSON policy with viewer/operator/admin roles and approvals plus budgets on destructive tools.
 
 Full API and how a call is decided: [docs/library.md](library.md). Upstream SDK hook proposal: [docs/upstream-hook-proposal.md](upstream-hook-proposal.md).
@@ -49,7 +49,7 @@ Full API and how a call is decided: [docs/library.md](library.md). Upstream SDK 
 | Store | `store: new MemoryStore()` (default) or `new SqliteStore(path)` from `mcp-rbac/sqlite`. Grants, revocations, audit (`queryAudit`) and rate counters are shared across processes. |
 | HTTP | `serveGuardedHttp({ createServer: () => guard.wrap(make()), verify, baseUrl })` from `mcp-rbac/http`. `jwtVerifier({ jwks or jwksUrl, issuer, audience })` from `mcp-rbac/jwt`. |
 | Approvals | `describeEffect`, `defaultEffect`, `limits: RateLimit[]`, `fatigue`. The approver gets `{ effect, recentApprovals, reasonRequired, extra }` and returns `"allow"` or `{ decision, reason, approver }`. `elicitationApprover()` and `queueApprover({ dir })` are built in. |
-| Engines | `engine: new CerbosEngine({ url })`, `new CasbinEngine({ enforcer })`, `new PermitEngine({ permit })`, or your own `DecisionEngine`. |
+| Engines | your own `DecisionEngine`; external adapters are in `mcp-rbac/experimental` ([experimental](experimental/README.md)). |
 | Policy files | `loadPolicy(json)` returns `{ roles, approve, limits }`. `mcp-rbac init` generates one. |
 | Presets | `buildPreset(tools, { mode, paths, repos, allow, deny, protect })` returns `{ roles, user, approve, limits, scopeFrom, rows }`. |
 | Proxy | `runProxy({ command, preset, ... })` from `mcp-rbac/proxy`. |

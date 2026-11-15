@@ -20,7 +20,8 @@ from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
 
-from mcp_rbac import Identity, LabelRule, Limit, OrgDirectory, OrgRole, OutputPolicy, Role, ScopePolicy, Toolsets, custom_role, org_assignments
+from mcp_rbac import Identity, LabelRule, Limit, OutputPolicy, Role, ScopePolicy, Toolsets
+from mcp_rbac.experimental import OrgDirectory, OrgRole, custom_role, org_assignments
 from mcp_rbac.mcpserver import RBAC
 
 DATA: dict[str, Any] = json.loads((Path(__file__).parent / "data.json").read_text())

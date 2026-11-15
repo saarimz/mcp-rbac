@@ -100,6 +100,10 @@ and then denied with `label_requires_role:pii`. That is the same in all six engi
 
 ## Spend
 
+> **Experimental in v0.5** (currency spend declarations, currency budgets and post-call cost accounting): the keys
+> may change in a minor release. Classes, class grants, class rules, count budgets and packs are stable.
+> See [docs/experimental](../docs/experimental/README.md).
+
 ```yaml
 semantics:
   tools:

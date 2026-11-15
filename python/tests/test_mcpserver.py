@@ -16,7 +16,8 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
 
-from mcp_rbac import ActorPolicy, DelegationOptions, Identity, Limit, Role, ScopePolicy, verify_audit_chain
+from mcp_rbac import Identity, Limit, Role, ScopePolicy, verify_audit_chain
+from mcp_rbac.experimental import ActorPolicy, DelegationOptions
 from mcp_rbac.mcpserver import APPROVAL_INPUT_KEY, RBAC, JwtVerifier
 
 from conftest import free_port, serve_asgi

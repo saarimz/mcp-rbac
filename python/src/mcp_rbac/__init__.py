@@ -1,11 +1,9 @@
-"""mcp_rbac: authorization for Python MCP servers (roles, scopes, tenants, delegation, approvals, budgets,
-redaction, tamper-evident audit) and an AuthZEN 1.0 client/PDP. Same model and wire formats as the TypeScript
-``mcp-rbac`` package."""
+"""mcp_rbac: authorization for Python MCP servers: one policy file (roles, argument limits, approvals bound to the exact
+arguments, rate limits, redaction) and a hash-chained audit trail. Same decisions and wire formats as the TypeScript
+``mcp-rbac`` package. Experimental features (tenants, delegation, AuthZEN) live in ``mcp_rbac.experimental``."""
 from .audit import GENESIS, canonical_json, chain_event, hash_event, to_jsonl, verify_audit_chain
 from .audit_sink import SqliteAuditSink, audit_record_from_decision, verify_audit_table
-from .authzen import AuthZenClient, AuthZenEngine, PdpError, pdp_app, to_authzen, validate_evaluation
 from .constraints import Constraint, c, check_constraints, narrow
-from .delegation import ActorPolicy, DelegationError, DelegationOptions, actors_from_claims, may_act
 from .guard import ApprovalRequest, Approver, Decision, Guard, Limit, LimitStatus, ToolRule
 from .output import LABELS_META_KEY, LabelRule, OutputPolicy, RedactionRule, redact_fields
 from .policy_diff import diff_policies, format_diff, summarize
@@ -16,19 +14,14 @@ from .patterns import covers, is_valid_tool_name, matches
 from .roles import Assignment, BuiltinEngine, DecisionInput, EngineDecision, Identity, Permission, Role, load_policy, narrow_identity, scope_allows
 from .scopes import ScopePolicy, Toolsets, insufficient_scope_challenge, parse_toolsets, scope_satisfied
 from .stores import ConsumeItem, MemoryStore, PostgresStore, RedisStore
-from .tenants import OrgDirectory, OrgRole, custom_role, org_assignments
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = ["load_policy_with_packs", "resolve_packs", "validate_pack", "cost_json", 
-    "GENESIS", "LABELS_META_KEY", "ActorPolicy", "ApprovalRequest", "Approver", "Assignment", "AuthZenClient", "AuthZenEngine",
-    "BuiltinEngine", "Constraint", "ConsumeItem", "Decision", "DecisionInput", "DelegationError", "DelegationOptions",
-    "EngineDecision", "Guard", "Identity", "LabelRule", "Limit", "LimitStatus", "MemoryStore", "OrgDirectory", "OrgRole",
-    "OutputPolicy", "PdpError", "Permission", "PostgresStore", "RedactionRule", "RedisStore", "Role", "ScopePolicy", "ToolRule",
-    "SqliteAuditSink", "Toolsets", "audit_record_from_decision", "verify_audit_table", "actors_from_claims", "c", "canonical_json", "chain_event", "check_constraints", "covers", "custom_role",
-    "hash_event", "insufficient_scope_challenge", "is_valid_tool_name", "load_policy", "matches", "may_act", "narrow",
-    "narrow_identity", "org_assignments", "parse_toolsets", "pdp_app", "redact_fields", "scope_allows", "scope_satisfied",
-    "to_authzen", "to_jsonl", "validate_evaluation", "verify_audit_chain",
+    "GENESIS", "LABELS_META_KEY", "ApprovalRequest", "Approver", "Assignment", "BuiltinEngine", "Constraint", "ConsumeItem", "Decision", "DecisionInput", "EngineDecision", "Guard", "Identity", "LabelRule", "Limit", "LimitStatus", "MemoryStore", "OutputPolicy", "Permission", "PostgresStore", "RedactionRule", "RedisStore", "Role", "ScopePolicy", "ToolRule",
+    "SqliteAuditSink", "Toolsets", "audit_record_from_decision", "verify_audit_table", "c", "canonical_json", "chain_event", "check_constraints", "covers", "hash_event", "insufficient_scope_challenge", "is_valid_tool_name", "load_policy", "matches", "narrow",
+    "narrow_identity", "parse_toolsets", "redact_fields", "scope_allows", "scope_satisfied",
+    "to_jsonl", "verify_audit_chain",
     "CompiledPolicy", "PolicyError", "PortableEngine", "check_policy", "compile_policy", "decide", "decide_json", "diff_policies",
     "export_policy", "format_diff", "guard_from_policy", "guard_kwargs_from_policy", "identity_from_dict", "load_policy_json",
     "load_policy_yaml", "roles_from_policy", "summarize", "visible", "visible_json",

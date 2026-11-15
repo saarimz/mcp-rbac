@@ -11,3 +11,4 @@ test/fixtures/.py-eval-*
 conformance/out/
 conformance/difffuzz-findings/
 wasm-pkg/
+conformance/.go-runner

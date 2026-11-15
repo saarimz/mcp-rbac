@@ -5,7 +5,7 @@
  "title": "Stripe MCP server (mcp.stripe.com)",
  "description": "Side-effect classes for the 15 tools in the Tools table of Stripe's MCP docs. stripe_api_write is one tool for every POST/PATCH/PUT/DELETE method (refunds, voids, deletes), so it carries write+spend+destructive: gate it by role and approval, not by tool name alone. Stripe has not published input schemas for the Treasury money tools, so no spend amount path is set: a currency budget denies them (limit_N:unknown_spend, fail-closed) and a count budget on class spend works.",
  "server": {"hosted": "https://mcp.stripe.com"},
- "license": "Apache-2.0",
+ "license": "MIT",
  "sources": [
   {"id": "stripe-mcp-docs", "url": "https://docs.stripe.com/mcp", "retrieved": "2026-11-15", "what": "Tools table (names, descriptions, Human confirmation badges), Supported API methods, auth (OAuth, agent API keys)"}
  ],

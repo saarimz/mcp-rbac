@@ -9,7 +9,7 @@
   "local": "uvx klaviyo-mcp-server@latest",
   "localPrefix": "klaviyo_"
  },
- "license": "Apache-2.0",
+ "license": "MIT",
  "sources": [
   {
    "id": "klaviyo-tools-page",

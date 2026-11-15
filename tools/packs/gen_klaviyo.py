@@ -83,7 +83,7 @@ pack = {
                    "Tool names are unprefixed (hosted server). The local package (uvx klaviyo-mcp-server) exposes a subset "
                    "with a klaviyo_ prefix: use {name: klaviyo, prefix: klaviyo_}.",
     "server": {"hosted": "https://mcp.klaviyo.com/mcp", "local": "uvx klaviyo-mcp-server@latest", "localPrefix": "klaviyo_"},
-    "license": "Apache-2.0",
+    "license": "MIT",
     "sources": [
         {"id": "klaviyo-tools-page", "url": cat["source"], "retrieved": "2026-11-15", "what": "tool names, categories, readOnly and user-generated-content flags"},
         {"id": "klaviyo-connect", "url": "https://developers.klaviyo.com/en/docs/connect_to_the_klaviyo_mcp_server", "retrieved": "2026-11-15", "what": "hosted URL, local package, READ_ONLY flag"},

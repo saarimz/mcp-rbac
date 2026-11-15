@@ -91,7 +91,7 @@ pack = {
     "description": f"Side-effect classes for the {len(out)} tools in github-mcp-server's tool snapshots at {snap['commit'][:12]}. "
                    "Base classes are the server's own ToolAnnotations; refinements are listed per tool.",
     "server": {"hosted": "https://api.githubcopilot.com/mcp/", "local": "ghcr.io/github/github-mcp-server", "repo": snap["repo"], "commit": snap["commit"]},
-    "license": "Apache-2.0",
+    "license": "MIT",
     "sources": [
         {"id": "github-toolsnaps", "url": f"{snap['repo']}/tree/{snap['commit']}/pkg/github/__toolsnaps__", "retrieved": "2026-11-15",
          "what": "tool names, ToolAnnotations (readOnlyHint, destructiveHint, openWorldHint), inputSchema argument names"},

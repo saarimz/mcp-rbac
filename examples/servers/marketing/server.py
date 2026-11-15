@@ -35,6 +35,7 @@ from mcp.server.mcpserver.exceptions import ToolError  # noqa: E402
 from mcp.server.transport_security import TransportSecuritySettings  # noqa: E402
 
 from mcp_rbac.core_guard import CoreGuard, current_caller  # noqa: E402
+from mcp_rbac.audit_sink import SqliteAuditSink, audit_record_from_decision  # noqa: E402
 
 AUDIENCE = "marketing-mcp"
 POLICY = (ROOT / "examples/policies/marketing.yaml").read_text()
@@ -70,7 +71,7 @@ def resolve_resource(db: SerializedDB, tool: str, a: dict[str, Any]) -> dict[str
     return {"account": acct} if isinstance(acct, str) else None  # explicit target account, else the caller's own
 
 
-def build(db: SerializedDB, identity_fn: Any) -> MCPServer:
+def build(db: SerializedDB, identity_fn: Any, sink: SqliteAuditSink | None = None) -> MCPServer:
     s = MCPServer("marketing-platform", version="0.4.0")
 
     def acct_of() -> str:
@@ -295,9 +296,11 @@ def build(db: SerializedDB, identity_fn: Any) -> MCPServer:
                        (sub, call["tool"], h, json.dumps(call["args"], sort_keys=True, separators=(",", ":")), now()))
         return False
 
+    # Hash-chained decision audit; batched group commit by default (MCP_RBAC_AUDIT_MODE=sync commits before the call proceeds).
+    sink = sink or SqliteAuditSink(db.path, mode=os.environ.get("MCP_RBAC_AUDIT_MODE", "batched"))
+
     def audit(e: dict[str, Any]) -> None:
-        db.execute("INSERT INTO audit (at, sub, tool, decision, reason) VALUES (?, ?, ?, ?, ?)",
-                   (now(), (e.get("identity") or {}).get("id"), e["tool"], e["decision"]["decision"], e["decision"]["reason"]))
+        sink.write(audit_record_from_decision(e))
 
     s.middleware.append(CoreGuard(POLICY, identity=identity_fn, approve=approve, on_decision=audit,
                                   resource=lambda tool, args, ident, ctx: resolve_resource(db, tool, args)))
@@ -338,6 +341,8 @@ def main() -> None:
         return argv[argv.index(name) + 1] if name in argv else None
     db = open_db(flag("--db") or ":memory:")
     if argv and argv[0] == "admin":
+        if db.path != ":memory:":
+            SqliteAuditSink(db.path, shutdown_hooks=False).close()  # creates the audit table if no server ran yet
         return admin(db, argv[1], argv[2] if len(argv) > 2 and not argv[2].startswith("--") else None)
     port = flag("--http")
     if port is None:

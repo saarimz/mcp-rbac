@@ -245,7 +245,8 @@ type (
 	}
 )
 
-func registerTools(s *mcp.Server, db *sql.DB) {
+// flushAudit (may be nil) commits queued audit records first, so audit.read sees the decision for its own call.
+func registerTools(s *mcp.Server, db *sql.DB, flushAudit func()) {
 	add(s, "deploys.list", "List deploys (optionally by service/env).", func(_ context.Context, org string, in deployList) (M, error) {
 		r, err := rows(db, "SELECT id, service, env, version, status, at FROM deploys WHERE org = ? AND (? = '' OR service = ?) AND (? = '' OR env = ?) ORDER BY at DESC",
 			org, in.Service, in.Service, in.Env, in.Env)
@@ -433,7 +434,10 @@ func registerTools(s *mcp.Server, db *sql.DB) {
 		if lim <= 0 || lim > 500 {
 			lim = 100
 		}
-		r, err := rows(db, "SELECT id, at, sub, tool, decision, reason FROM audit WHERE org = ? ORDER BY id DESC LIMIT ?", org, lim)
+		if flushAudit != nil {
+			flushAudit()
+		}
+		r, err := rows(db, "SELECT id, at, sub, tool, decision, reason FROM audit WHERE tenant = ? ORDER BY id DESC LIMIT ?", org, lim)
 		return M{"entries": r}, err
 	})
 }

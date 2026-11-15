@@ -242,7 +242,7 @@ func TestApprovalsBudgetsAndAudit(t *testing.T) {
 	var allowDeploy bool
 	for _, a := range adminCmd(t, db, "audit").([]any) {
 		m := a.(map[string]any)
-		if m["tool"] == "deploys.create" && m["decision"] == "allow" && m["sub"] == "sam" && m["org"] == "acme" {
+		if m["tool"] == "deploys.create" && m["decision"] == "allow" && m["sub"] == "sam" && m["tenant"] == "acme" {
 			allowDeploy = true
 		}
 	}

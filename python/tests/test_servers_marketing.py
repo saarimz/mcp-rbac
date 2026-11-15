@@ -173,7 +173,7 @@ def test_db_is_safe_under_worker_threads(tmp_path: pathlib.Path) -> None:
         for i in range(300):
             try:
                 if i % 3 == 0:
-                    db.execute("INSERT INTO audit (at, sub, tool, decision, reason) VALUES ('t', 'u', 'x', 'allow', 'ok')")
+                    db.execute("INSERT INTO revoked_tokens (jti) VALUES (?)", (f"{threading.get_ident()}-{i}",))
                 assert db.execute("SELECT * FROM profiles WHERE account = ? AND deleted = 0 ORDER BY id LIMIT ?", ("acme", 50)).fetchall()
             except Exception as e:  # noqa: BLE001
                 errors.append(f"{type(e).__name__}: {e}")
@@ -184,4 +184,4 @@ def test_db_is_safe_under_worker_threads(tmp_path: pathlib.Path) -> None:
     for t in ts:
         t.join()
     assert errors == []
-    assert db.execute("SELECT count(*) FROM audit").fetchone()[0] == 16 * 100
+    assert db.execute("SELECT count(*) FROM revoked_tokens").fetchone()[0] == 16 * 100

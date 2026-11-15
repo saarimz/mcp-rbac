@@ -26,8 +26,6 @@ CREATE TABLE IF NOT EXISTS privacy_requests (id INTEGER PRIMARY KEY AUTOINCREMEN
 CREATE TABLE IF NOT EXISTS revoked_tokens (jti TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS approvals (id INTEGER PRIMARY KEY AUTOINCREMENT, sub TEXT NOT NULL, tool TEXT NOT NULL, args_hash TEXT NOT NULL, args TEXT NOT NULL DEFAULT '{}',
   status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, used_at TEXT);
-CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, sub TEXT, tool TEXT NOT NULL, decision TEXT NOT NULL,
-  reason TEXT NOT NULL);
 """
 
 
@@ -56,6 +54,7 @@ class SerializedDB:
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._c, self._lock = conn, threading.RLock()
+        self.path = ":memory:"
 
     def execute(self, sql: str, params: Any = ()) -> _Result:
         with self._lock:
@@ -78,6 +77,7 @@ def open_db(path: str = ":memory:") -> SerializedDB:
     conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
     conn.row_factory = sqlite3.Row
     db = SerializedDB(conn)
+    db.path = path  # the audit table is created by mcp_rbac.SqliteAuditSink on its own connection (see server.py)
     db.execute("PRAGMA foreign_keys = ON")
     db.execute("PRAGMA journal_mode = WAL")
     db.executescript(SCHEMA)

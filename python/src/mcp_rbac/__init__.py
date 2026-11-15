@@ -2,6 +2,7 @@
 redaction, tamper-evident audit) and an AuthZEN 1.0 client/PDP. Same model and wire formats as the TypeScript
 ``mcp-rbac`` package."""
 from .audit import GENESIS, canonical_json, chain_event, hash_event, to_jsonl, verify_audit_chain
+from .audit_sink import SqliteAuditSink, audit_record_from_decision, verify_audit_table
 from .authzen import AuthZenClient, AuthZenEngine, PdpError, pdp_app, to_authzen, validate_evaluation
 from .constraints import Constraint, c, check_constraints, narrow
 from .delegation import ActorPolicy, DelegationError, DelegationOptions, actors_from_claims, may_act
@@ -23,7 +24,7 @@ __all__ = [
     "BuiltinEngine", "Constraint", "ConsumeItem", "Decision", "DecisionInput", "DelegationError", "DelegationOptions",
     "EngineDecision", "Guard", "Identity", "LabelRule", "Limit", "LimitStatus", "MemoryStore", "OrgDirectory", "OrgRole",
     "OutputPolicy", "PdpError", "Permission", "PostgresStore", "RedactionRule", "RedisStore", "Role", "ScopePolicy", "ToolRule",
-    "Toolsets", "actors_from_claims", "c", "canonical_json", "chain_event", "check_constraints", "covers", "custom_role",
+    "SqliteAuditSink", "Toolsets", "audit_record_from_decision", "verify_audit_table", "actors_from_claims", "c", "canonical_json", "chain_event", "check_constraints", "covers", "custom_role",
     "hash_event", "insufficient_scope_challenge", "is_valid_tool_name", "load_policy", "matches", "may_act", "narrow",
     "narrow_identity", "org_assignments", "parse_toolsets", "pdp_app", "redact_fields", "scope_allows", "scope_satisfied",
     "to_authzen", "to_jsonl", "validate_evaluation", "verify_audit_chain",

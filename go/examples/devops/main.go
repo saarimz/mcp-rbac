@@ -20,9 +20,11 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	mcprbac "github.com/mcp-rbac/mcp-rbac-go"
@@ -61,6 +63,9 @@ func run(args []string) error {
 	}
 	defer db.Close()
 	if len(args) > 0 && args[0] == "admin" {
+		if s, err := mcprbac.NewAuditSink(db, mcprbac.AuditSinkOptions{Mode: "sync"}); err == nil { // creates the audit table
+			_ = s.Close()
+		}
 		return admin(db, args[1:])
 	}
 	ctx := context.Background()
@@ -93,9 +98,18 @@ func run(args []string) error {
 		}
 		return nil
 	}
+	// Hash-chained decision audit; batched group commit by default (MCP_RBAC_AUDIT_MODE=sync commits before the call proceeds).
+	sink, err := mcprbac.NewAuditSink(db, mcprbac.AuditSinkOptions{Mode: os.Getenv("MCP_RBAC_AUDIT_MODE")})
+	if err != nil {
+		return err
+	}
+	defer sink.Close()
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() { <-sigs; _ = sink.Close(); os.Exit(0) }() // flush queued audit records before exiting
 	// One server (and one engine) for every session, so budgets and rate limits are shared across HTTP sessions.
 	server := mcp.NewServer(&mcp.Implementation{Name: "devops", Version: "0.4.0"}, nil)
-	registerTools(server, db)
+	registerTools(server, db, func() { _ = sink.Flush(context.Background()) })
 	eng.Protect(server, mcprbac.GuardOptions{
 		Identity: identity,
 		Resource: resolveResource(db),
@@ -106,7 +120,10 @@ func run(args []string) error {
 			if org == "" {
 				org, _ = id["tenant"].(string)
 			}
-			_, _ = db.Exec("INSERT INTO audit (at, org, sub, tool, decision, reason) VALUES (?, ?, ?, ?, ?, ?)", now(), org, id["id"], e.Tool, e.Decision.Decision, e.Decision.Reason)
+			sub, _ := id["id"].(string)
+			ms := float64(e.Duration.Microseconds()) / 1000
+			_ = sink.Write(mcprbac.AuditRecord{At: now(), Sub: sub, Tool: e.Tool, Decision: e.Decision.Decision, Reason: e.Decision.Reason,
+				Tenant: org, Approved: &e.Approved, DurationMs: &ms})
 		},
 	})
 	if port == "" {

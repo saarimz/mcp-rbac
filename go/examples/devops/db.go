@@ -28,8 +28,6 @@ CREATE TABLE IF NOT EXISTS log_lines (id INTEGER PRIMARY KEY, org TEXT NOT NULL,
 CREATE TABLE IF NOT EXISTS revoked_tokens (jti TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS approvals (id INTEGER PRIMARY KEY, sub TEXT NOT NULL, tool TEXT NOT NULL, args_hash TEXT NOT NULL, args TEXT NOT NULL DEFAULT '{}',
   status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, used_at TEXT);
-CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, at TEXT NOT NULL, org TEXT, sub TEXT, tool TEXT NOT NULL, decision TEXT NOT NULL,
-  reason TEXT NOT NULL);
 `
 
 // The build log and the incident description carry planted prompt injections (the red team checks a naive agent

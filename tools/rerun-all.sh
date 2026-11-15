@@ -32,7 +32,7 @@ step rust_clippy bash -c "cd core && cargo clippy -q --release --all-targets --a
 step rust_test bash -c "cd core && cargo test --release --all-features"
 step conformance conformance/run.sh
 step redteam python/.venv/bin/python -m redteam.run
-step malformed python/.venv/bin/python -m redteam.malformed
+step malformed bash -c 'python/.venv/bin/python -m redteam.malformed > "$0"' "$OUT/malformed.json"
 step otel_e2e tools/otel-e2e.sh
 STATE=$OUT/services tools/test-services.sh stop >/dev/null 2>&1
 python3 - "$OUT" <<'PY'
@@ -52,7 +52,7 @@ s["conformance"] = (re.findall(r"^\d+ vectors.*$", log("conformance"), re.M) or 
 try: s["redteam"] = json.loads((pathlib.Path(o / "clone/redteam/report.json")).read_text()).get("summary")
 except Exception as e: s["redteam"] = {"error": str(e)}
 try:
-    mal = json.loads(log("malformed")); s["malformed"] = {x["server"]: {"failures": x["failures"], "alive": x["alive_after"], "soak": {k: x["soak"][k] for k in ("sequential_ok", "concurrent_ok", "rss_kib_after_warmup", "rss_kib_after_sequential")}} for x in mal}
+    mal = json.loads((o / "malformed.json").read_text()); s["malformed"] = {x["server"]: {"failures": x["failures"], "alive": x["alive_after"], "soak": {k: x["soak"][k] for k in ("sequential_ok", "concurrent_ok", "rss_kib_after_warmup", "rss_kib_after_sequential")}} for x in mal}
 except Exception as e: s["malformed"] = {"error": str(e)}
 try: s["otel_e2e"] = json.loads((o / "clone/tools/otel-e2e/last-run.json").read_text())
 except Exception as e: s["otel_e2e"] = {"error": str(e)}

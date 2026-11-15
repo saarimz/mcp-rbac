@@ -152,6 +152,7 @@ func carrier(meta map[string]any) propagation.MapCarrier {
 
 type serverSpanInfo struct {
 	method, tool, sessionID string
+	protocolVersion         string
 	hasTool                 bool
 	meta                    map[string]any
 }
@@ -178,6 +179,10 @@ func (t *Telemetry) serverSpan(ctx context.Context, in serverSpanInfo, fn func(c
 	}
 	if in.sessionID != "" {
 		attrs = append(attrs, attribute.String("mcp.session.id", in.sessionID))
+	}
+	// jsonrpc.request.id is not recorded: go-sdk 1.8 keeps the request ID behind an unexported context key.
+	if in.protocolVersion != "" {
+		attrs = append(attrs, attribute.String("mcp.protocol.version", in.protocolVersion))
 	}
 	if t.transport != "" {
 		attrs = append(attrs, attribute.String("network.transport", t.transport))

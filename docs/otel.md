@@ -96,4 +96,35 @@ and log, and asserts no canary appears:
 
 `tools/otel-e2e.sh` runs otelcol-contrib (0.165.0) and Jaeger (2.23.0) locally. It runs each language's real mini
 server under its real SDK client with OTLP export, then checks the collector's file output (spans, metrics and logs
-per service) and Jaeger's query API. Results are in PROGRESS.md (P5).
+per service) and Jaeger's query API. The last result is in `tools/otel-e2e/last-run.json`.
+
+How it works:
+- The servers are `examples/core-servers/{ts,python}`, the rmcp `mini-server` built with `--features otlp`, and
+  `go/examples/otlp-mini` (its own Go module, so the library's go.mod has no exporter dependencies). Each one exports
+  only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and flushes when stdin closes.
+- The driver is the official Python MCP client over stdio. Per language it runs 3 sessions (door, owner, support) with
+  7 `tools/call` requests in total, each carrying its own W3C `traceparent`. Canaries go in the identity, the arguments
+  and the baggage.
+- The collector receives OTLP/HTTP on 127.0.0.1:14318 and sends everything to a file exporter, plus traces to Jaeger
+  (OTLP/gRPC on 4317, query on 16686).
+
+There are 19 checks per language:
+- the SDK client's view (filtering, denials, redaction)
+- exactly one SERVER span, parented on the client's traceparent, with tracestate kept
+- the semconv attributes, including `mcp.protocol.version`
+- the INTERNAL authorize child
+- deny → `error.type=tool_error` and status ERROR
+- the rate-limit reason
+- approval `unavailable`
+- the redacted flag
+- metrics: decisions per decision/tool, 7 authorize-duration samples, approvals{unavailable}=1, budget
+  utilization 1/3+2/3+3/3
+- 7 decision logs via OTLP, with the allow record's trace_id/span_id equal to the authorize span (INFO) and the deny
+  record at WARN
+- the trace can be queried in Jaeger with both spans under the right service
+
+Finally, no canary may appear anywhere in the collector output.
+
+Known gap: Go doesn't record `jsonrpc.request.id`, because go-sdk 1.8 keeps the request ID behind an unexported
+context key. The driver reports this as `known_gaps` rather than passing it silently. Python records no
+`mcp.server.operation.duration` from the guard, because the SDK owns that span there.

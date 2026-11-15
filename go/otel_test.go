@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -46,6 +47,8 @@ type otelHarness struct {
 	logs   *memLogs
 	slog   *bytes.Buffer
 	tel    *Telemetry
+	raw    bool          // session() only connects the server; the test drives h.ct with raw JSON-RPC
+	ct     mcp.Transport // client end when raw
 }
 
 func newHarness(t *testing.T, maxTools int) *otelHarness {
@@ -99,6 +102,10 @@ func (h *otelHarness) session(t *testing.T, identity any, approve *bool) *mcp.Cl
 	ct, st := mcp.NewInMemoryTransports()
 	if _, err := s.Connect(ctx, st, nil); err != nil {
 		t.Fatal(err)
+	}
+	if h.raw {
+		h.ct = ct
+		return nil
 	}
 	cs, err := mcp.NewClient(&mcp.Implementation{Name: "otel-test", Version: "0"}, nil).Connect(ctx, ct, nil)
 	if err != nil {
@@ -166,7 +173,8 @@ func TestOTelServerSpanSemconvAndAuthorizeChild(t *testing.T) {
 	a := attrs(srv)
 	if srv.SpanKind() != trace.SpanKindServer || a["mcp.method.name"].AsString() != "tools/call" || a["gen_ai.operation.name"].AsString() != "execute_tool" ||
 		a["gen_ai.tool.name"].AsString() != "refund" || a["error.type"].AsString() != "tool_error" || a["mcp_rbac.decision"].AsString() != "deny" ||
-		a["mcp_rbac.reason"].AsString() != "user:no_matching_permission" || a["network.transport"].AsString() != "pipe" {
+		a["mcp_rbac.reason"].AsString() != "user:no_matching_permission" || a["network.transport"].AsString() != "pipe" ||
+		a["mcp.protocol.version"].AsString() == "" {
 		t.Fatalf("server span attrs: %v", a)
 	}
 	if _, ok := a["mcp.session.id"]; ok {
@@ -366,5 +374,54 @@ func TestOTelToolCardinalityBounded(t *testing.T) {
 	}
 	if ReasonClass("actor_unknown:x") != "actor_unknown" {
 		t.Fatal("reason class")
+	}
+}
+
+// Regression (found by tools/otel-e2e.sh with the Python client): a tools/list without "params" made the telemetry path
+// call GetMeta on a typed-nil params pointer and crash the whole server process.
+func TestOtelRequestsWithoutParamsDoNotPanic(t *testing.T) {
+	h := newHarness(t, 0)
+	h.raw = true
+	h.session(t, map[string]any{"id": "dana", "roles": []any{"door"}}, nil)
+	ctx := context.Background()
+	conn, err := h.ct.Connect(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	send := func(raw string) {
+		msg, err := jsonrpc.DecodeMessage([]byte(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := conn.Write(ctx, msg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recv := func() string {
+		msg, err := conn.Read(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := jsonrpc.EncodeMessage(msg)
+		return string(b)
+	}
+	send(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"raw","version":"0"}}}`)
+	recv()
+	send(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+	send(`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
+	if got := recv(); !strings.Contains(got, `"checkin"`) || strings.Contains(got, `"refund"`) {
+		t.Fatalf("tools/list without params: %s", got)
+	}
+	send(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"refund","arguments":{"ticketId":"t1","amount":5}}}`)
+	if got := recv(); !strings.Contains(got, "Denied: user:no_matching_permission") {
+		t.Fatalf("tools/call: %s", got)
+	}
+	var list bool
+	for _, s := range h.spans.Ended() {
+		list = list || s.Name() == "tools/list"
+	}
+	if !list {
+		t.Fatal("no tools/list span")
 	}
 }

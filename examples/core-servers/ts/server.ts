@@ -1,9 +1,10 @@
-/** Minimal real MCP server (official TS SDK, stdio) behind the Rust core via WASM. Identity: MCP_RBAC_IDENTITY (JSON). */
+/** Minimal real MCP server (official TS SDK, stdio) behind the Rust core via WASM. Identity: MCP_RBAC_IDENTITY (JSON). OTLP: OTEL_EXPORTER_OTLP_ENDPOINT. */
 import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { protectWithCore } from "../../../src/core-guard.js";
+import { setupOtlp } from "./otlp.js";
 
 const inner = new McpServer({ name: "mini-venue-ts", version: "0.4.0" });
 const text = (v: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(v) }], structuredContent: v as Record<string, unknown> });
@@ -14,5 +15,6 @@ inner.registerTool("get_guest", { description: "Read a guest", inputSchema: { gu
 
 const policy = readFileSync(new URL("../mini.yaml", import.meta.url), "utf8");
 const identity = process.env.MCP_RBAC_IDENTITY ? JSON.parse(process.env.MCP_RBAC_IDENTITY) : undefined;
-const { server } = await protectWithCore(inner, { policy, identity: () => identity });
+const telemetry = setupOtlp("mini-venue-ts");
+const { server } = await protectWithCore(inner, { policy, identity: () => identity, telemetry });
 await server.connect(new StdioServerTransport());

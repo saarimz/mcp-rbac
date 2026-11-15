@@ -1,0 +1,28 @@
+# Real OpenTelemetry Collector (otelcol-contrib) for tools/otel-e2e.sh: OTLP/HTTP in on 127.0.0.1:14318,
+# every signal written as OTLP-JSON lines to ${env:OTEL_E2E_OUT}, traces also forwarded to Jaeger v2 over OTLP/gRPC (4317).
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:14318
+exporters:
+  file:
+    path: ${env:OTEL_E2E_OUT}
+  otlp/jaeger:
+    endpoint: 127.0.0.1:4317
+    tls:
+      insecure: true
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [file, otlp/jaeger]
+    metrics:
+      receivers: [otlp]
+      exporters: [file]
+    logs:
+      receivers: [otlp]
+      exporters: [file]

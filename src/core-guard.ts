@@ -96,6 +96,19 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
     capabilities: caps.tools ? { tools: { listChanged: !!caps.tools.listChanged } } : {},
     instructions: client.getInstructions(),
   });
+  // TS SDK 1.32 does not expose the negotiated protocol version: capture it from the initialize result (feature-detected;
+  // without the hook the attribute is simply omitted). Needed for the mcp.protocol.version span attribute.
+  let protocolVersion: string | undefined;
+  const o = outer as unknown as { _oninitialize?: (r: unknown) => Promise<{ protocolVersion?: string }> };
+  if (typeof o._oninitialize === "function") {
+    const init = o._oninitialize.bind(outer);
+    o._oninitialize = async (r: unknown) => {
+      const res = await init(r);
+      protocolVersion = res.protocolVersion;
+      return res;
+    };
+  }
+  const ids = (extra: any) => idsOf(extra, protocolVersion);
   const now = opts.now ?? Date.now;
   const tel = opts.telemetry instanceof CoreTelemetry ? opts.telemetry
     : opts.telemetry ? new CoreTelemetry(opts.telemetry === true ? {} : opts.telemetry) : undefined;
@@ -157,6 +170,6 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
   return { server: outer, engine };
 }
 
-function ids(extra: any): { requestId?: string | number; sessionId?: string; protocolVersion?: string } {
-  return { requestId: extra?.requestId, sessionId: extra?.sessionId };
+function idsOf(extra: any, protocolVersion: string | undefined): { requestId?: string | number; sessionId?: string; protocolVersion?: string } {
+  return { requestId: extra?.requestId, sessionId: extra?.sessionId, protocolVersion };
 }

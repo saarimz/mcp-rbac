@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -89,8 +90,9 @@ func (e *Engine) Middleware(opts GuardOptions) mcp.Middleware {
 				return handle(ctx, nil)
 			}
 			info := serverSpanInfo{method: method}
-			if p := req.GetParams(); p != nil {
-				info.meta = p.GetMeta()
+			info.meta = requestMeta(req)
+			if pv, ok := req.(interface{ ProtocolVersion() string }); ok {
+				info.protocolVersion = pv.ProtocolVersion()
 			}
 			if cr, ok := req.(*mcp.CallToolRequest); ok && cr.Params != nil {
 				info.tool, info.hasTool = cr.Params.Name, true
@@ -259,4 +261,17 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 		return nil, fmt.Errorf("mcp-rbac: redacted result: %w", err)
 	}
 	return out, nil
+}
+
+// requestMeta returns params._meta, tolerating requests sent without params: go-sdk then hands the middleware a typed-nil
+// params pointer inside a non-nil interface, and calling GetMeta on it panics (e.g. a tools/list without "params").
+func requestMeta(req mcp.Request) map[string]any {
+	p := req.GetParams()
+	if p == nil {
+		return nil
+	}
+	if v := reflect.ValueOf(p); v.Kind() == reflect.Pointer && v.IsNil() {
+		return nil
+	}
+	return p.GetMeta()
 }

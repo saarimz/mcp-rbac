@@ -88,6 +88,7 @@ describe("core guard OpenTelemetry", () => {
       "error.type": "tool_error", "mcp_rbac.decision": "deny", "mcp_rbac.reason": "user:no_matching_permission",
     });
     expect(typeof srv.attributes["jsonrpc.request.id"]).toBe("string");
+    expect(srv.attributes["mcp.protocol.version"]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(srv.status.code).toBe(SpanStatusCode.ERROR);
     const auth = one("mcp_rbac.authorize refund");
     expect(auth.kind).toBe(SpanKind.INTERNAL);

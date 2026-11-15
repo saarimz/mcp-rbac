@@ -65,8 +65,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(s) if !s.is_empty() => Some(serde_json::from_str(&s)?),
         _ => None,
     };
-    let server = protect(Mini { tool_router: Mini::tool_router() }, &policy, GuardOptions::with_identity(move |_| identity.clone()))?;
+    #[allow(unused_mut)]
+    let mut opts = GuardOptions::with_identity(move |_| identity.clone());
+    #[cfg(feature = "otlp")]
+    let otlp = otlp::setup();
+    #[cfg(feature = "otlp")]
+    if let Some((t, _)) = &otlp {
+        opts.telemetry = Some(t.clone());
+    }
+    let server = protect(Mini { tool_router: Mini::tool_router() }, &policy, opts)?;
     let running = server.serve(rmcp::transport::stdio()).await?;
-    running.waiting().await?;
+    let res = running.waiting().await;
+    #[cfg(feature = "otlp")]
+    if let Some((_, shutdown)) = otlp {
+        tokio::task::spawn_blocking(shutdown).await?;
+    }
+    res?;
     Ok(())
+}
+
+/// Opt-in OTLP/HTTP export (feature `otlp`): enabled when OTEL_EXPORTER_OTLP_ENDPOINT is set; flushed when stdin closes.
+#[cfg(feature = "otlp")]
+mod otlp {
+    use mcp_rbac_rmcp::otel::Telemetry;
+    use opentelemetry_otlp::{LogExporter, MetricExporter, SpanExporter};
+    use opentelemetry_sdk::{logs::SdkLoggerProvider, metrics::SdkMeterProvider, trace::SdkTracerProvider, Resource};
+    use std::sync::Arc;
+
+    type Shutdown = Box<dyn FnOnce() + Send>;
+
+    pub fn setup() -> Option<(Arc<Telemetry>, Shutdown)> {
+        std::env::var_os("OTEL_EXPORTER_OTLP_ENDPOINT")?;
+        let resource = Resource::builder().with_service_name("mini-venue-rust")
+            .with_attribute(opentelemetry::KeyValue::new("service.version", "0.4.0")).build();
+        let tp = SdkTracerProvider::builder().with_resource(resource.clone())
+            .with_batch_exporter(SpanExporter::builder().with_http().build().expect("otlp spans")).build();
+        let mp = SdkMeterProvider::builder().with_resource(resource.clone())
+            .with_periodic_exporter(MetricExporter::builder().with_http().build().expect("otlp metrics")).build();
+        let lp = SdkLoggerProvider::builder().with_resource(resource)
+            .with_batch_exporter(LogExporter::builder().with_http().build().expect("otlp logs")).build();
+        let t = Telemetry::builder().tracer_provider(&tp).meter_provider(&mp).logger_provider(&lp).network_transport("pipe").build();
+        let shutdown: Shutdown = Box::new(move || {
+            let _ = tp.shutdown();
+            let _ = mp.shutdown();
+            let _ = lp.shutdown();
+        });
+        Some((Arc::new(t), shutdown))
+    }
 }

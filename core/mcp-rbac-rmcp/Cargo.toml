@@ -16,10 +16,14 @@ schemars = "1"
 serde = { version = "1", features = ["derive"] }
 opentelemetry = { version = "=0.33.1", default-features = false, features = ["trace", "metrics", "logs"], optional = true }
 tracing = { version = "0.1", optional = true }
+opentelemetry_sdk = { version = "=0.33.1", default-features = false, features = ["trace", "metrics", "logs", "rt-tokio"], optional = true }
+opentelemetry-otlp = { version = "0.33", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "metrics", "logs"], optional = true }
 
 [features]
 default = []
 otel = ["dep:opentelemetry", "dep:tracing"]
+# OTLP/HTTP export for the bundled mini-server (examples/tests only; the library itself never picks an exporter).
+otlp = ["otel", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp"]
 
 [dev-dependencies]
 rmcp = { version = "=3.10.0", default-features = false, features = ["client", "transport-child-process"] }

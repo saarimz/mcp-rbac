@@ -12,3 +12,5 @@ conformance/out/
 conformance/difffuzz-findings/
 wasm-pkg/
 conformance/.go-runner
+tools/otel-e2e/out/
+test/_deprecation_*.ts

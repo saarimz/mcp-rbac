@@ -52,7 +52,7 @@ APP="$OUT/npm-app"; mkdir -p "$APP"
 (cd "$APP" && node -e '
 const pkg = require("./node_modules/mcp-rbac/package.json");
 const subs = Object.keys(pkg.exports).filter(k => k !== "./package.json");
-const peer = ["./redis", "./postgres", "./jwt", "./experimental/cedar"];  // need optional peers
+const peer = ["./redis", "./postgres", "./jwt", "./experimental/cedar", "./core-otel", "./audit-otel"];  // need optional peers
 (async () => {
   for (const k of subs) {
     if (peer.includes(k)) continue;
@@ -62,6 +62,17 @@ const peer = ["./redis", "./postgres", "./jwt", "./experimental/cedar"];  // nee
 })().catch(e => { console.error(e); process.exit(1); });
 ')
 (cd "$APP" && cp "$ROOT/docs/snippets/mcp-rbac.yaml" . && npx --no-install mcp-rbac check mcp-rbac.yaml)
+
+note "OpenTelemetry stays optional: mcp-rbac/core without @opentelemetry/*, then the OTel entry points with them"
+(cd "$APP" && test ! -d node_modules/@opentelemetry/api && node -e '
+Promise.all([import("mcp-rbac/core"), import("@modelcontextprotocol/sdk/server/mcp.js")]).then(async ([{ protectWithCore }, { McpServer }]) => {
+  const s = new McpServer({ name: "s", version: "1" });
+  s.registerTool("t", { description: "t" }, async () => ({ content: [{ type: "text", text: "ok" }] }));
+  await protectWithCore(s, { policy: "version: 1\nroles: {r: {tools: [t]}}\n", identity: () => ({ id: "u", roles: ["r"] }) });
+  console.log("protectWithCore without @opentelemetry/*: ok");
+}).catch(e => { console.error(e); process.exit(1); });')
+(cd "$APP" && npm install --no-audit --no-fund --silent @opentelemetry/api @opentelemetry/api-logs @opentelemetry/core >/dev/null \
+  && node -e 'Promise.all([import("mcp-rbac/core-otel"), import("mcp-rbac/audit-otel")]).then(([, a]) => console.log("core-otel + audit-otel with the peers:", typeof a.auditOtelExporter)).catch(e => { console.error(e); process.exit(1); })')
 
 note "PyPI mcp-rbac (python/)"
 rm -rf python/build python/dist

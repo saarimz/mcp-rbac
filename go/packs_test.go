@@ -226,7 +226,9 @@ func TestSemanticsOwnerApprovalAndArgSpend(t *testing.T) {
 func TestSemanticsToolMetaBeforeList(t *testing.T) {
 	var up []string
 	cs := semSession(t, map[string]any{"id": "o", "roles": []any{"owner"}}, nil, &up, false)
-	expectEq(t, callText(t, cs, "wipe", nil), "Denied: user:no_matching_permission")
+	// before any tools/list the guard reads the server's own list (cold start), so the destructive class applies
+	// (P13; this used to decide without the annotations)
+	expectEq(t, callText(t, cs, "wipe", nil), "Approval required for wipe")
 	cs2 := semSession(t, map[string]any{"id": "o", "roles": []any{"owner"}}, nil, &up, true)
 	expectEq(t, callText(t, cs2, "wipe", nil), "Approval required for wipe")
 	expectEq(t, len(up), 0)

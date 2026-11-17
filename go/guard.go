@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -89,6 +90,9 @@ type GuardOptions struct {
 	ToolMeta func(ctx context.Context, tool string) map[string]any
 	// OnCost observes post-call cost accounting for calls with a result-based spend.
 	OnCost func(CostEvent)
+	// Denials: "" or "reason" (default) answers "Denied: <reason>"; "uniform" answers "Denied" and omits the reason
+	// from the result's _meta (OnDecision still gets it).
+	Denials string
 
 	sem *semState
 }
@@ -141,12 +145,22 @@ func (o *GuardOptions) now() float64 {
 	return float64(time.Now().UnixNano()) / 1e6
 }
 
+// unguarded reports methods the guard refuses for every caller: only tools are guarded (the same fail-closed design
+// as the TypeScript, Python and Rust guards; roles.*.resources/prompts are honored only by the legacy TS Guard).
+func unguarded(method string) bool {
+	return strings.HasPrefix(method, "resources/") || strings.HasPrefix(method, "prompts/") || strings.HasPrefix(method, "completion/")
+}
+
 // Middleware returns go-sdk receiving middleware: filters tools/list, authorizes tools/call (deny, approval,
-// rate limits) and redacts allowed results. Other methods pass through.
+// rate limits) and redacts allowed results. resources/*, prompts/* and completion/* are refused (method not found)
+// for every caller; other protocol methods (initialize, ping, notifications...) pass through.
 func (e *Engine) Middleware(opts GuardOptions) mcp.Middleware {
 	opts.sem = &semState{meta: map[string]map[string]any{}}
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			if unguarded(method) {
+				return nil, &jsonrpc.Error{Code: jsonrpc.CodeMethodNotFound, Message: "Method not found"}
+			}
 			if method != "tools/list" && method != "tools/call" {
 				return next(ctx, method, req)
 			}
@@ -240,23 +254,61 @@ func (e *Engine) guardList(ctx context.Context, method string, req mcp.Request, 
 	return &filtered, nil
 }
 
-func denial(tool string, d Decision) *mcp.CallToolResult {
+func denial(tool string, d Decision) *mcp.CallToolResult { return denialAs(tool, d, "") }
+
+func denialAs(tool string, d Decision, mode string) *mcp.CallToolResult {
 	text := "Denied: " + d.Reason
-	if d.Decision == "needs_approval" {
+	meta := map[string]any{"decision": d.Decision, "reason": d.Reason}
+	switch {
+	case d.Decision == "needs_approval":
 		text = "Approval required for " + tool
+	case mode == "uniform":
+		text = "Denied"
+		meta = map[string]any{"decision": d.Decision}
 	}
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: text}},
 		IsError: true,
-		Meta:    mcp.Meta{DenialMetaKey: map[string]any{"decision": d.Decision, "reason": d.Reason}},
+		Meta:    mcp.Meta{DenialMetaKey: meta},
 	}
+}
+
+// loadMeta reads the server's own tools/list through the rest of the chain (pagination followed, at most 50 pages)
+// so class rules apply even when the client calls a tool before listing tools (cold start).
+func (e *Engine) loadMeta(ctx context.Context, cr *mcp.CallToolRequest, next mcp.MethodHandler, o *GuardOptions) error {
+	cursor := ""
+	for page := 0; page < 50; page++ {
+		res, err := next(ctx, "tools/list", &mcp.ListToolsRequest{Session: cr.Session, Params: &mcp.ListToolsParams{Cursor: cursor}, Extra: cr.Extra})
+		if err != nil {
+			return err
+		}
+		lr, ok := res.(*mcp.ListToolsResult)
+		if !ok || lr == nil {
+			return fmt.Errorf("mcp-rbac: unexpected tools/list result %T", res)
+		}
+		o.sem.mu.Lock()
+		for _, t := range lr.Tools {
+			o.sem.meta[t.Name] = toolMetaOf(t)
+		}
+		o.sem.mu.Unlock()
+		if lr.NextCursor == "" {
+			return nil
+		}
+		cursor = lr.NextCursor
+	}
+	return nil
 }
 
 func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, next mcp.MethodHandler, o *GuardOptions, server trace.Span) (mcp.Result, error) {
 	t0 := time.Now()
 	cr, ok := req.(*mcp.CallToolRequest)
-	if !ok || cr.Params == nil {
-		return next(ctx, method, req) // let the SDK produce its own invalid-params error
+	if !ok || cr == nil || cr.Params == nil {
+		// never forward a call the guard could not read: deny (fail closed) instead of trusting the SDK to reject it
+		d := Decision{Decision: "deny", Reason: "invalid_request"}
+		if o.OnDecision != nil {
+			o.OnDecision(DecisionEvent{Decision: d, Raw: denyJSON("invalid_request"), Duration: time.Since(t0)})
+		}
+		return denialAs("", d, o.Denials), nil
 	}
 	tool := cr.Params.Name
 	args := cr.Params.Arguments
@@ -266,12 +318,25 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	body := o.base(ctx, req)
 	body["tool"] = tool
 	body["args"] = args
+	metaFailed := false
 	if _, ok := body["identity"]; ok && e.semanticsOn(ctx, o) {
 		o.sem.mu.RLock()
 		m, seen := o.sem.meta[tool]
 		o.sem.mu.RUnlock()
 		if !seen && o.ToolMeta != nil {
-			m, seen = o.ToolMeta(ctx, tool), true
+			if m = o.ToolMeta(ctx, tool); m != nil {
+				seen = true
+			}
+		}
+		if !seen {
+			// cold start or a tool added since: read the server's own list; if that fails, deny (fail closed)
+			if err := e.loadMeta(ctx, cr, next, o); err != nil {
+				metaFailed = true
+			} else {
+				o.sem.mu.RLock()
+				m, seen = o.sem.meta[tool]
+				o.sem.mu.RUnlock()
+			}
 		}
 		if seen && m != nil {
 			body["toolMeta"] = m
@@ -300,6 +365,8 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	switch {
 	case !utf8.Valid(in): // json.Marshal copies RawMessage arguments verbatim; the core only takes valid UTF-8
 		raw = denyJSON("invalid_input")
+	case metaFailed:
+		raw = denyJSON("tool_meta_unavailable")
 	case !unresolved:
 		raw, err = e.Authorize(ctx, string(in), o.now())
 	}
@@ -346,7 +413,7 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 		o.OnDecision(DecisionEvent{Tool: tool, Identity: body["identity"], Decision: d, Raw: raw, Duration: time.Since(t0), Approved: approved})
 	}
 	if d.Decision != "allow" {
-		return denial(tool, d), nil
+		return denialAs(tool, d, o.Denials), nil
 	}
 	caller := Caller{Identity: body["identity"], Tenant: d.Tenant, Rule: d.Rule}
 	if r, ok := body["resource"].(map[string]string); ok {

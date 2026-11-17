@@ -66,6 +66,10 @@
       "types": "./dist/init.d.ts",
       "default": "./dist/init.js"
     },
+    "./testing": {
+      "types": "./dist/policy-test.d.ts",
+      "default": "./dist/policy-test.js"
+    },
     "./redis": {
       "types": "./dist/store-redis.d.ts",
       "default": "./dist/store-redis.js"

@@ -35,8 +35,12 @@ def main(argv: list[str] | None = None) -> int:
     de = sub.add_parser("decide", help="JSON requests on stdin (one per line) -> canonical decisions")
     de.add_argument("policy")
     de.add_argument("--visible", action="store_true")
+    te = sub.add_parser("test", help="run allow/deny/approval and tools/list fixtures (exit 1 if any fail)")
+    te.add_argument("policy")
+    te.add_argument("tests")
+    te.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
-    if a.cmd in ("check", "diff", "decide"):
+    if a.cmd in ("check", "diff", "decide", "test"):
         return _portable_cmd(a)
     if a.cmd == "audit-verify":
         with open(a.file, encoding="utf-8") as f:
@@ -96,6 +100,14 @@ def _portable_cmd(a: Any) -> int:
         d = diff_policies(load_policy_yaml(read(a.old)), load_policy_yaml(read(a.new)), [t for t in a.tools.split(",") if t])
         sys.stdout.write(canonical(d) + "\n" if a.json else format_diff(d))
         return 2 if a.fail_on_widen and d["summary"]["widens"] > 0 else 0
+    if a.cmd == "test":
+        from .testing import format_policy_test_report, test_policy
+        report = test_policy(read(a.policy), read(a.tests))
+        if a.json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+        else:
+            sys.stdout.write(format_policy_test_report(report))
+        return 0 if report["ok"] else 1
     p = load_policy_yaml(read(a.policy))
     for line in sys.stdin:
         line = line.rstrip("\n")

@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
 import { checkPortablePolicy, decidePortableJson, loadPortablePolicy, visiblePortableJson, PolicyError } from "./portable.js";
+import { testPolicy, formatPolicyTestReport } from "./policy-test.js";
 import { diffPolicies, formatDiff } from "./policy-diff.js";
 import { exportPolicy } from "./policy-io.js";
 
@@ -55,6 +56,8 @@ Usage:
                                                 experimental: OpenID AuthZEN 1.0 PDP (POST /access/v1/evaluation[s])
   mcp-rbac audit-verify [--db path] [--export jsonl|otlp] [--out file]   verify the audit hash chain; export it
   mcp-rbac check <policy.yaml> [--json]          validate a portable policy (exit 1 if invalid)
+  mcp-rbac test <policy.yaml> <tests.yaml> [--json]
+                                                run allow/deny/approval and tools/list fixtures (exit 1 if any fail)
   mcp-rbac diff <old.yaml> <new.yaml> [--json] [--tools a,b] [--fail-on-widen]
                                                 effective-access changes per role x tool (exit 2 on widening with --fail-on-widen)
   mcp-rbac decide <policy.yaml> [--visible]     JSON requests on stdin (one per line) -> canonical decisions on stdout
@@ -131,6 +134,15 @@ export async function main(argv = process.argv.slice(2)) {
       const d = diffPolicies(loadPortablePolicy(readFileSync(a, "utf8")), loadPortablePolicy(readFileSync(b, "utf8")), str(flags.tools)?.split(",").filter(Boolean) ?? []);
       process.stdout.write(flags.json ? JSON.stringify(d, null, 2) + "\n" : formatDiff(d));
       if (flags["fail-on-widen"] && d.summary.widens > 0) process.exitCode = 2;
+      return;
+    }
+    case "test": {
+      const [policyFile, testsFile] = pos;
+      if (!policyFile || !testsFile) throw new Error("test needs <policy.yaml> <tests.yaml>");
+      const report = testPolicy(readFileSync(policyFile, "utf8"), readFileSync(testsFile, "utf8"));
+      if (flags.json) process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      else process.stdout.write(formatPolicyTestReport(report));
+      if (!report.ok) process.exitCode = 1;
       return;
     }
     case "decide": {

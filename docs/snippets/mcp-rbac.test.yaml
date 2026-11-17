@@ -1,0 +1,37 @@
+# Fixture for the quickstart policy in docs/snippets/mcp-rbac.yaml (same file as the README).
+# Run: mcp-rbac test docs/snippets/mcp-rbac.yaml docs/snippets/mcp-rbac.test.yaml
+tests:
+  - name: staff cannot refund
+    as: {roles: [staff]}
+    call: {tool: refund, args: {amount: 20}}
+    expect: deny
+  - name: staff can list events
+    as: {roles: [staff]}
+    call: {tool: list_events}
+    expect: allow
+  - name: staff can check in
+    as: {roles: [staff]}
+    call: {tool: checkin}
+    expect: allow
+  - name: staff tools/list
+    as: {roles: [staff]}
+    visible: [list_events, checkin]
+  - name: owner can refund 20
+    as: {roles: [owner]}
+    call: {tool: refund, args: {amount: 20}}
+    expect: allow
+  - name: owner refund 250 needs approval
+    as: {roles: [owner]}
+    call: {tool: refund, args: {amount: 250}}
+    expect: approval
+  - name: owner cannot refund above 500
+    as: {roles: [owner]}
+    call: {tool: refund, args: {amount: 900}}
+    expect: deny
+  - name: owner can list events (includes staff)
+    as: {roles: [owner]}
+    call: {tool: list_events}
+    expect: allow
+  - name: owner tools/list
+    as: {roles: [owner]}
+    visible: [list_events, checkin, refund]

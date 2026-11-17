@@ -1,0 +1,178 @@
+# Fixture for examples/policies/venue.yaml. Run: mcp-rbac test examples/policies/venue.yaml examples/policies/venue.test.yaml
+# Decisions use the same engine as runtime (`mcp-rbac decide`).
+tests:
+  # --- door_staff ---
+  - name: door_staff can check in
+    as: {roles: [door_staff]}
+    call: {tool: check_in}
+    expect: allow
+  - name: door_staff cannot refund
+    as: {roles: [door_staff]}
+    call: {tool: refund_ticket, args: {amount: 20}}
+    expect: deny
+  - name: door_staff cannot create events
+    as: {roles: [door_staff]}
+    call: {tool: create_event, args: {capacity: 100, title: Show}}
+    expect: deny
+  - name: door_staff get_ticket redacts email and phone
+    as: {roles: [door_staff]}
+    call: {tool: get_ticket}
+    expect: allow
+    redact: [email, phone]
+  - name: door_staff list_vendors redacts contact email
+    as: {roles: [door_staff]}
+    call: {tool: list_vendors}
+    expect: allow
+    redact: ["vendors.*.contact_email"]
+  - name: door_staff tools/list
+    as: {roles: [door_staff]}
+    visible:
+      - list_events
+      - get_event
+      - list_tickets
+      - get_ticket
+      - check_in
+      - list_bookings
+      - list_booth_spaces
+      - list_vendors
+  - name: door_staff check_in without tickets:write is denied
+    as: {roles: [door_staff], scopes: [events:read]}
+    call: {tool: check_in}
+    expect: deny
+  - name: door_staff check_in with tickets:write is allowed
+    as: {roles: [door_staff], scopes: [tickets:write]}
+    call: {tool: check_in}
+    expect: allow
+
+  # --- project_manager ---
+  - name: project_manager can refund 20
+    as: {roles: [project_manager]}
+    call: {tool: refund_ticket, args: {amount: 20}}
+    expect: allow
+  - name: project_manager refund 250 needs approval
+    as: {roles: [project_manager]}
+    call: {tool: refund_ticket, args: {amount: 250}}
+    expect: approval
+  - name: project_manager cannot refund above 500
+    as: {roles: [project_manager]}
+    call: {tool: refund_ticket, args: {amount: 600}}
+    expect: deny
+  - name: project_manager can create events
+    as: {roles: [project_manager]}
+    call: {tool: create_event, args: {capacity: 100, title: Show}}
+    expect: allow
+  - name: project_manager cannot cancel events
+    as: {roles: [project_manager]}
+    call: {tool: cancel_event}
+    expect: deny
+  - name: project_manager cannot export the guest list (pii+export is owner-only)
+    as: {roles: [project_manager]}
+    call: {tool: export_guest_list}
+    expect: deny
+  - name: project_manager get_ticket is not redacted
+    as: {roles: [project_manager]}
+    call: {tool: get_ticket}
+    expect: allow
+    redact: []
+  - name: project_manager tools/list
+    as: {roles: [project_manager]}
+    visible:
+      - list_events
+      - get_event
+      - create_event
+      - update_event
+      - list_tickets
+      - get_ticket
+      - check_in
+      - undo_check_in
+      - refund_ticket
+      - list_bookings
+      - create_booking
+      - cancel_booking
+      - list_booth_spaces
+      - book_booth_space
+      - release_booth_space
+      - list_vendors
+      - export_guest_list
+      - get_sales_report
+
+  # --- owner ---
+  - name: owner can refund 20
+    as: {roles: [owner]}
+    call: {tool: refund_ticket, args: {amount: 20}}
+    expect: allow
+  - name: owner refund of exactly 200 is allowed
+    as: {roles: [owner]}
+    call: {tool: refund_ticket, args: {amount: 200}}
+    expect: allow
+  - name: owner refund 250 needs approval
+    as: {roles: [owner]}
+    call: {tool: refund_ticket, args: {amount: 250}}
+    expect: approval
+  - name: owner cancel_event needs approval
+    as: {roles: [owner]}
+    call: {tool: cancel_event}
+    expect: approval
+  - name: owner can export the guest list
+    as: {roles: [owner]}
+    call: {tool: export_guest_list}
+    expect: allow
+  - name: owner get_ticket is not redacted
+    as: {roles: [owner]}
+    call: {tool: get_ticket}
+    expect: allow
+    redact: []
+  - name: owner list_vendors is not redacted
+    as: {roles: [owner]}
+    call: {tool: list_vendors}
+    expect: allow
+    redact: []
+  - name: owner with venue:admin can refund
+    as: {roles: [owner], scopes: [venue:admin]}
+    call: {tool: refund_ticket, args: {amount: 20}}
+    expect: allow
+  - name: owner tools/list is every venue tool
+    as: {roles: [owner]}
+    visible:
+      - list_events
+      - get_event
+      - create_event
+      - update_event
+      - cancel_event
+      - list_tickets
+      - get_ticket
+      - check_in
+      - undo_check_in
+      - refund_ticket
+      - list_bookings
+      - create_booking
+      - cancel_booking
+      - list_booth_spaces
+      - book_booth_space
+      - release_booth_space
+      - list_vendors
+      - export_guest_list
+      - get_sales_report
+
+  # --- vendor ---
+  - name: vendor can book a standard booth
+    as: {roles: [vendor]}
+    call: {tool: book_booth_space, args: {tier: standard, space_id: B-1}}
+    expect: allow
+  - name: vendor can book a corner booth
+    as: {roles: [vendor]}
+    call: {tool: book_booth_space, args: {tier: corner, space_id: B-99}}
+    expect: allow
+  - name: vendor cannot book a vip booth
+    as: {roles: [vendor]}
+    call: {tool: book_booth_space, args: {tier: vip, space_id: B-1}}
+    expect: deny
+  - name: vendor cannot list events
+    as: {roles: [vendor]}
+    call: {tool: list_events}
+    expect: deny
+  - name: vendor tools/list
+    as: {roles: [vendor]}
+    visible:
+      - list_booth_spaces
+      - book_booth_space

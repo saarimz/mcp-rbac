@@ -26,7 +26,8 @@ export { DENIAL_META_KEY, RATELIMIT_META_KEY } from "./proxy.js";
 // Heavier / optional-dependency pieces live on subpaths:
 //   mcp-rbac/http (Streamable HTTP + OAuth), mcp-rbac/jwt (needs `jose`), mcp-rbac/sqlite (node:sqlite),
 //   mcp-rbac/dashboard, mcp-rbac/proxy (runProxy), mcp-rbac/init (introspection + policy generation),
-//   mcp-rbac/redis (ioredis), mcp-rbac/postgres (pg), mcp-rbac/core (WASM core guard), mcp-rbac/audit-worker
+//   mcp-rbac/redis (ioredis), mcp-rbac/postgres (pg), mcp-rbac/core (WASM core guard), mcp-rbac/audit-worker,
+//   mcp-rbac/testing (testPolicy / assertPolicy)
 // Experimental (not v0.5-stable; may change in a minor release): mcp-rbac/experimental (tenants, delegation, AuthZEN,
 //   OpenFGA, Cerbos, Casbin, Permit engines), mcp-rbac/experimental/pdp (AuthZEN server), mcp-rbac/experimental/cedar
 // ---- portable policies (mcp-rbac.yaml, docs/policy-format.md)
@@ -38,4 +39,5 @@ export {
 export { resolvePacks, resolvePacksDoc, loadPolicyWithPacks, validatePack, type Pack, type PackRef, type ResolveOptions } from "./packs.js";
 export { CLASSES as SEMANTIC_CLASSES, SEMANTICS_META_KEY, annotationClasses, parsePath as parseSemanticsPath } from "./semantics.js";
 export { summarize as summarizePolicy, diffPolicies, formatDiff, type AccessSummary, type PolicyDiff, type DiffChange } from "./policy-diff.js";
+export { testPolicy, assertPolicy, parsePolicyTests, formatPolicyTestReport, type PolicyTestCase, type PolicyTestReport, type PolicyTestResult, type PolicyTestExpect } from "./policy-test.js";
 export { portableEngine, guardOptionsFromPolicy, protectOptionsFromPolicy, rolesFromPolicy, userFromIdentity, exportPolicy, type ExportInput } from "./policy-io.js";

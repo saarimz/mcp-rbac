@@ -428,7 +428,9 @@ export interface Narrowing<S extends Scope = Scope, R extends string = string> {
 
 /**
  * Narrow a verified identity for an agent: the result can only ever be a SUBSET of `identity`'s
- * access (fewer roles, tighter scope), never more, whatever the agent token asks for. Call it in your
+ * access (fewer roles, tighter scope), never more, whatever the agent token asks for. The resulting `scope` is
+ * always one the identity already held; a pin outside everything it holds throws (fail closed). `orgRoles`
+ * (experimental tenants) are filtered by `roles` and dropped under a scope pin. Call it in your
  * `identity` function when the bearer is an agent token issued for a user.
  *
  *   const user = await lookupUser(token.sub);
@@ -447,7 +449,20 @@ export function narrowIdentity<Id extends Identity<any, any>>(identity: Id, n: N
     if (!compatible(a.scope)) continue;
     roles.push({ role: a.role, scope: { ...a.scope, ...pin } });
   }
-  return { ...identity, roles, scope: compatible(base) ? { ...base, ...pin } : { ...pin } };
+  let scope: Record<string, string>;
+  if (compatible(base)) scope = { ...base, ...pin };
+  else {
+    // The pin conflicts with the identity's own scope. The narrowed scope may only be one the identity already holds:
+    // the pin itself when a kept explicit assignment holds exactly those values, else nothing is left (fail closed:
+    // never hand `ctx.scope` / the `@any` grant a scope the user never had).
+    const held = roles.some((r) => Object.keys(pin).every((k) => r.scope[k] === pin[k]));
+    if (!held) throw new TypeError(`narrowIdentity: scope ${JSON.stringify(pin)} is outside everything this identity holds`);
+    scope = { ...pin };
+  }
+  const out = { ...identity, roles, scope } as unknown as Record<string, unknown>;
+  // Experimental org roles (tenants) grant roles outside `roles`: keep only kept roles, and none under a scope pin.
+  if (Array.isArray(out.orgRoles)) out.orgRoles = Object.keys(pin).length ? [] : (out.orgRoles as { role?: unknown }[]).filter((o) => !keep || keep.has(String(o?.role)));
+  return out as unknown as Id;
 }
 type RoleOf<Id> = Id extends Identity<any, infer R> ? R : string;
 

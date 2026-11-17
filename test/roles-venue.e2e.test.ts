@@ -121,6 +121,35 @@ describe("agents: tokens narrow their user's roles, never widen", () => {
     expect(() => narrowIdentity(USERS.max!, { scope: { venue: "" } })).toThrow(/non-empty/);
   });
 
+  it("narrowIdentity never yields a scope the user did not hold (P13: scope, not just roles)", () => {
+    // own scope brooklyn, agent pins soho: no role survives and the scope must not become soho
+    const bk = { id: "b", roles: ["door_staff"], scope: { venue: "brooklyn" } } as any;
+    expect(() => narrowIdentity(bk, { scope: { venue: "soho" } })).toThrow(/outside everything this identity holds/);
+    // compatible pin: scope is the intersection
+    expect(narrowIdentity(bk, { scope: { venue: "brooklyn" } }).scope).toEqual({ venue: "brooklyn" });
+    expect(narrowIdentity(USERS.olivia!, { scope: { venue: "soho" } }).scope).toEqual({ venue: "soho" });
+    expect(narrowIdentity(USERS.pat!, { roles: ["door_staff"] }).scope).toEqual({});
+    // own scope brooklyn + an explicit soho assignment: pinning soho keeps that assignment and only that scope
+    const multi = { id: "m", roles: [{ role: "door_staff", scope: { venue: "soho" } }], scope: { venue: "brooklyn" } } as any;
+    const n = narrowIdentity(multi, { scope: { venue: "soho" } });
+    expect(n.roles).toEqual([{ role: "door_staff", scope: { venue: "soho" } }]);
+    expect(n.scope).toEqual({ venue: "soho" });
+    // a role filter that drops the soho assignment leaves nothing in soho: throws instead of a foreign scope
+    expect(() => narrowIdentity(multi, { roles: ["owner"], scope: { venue: "soho" } })).toThrow(/outside/);
+    // extra keys never widen: experimental orgRoles follow the role filter and vanish under a pin
+    const org = { id: "o", roles: ["door_staff"], orgRoles: [{ role: "Admin", access: "all" }, { role: "door_staff", access: "all" }] } as any;
+    expect(narrowIdentity(org, { roles: ["door_staff"] }).orgRoles).toEqual([{ role: "door_staff", access: "all" }]);
+    expect(narrowIdentity(org, { scope: { venue: "x" } }).orgRoles).toEqual([]);
+    // the result is never a superset of the input, for every user and pin
+    for (const u of Object.values(USERS)) for (const v of ["brooklyn", "soho", "queens"]) {
+      let r: any;
+      try { r = narrowIdentity(u, { scope: { venue: v } }); } catch { continue; }
+      const own = (u.scope ?? {}) as Record<string, string>;
+      if (own.venue) expect(r.scope.venue).toBe(own.venue);
+      for (const a of r.roles) expect((u.roles as any[]).some((x) => (typeof x === "string" ? x : x.role) === a.role)).toBe(true);
+    }
+  });
+
   it("a door-only agent of a pm+door user is denied manager tools (hidden and blocked)", async () => {
     const w = world();
     const bot = await w.as("agt-pat-doorbot");

@@ -75,7 +75,7 @@ export async function wrapServer(guard: Guard, inner: Wrappable, options: WrapOp
   } else {
     const [ct, st] = InMemoryTransport.createLinkedPair();
     await inner.connect(st);
-    client = new Client({ name: "mcp-guard", version: "0.5.0" });
+    client = new Client({ name: "mcp-rbac", version: "0.5.0" });
     await client.connect(ct);
   }
   const caps = client.getServerCapabilities() ?? {};

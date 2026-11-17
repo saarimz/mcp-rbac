@@ -108,7 +108,7 @@ export async function runProxy(o: ProxyOptions) {
     await remote.connect();
   } else {
     const upstream = o.upstream ?? new StdioClientTransport({ command: cmd!, args, env: { ...(process.env as Record<string, string>), ...(o.env ?? {}) }, cwd: o.cwd, stderr: "inherit" });
-    client = new Client({ name: "mcp-rbac-proxy", version: "0.3.0" });
+    client = new Client({ name: "mcp-rbac-proxy", version: "0.5.0" });
     await client.connect(upstream);
   }
   let tools = client.getServerCapabilities()?.tools ? await listAllTools(client) : [];

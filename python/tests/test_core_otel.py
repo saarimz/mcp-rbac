@@ -48,7 +48,7 @@ def build(identity: Any, *, tel: CoreTelemetry | None, approve: bool | None = No
 
     if not sdk_otel:  # remove the SDK's OpenTelemetryMiddleware: the guard must then own the server span
         s.middleware[:] = [m for m in s.middleware if type(m).__name__ != "OpenTelemetryMiddleware"]
-    s.middleware.append(CoreGuard(POLICY, identity=lambda ctx: identity, now=lambda: 1_800_000_000_000.0,
+    s.middleware.append(CoreGuard(POLICY, identity=lambda ctx: identity, share_engine=False, now=lambda: 1_800_000_000_000.0,
                                   approve=None if approve is None else (lambda call, d: approve), telemetry=tel))
     return s
 

@@ -99,6 +99,7 @@ class SqliteAuditSink:
         self._stats_lock = threading.Lock()
         self._stats = {"written": 0, "dropped": 0, "batches": 0, "errors": 0, "max_queued": 0}
         self._closed = False
+        self._err: BaseException | None = None  # last commit error, cleared by the next successful commit
         self._q: queue.Queue[Any] = queue.Queue(maxsize=max(1, max_queue))  # records, flush markers (Event), None = stop
         self._thread: threading.Thread | None = None
         if mode == "batched":
@@ -119,8 +120,14 @@ class SqliteAuditSink:
         rec = dict(r)
         if self.mode == "sync":
             with self._lock:
-                self._commit([rec])
+                ok = self._commit([rec])
+            if not ok:
+                raise RuntimeError(f"audit record not committed: {self._err}")
             return
+        if self._thread is not None and not self._thread.is_alive():
+            with self._stats_lock:
+                self._stats["dropped"] += 1
+            raise RuntimeError("audit writer thread is not running")
         if self.overflow == "drop":
             try:
                 self._q.put_nowait(rec)
@@ -141,6 +148,15 @@ class SqliteAuditSink:
         done = threading.Event()
         self._q.put(done)
         return done.wait(timeout)
+
+    def healthy(self) -> bool:
+        """False after a failed commit (until the next one succeeds), or when the batched writer thread is gone."""
+        if self._closed or self._err is not None:
+            return False
+        return self._thread is None or self._thread.is_alive()
+
+    def last_error(self) -> BaseException | None:
+        return self._err
 
     def stats(self) -> dict[str, int]:
         return {**self._stats, "queued": self._q.qsize()}
@@ -215,7 +231,7 @@ class SqliteAuditSink:
             for m in markers:
                 m.set()
 
-    def _commit(self, batch: list[dict[str, Any]]) -> None:
+    def _commit(self, batch: list[dict[str, Any]]) -> bool:
         head = self._head
         rows = []
         for r in batch:
@@ -237,11 +253,70 @@ class SqliteAuditSink:
             with self._stats_lock:
                 self._stats["errors"] += 1
                 self._stats["dropped"] += len(batch)
+            self._err = err
             self._on_error(err)
-            return
+            return False
+        self._err = None
         self._head = head
         self._stats["written"] += len(batch)
         self._stats["batches"] += 1
+        return True
+
+
+_SHARED: dict[tuple[str, str], list[Any]] = {}  # (resolved path, table) -> [sink, refcount]
+_SHARED_LOCK = threading.Lock()
+
+
+class SharedAuditHandle:
+    """One reference to a process-wide sink (see :func:`shared_audit_sink`); ``close()`` releases this reference."""
+
+    def __init__(self, key: tuple[str, str], sink: SqliteAuditSink) -> None:
+        self._key, self.sink, self._closed = key, sink, False
+
+    def write(self, r: Mapping[str, Any]) -> None:
+        self.sink.write(r)
+
+    def healthy(self) -> bool:
+        return not self._closed and self.sink.healthy()
+
+    def last_error(self) -> BaseException | None:
+        return self.sink.last_error()
+
+    def flush(self, timeout: float | None = 10.0) -> bool:
+        return self.sink.flush(timeout)
+
+    def stats(self) -> dict[str, int]:
+        return self.sink.stats()
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        with _SHARED_LOCK:
+            ent = _SHARED.get(self._key)
+            if ent is None or ent[0] is not self.sink:
+                return
+            ent[1] -= 1
+            if ent[1] > 0:
+                return
+            del _SHARED[self._key]
+        self.sink.close()
+
+
+def shared_audit_sink(path: str, **opts: Any) -> SharedAuditHandle:
+    """The process-wide sink for ``path`` (and ``table``): every guard naming the same file shares one sink and one
+    chain (two sinks on one file would each chain from their own head and break verification). Options apply when
+    the sink is first opened. The sink closes when the last handle does."""
+    import os
+
+    key = (os.path.realpath(path), str(opts.get("table", "audit")))
+    with _SHARED_LOCK:
+        ent = _SHARED.get(key)
+        if ent is None or ent[0]._closed:
+            ent = [SqliteAuditSink(path, **opts), 0]
+            _SHARED[key] = ent
+        ent[1] += 1
+        return SharedAuditHandle(key, ent[0])
 
 
 def verify_audit_table(path: str, table: str = "audit") -> dict[str, Any]:

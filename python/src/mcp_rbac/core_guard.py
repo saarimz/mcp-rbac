@@ -3,12 +3,21 @@
 Decisions, rate limits and redaction come from ``mcp_rbac_core`` (the PyO3 build of core/mcp-rbac-core), so they are
 byte-identical to the TypeScript (WASM), Go (wazero) and Rust (rmcp) bindings. Installed as a context-tier
 ``ServerMiddleware``: it sees ``tools/list`` and ``tools/call`` before the SDK validates params, filters the list,
-denies calls, and redacts results. Other methods pass through untouched.
+denies calls, and redacts results.
+
+Only tools are guarded. ``resources/*``, ``prompts/*`` and ``completion/*`` requests are refused with
+METHOD_NOT_FOUND for every caller (the same fail-closed design as the TypeScript, Go and Rust guards; the policy's
+``roles.*.resources/prompts`` are honored only by the legacy TypeScript ``Guard``). Other protocol methods
+(``initialize``, ``ping``, notifications, ``logging/setLevel``...) pass through.
 """
 from __future__ import annotations
 
 import contextvars
+import dataclasses
+import inspect
 import json
+import sys
+import threading
 import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
@@ -29,6 +38,28 @@ def current_caller() -> dict[str, Any] | None:
 # Guard-level denial when the host's resource resolver raises (same shape as a core decision).
 RESOURCE_UNRESOLVED = json.dumps({"decision": "deny", "labels": [], "limits": [], "missingScopes": [], "reason": "resource_unresolved",
                                   "redact": [], "requiredScopes": [], "rule": None, "tenant": None, "withholdText": False})
+
+
+TOOL_META_UNAVAILABLE = RESOURCE_UNRESOLVED.replace("resource_unresolved", "tool_meta_unavailable")
+AUDIT_UNAVAILABLE = RESOURCE_UNRESOLVED.replace("resource_unresolved", "audit_unavailable")
+UNGUARDED_PREFIXES = ("resources/", "prompts/", "completion/")
+METHOD_NOT_FOUND = -32601
+
+_ENGINES: dict[str, Any] = {}
+_ENGINES_LOCK = threading.Lock()
+
+
+def shared_engine(policy: str) -> Any:
+    """The process-wide engine for this policy text: guards built from the same policy share rate-limit and budget
+    counters (per-session guards would otherwise each start from zero). At most 64 policies are kept."""
+    with _ENGINES_LOCK:
+        e = _ENGINES.get(policy)
+        if e is None:
+            e = load_core().Engine(policy)
+            if len(_ENGINES) >= 64:
+                del _ENGINES[next(iter(_ENGINES))]
+            _ENGINES[policy] = e
+        return e
 
 
 def load_core() -> Any:
@@ -62,14 +93,49 @@ class CoreGuard:
         resource: Callable[[str, dict[str, Any], Any, Any], dict[str, str] | None | Awaitable[dict[str, str] | None]] | None = None,
         tool_meta: Callable[[str], dict[str, Any] | None] | None = None,
         on_cost: Callable[[dict[str, Any]], None] | None = None,
+        audit: str | dict[str, Any] | Any | None = None,
+        audit_fail_closed: bool = False,
+        on_audit_error: Callable[[BaseException], None] | None = None,
+        denials: str = "reason",
+        share_engine: bool = True,
     ) -> None:
         """``resource(tool, args, identity, ctx)`` returns the resource the call touches, resolved from the host's own data
         (never the caller's say-so); ``None`` = the caller's own scope. Raising denies with ``resource_unresolved``.
 
         Tool semantics (spec/tool-semantics.md, only when the policy has ``semantics``): each tool's tools/list entry
         (``annotations``, ``_meta``) is remembered from the tools/list responses this guard filters; ``tool_meta(name)``
-        supplies it for tools not listed yet. ``on_cost`` receives post-call cost accounting results."""
-        self.engine = load_core().Engine(policy)
+        supplies it for tools not listed yet; otherwise the guard reads the server's own tools/list on the first call
+        (cold start), and if that fails the call is denied with ``tool_meta_unavailable`` (class rules never skipped).
+        ``on_cost`` receives post-call cost accounting results.
+
+        ``identity(ctx)`` may be sync or async; ``None`` = unauthenticated (every call denied, empty tool list).
+
+        ``audit``: a SQLite path, ``{"path": ..., **SqliteAuditSink options}`` (the process-wide shared sink for that
+        file, so every guard naming it writes one verifiable chain) or any object with ``write(record)``. One record
+        per tools/call decision. A failed write is reported to ``on_audit_error`` (default: stderr); with
+        ``audit_fail_closed`` an allowed call is denied (``audit_unavailable``) instead of running unrecorded.
+
+        ``denials``: ``"reason"`` (default) returns ``Denied: <reason>`` to the agent; ``"uniform"`` returns
+        ``Denied`` and omits the reason from the result's ``_meta`` (``on_decision`` and the audit still get it).
+
+        ``share_engine`` (default on): guards built from the same policy text share one engine and its counters."""
+        if denials not in ("reason", "uniform"):
+            raise ValueError('denials must be "reason" or "uniform"')
+        self.engine = shared_engine(policy) if share_engine else load_core().Engine(policy)
+        self._denials = denials
+        self._audit_fail_closed = audit_fail_closed
+        self._on_audit_error = on_audit_error or (lambda e: print(f"mcp-rbac: audit write failed: {e}", file=sys.stderr))
+        self.audit: Any = None
+        if isinstance(audit, (str, dict)):
+            from mcp_rbac.audit_sink import shared_audit_sink
+
+            o = {"path": audit} if isinstance(audit, str) else dict(audit)
+            path = o.pop("path")
+            self.audit = shared_audit_sink(path, **o)
+        elif audit is not None:
+            if not callable(getattr(audit, "write", None)):
+                raise TypeError("audit must be a path, a dict with 'path', or an object with write(record)")
+            self.audit = audit
         self._semantics = "semantics" in json.loads(self.engine.decide("{}"))
         self._meta: dict[str, dict[str, Any]] = {}
         self._tool_meta = tool_meta
@@ -86,9 +152,11 @@ class CoreGuard:
 
             self.telemetry = telemetry if isinstance(telemetry, _CT) else _CT()
 
-    def _base(self, ctx: Any) -> dict[str, Any]:
+    async def _base(self, ctx: Any) -> dict[str, Any]:
         out: dict[str, Any] = {}
         ident = self._identity(ctx)
+        if inspect.isawaitable(ident):
+            ident = await ident
         if ident is not None:
             out["identity"] = ident
         ts = self._toolsets(ctx) if self._toolsets else None
@@ -96,8 +164,37 @@ class CoreGuard:
             out["toolsets"] = ts
         return out
 
+    def _remember(self, tools: list[dict[str, Any]]) -> None:
+        for t in tools:
+            if isinstance(t.get("name"), str):
+                self._meta[t["name"]] = {k: t[k] for k in ("annotations", "_meta") if k in t}
+
+    async def _load_meta(self, ctx: Any, call_next: Callable[[Any], Awaitable[Any]]) -> None:
+        """Read the server's full tools/list (pagination followed, at most 50 pages) through the rest of the chain."""
+        cursor: Any = None
+        meta = (ctx.params or {}).get("_meta")
+        # the request's own _meta (required from MCP 2026-07-28 on: protocol version, client info), minus progress
+        base: dict[str, Any] = {"_meta": {k: v for k, v in meta.items() if k != "progressToken"}} if isinstance(meta, dict) else {}
+        for _ in range(50):
+            params: dict[str, Any] = {**base, "cursor": cursor} if cursor else dict(base)
+            res = _dump(await call_next(dataclasses.replace(ctx, method="tools/list", params=params)))
+            self._remember(res.get("tools", []))
+            cursor = res.get("nextCursor")
+            if not cursor:
+                return
+
+    def close(self) -> None:
+        """Release the audit sink handle (the shared sink closes with its last handle)."""
+        if self.audit is not None and callable(getattr(self.audit, "close", None)):
+            self.audit.close()
+
     async def __call__(self, ctx: Any, call_next: Callable[[Any], Awaitable[Any]]) -> Any:
-        if ctx.method not in ("tools/list", "tools/call"):
+        method = ctx.method
+        if isinstance(method, str) and method.startswith(UNGUARDED_PREFIXES) and getattr(ctx, "request_id", 0) is not None:
+            from mcp.shared.exceptions import MCPError
+
+            raise MCPError(METHOD_NOT_FOUND, "Method not found", method)
+        if method not in ("tools/list", "tools/call"):
             return await call_next(ctx)
         tel = self.telemetry
         if tel is None:
@@ -112,15 +209,14 @@ class CoreGuard:
     async def _handle(self, ctx: Any, call_next: Callable[[Any], Awaitable[Any]], server_span: Any) -> Any:
         if ctx.method == "tools/list":
             res = _dump(await call_next(ctx))
-            base = self._base(ctx)
+            base = await self._base(ctx)
+            if self._semantics:
+                self._remember(res.get("tools", []))
             if "identity" not in base:
                 return {**res, "tools": []}
             names = [t.get("name") for t in res.get("tools", [])]
             req_v: dict[str, Any] = {**base, "tools": names}
             if self._semantics:
-                for t in res.get("tools", []):
-                    if isinstance(t.get("name"), str):
-                        self._meta[t["name"]] = {k: t[k] for k in ("annotations", "_meta") if k in t}
                 req_v["toolMeta"] = {n: self._meta.get(n, {}) for n in names if isinstance(n, str)}
             vis = json.loads(self.engine.visible(json.dumps(req_v)))
             ok = set(vis.get("visible", []))
@@ -129,7 +225,7 @@ class CoreGuard:
         params = dict(ctx.params or {})
         tool = params.get("name")
         args = params.get("arguments") or {}
-        base = self._base(ctx)
+        base = await self._base(ctx)
         unresolved = False
         if self._resource is not None and "identity" in base:
             try:
@@ -141,20 +237,29 @@ class CoreGuard:
             except Exception:  # noqa: BLE001 - any resolver failure fails closed
                 unresolved = True
         rq: dict[str, Any] = {"tool": tool, "args": args, **base}
+        meta_failed = False
         if self._semantics and "identity" in base and isinstance(tool, str):
             meta = self._meta.get(tool)
             if meta is None and self._tool_meta is not None:
                 try:
                     meta = self._tool_meta(tool)
-                except Exception:  # noqa: BLE001 - no metadata: the policy pack / default classes decide
+                except Exception:  # noqa: BLE001 - fall back to the server's own list below
                     meta = None
+            if meta is None:
+                # cold start (no tools/list seen yet) or a tool added since: read the server's own list, so class
+                # rules apply; if it cannot be read, deny rather than decide without the metadata (fail closed)
+                try:
+                    await self._load_meta(ctx, call_next)
+                    meta = self._meta.get(tool)
+                except Exception:  # noqa: BLE001
+                    meta_failed = True
             if meta is not None:
                 rq["toolMeta"] = meta
         req = json.dumps(rq)
         tel = self.telemetry
         auth_span = tel.start_authorize(str(tool)) if tel is not None else None
         e0 = time.perf_counter()
-        raw = RESOURCE_UNRESOLVED if unresolved else self.engine.authorize(req, self._now())
+        raw = RESOURCE_UNRESOLVED if unresolved else TOOL_META_UNAVAILABLE if meta_failed else self.engine.authorize(req, self._now())
         engine_s = time.perf_counter() - e0
         d = json.loads(raw)
         approved = False
@@ -177,13 +282,30 @@ class CoreGuard:
                     approval = "rejected"
         if tel is not None and auth_span is not None:
             tel.end_authorize(auth_span, server_span, str(tool), d, approval, engine_s)
+        aud = self.audit
+        if aud is not None and self._audit_fail_closed and d["decision"] == "allow" and getattr(aud, "healthy", None) is not None and not aud.healthy():
+            raw, approved = AUDIT_UNAVAILABLE, False
+            d = json.loads(raw)
+        ev = {"tool": tool, "identity": base.get("identity"), "decision": d, "duration_ms": (time.perf_counter() - t0) * 1000.0, "approved": approved}
         if self._on_decision is not None:
-            self._on_decision({"tool": tool, "identity": base.get("identity"), "decision": d, "duration_ms": (time.perf_counter() - t0) * 1000.0, "approved": approved})
+            self._on_decision(ev)
+        if aud is not None:
+            from mcp_rbac.audit_sink import audit_record_from_decision
+
+            try:
+                aud.write(audit_record_from_decision(ev))
+            except Exception as err:  # noqa: BLE001 - reported; fail-closed denies below
+                self._on_audit_error(err)
+                if self._audit_fail_closed and d["decision"] == "allow":
+                    raw = AUDIT_UNAVAILABLE
+                    d = json.loads(raw)
         if d["decision"] != "allow":
-            text = f"Approval required for {tool}" if d["decision"] == "needs_approval" else f"Denied: {d['reason']}"
+            uniform = self._denials == "uniform" and d["decision"] == "deny"
+            text = f"Approval required for {tool}" if d["decision"] == "needs_approval" else "Denied" if uniform else f"Denied: {d['reason']}"
+            meta_v = {"decision": d["decision"]} if uniform else {"decision": d["decision"], "reason": d["reason"]}
             # `resultType` is required from MCP 2026-07-28 on; older surfaces ignore it (extra="ignore"), so always set it.
             return {"resultType": "complete", "content": [{"type": "text", "text": text}], "isError": True,
-                    "_meta": {DENIAL_META_KEY: {"decision": d["decision"], "reason": d["reason"]}}}
+                    "_meta": {DENIAL_META_KEY: meta_v}}
         caller: dict[str, Any] = {"identity": base.get("identity"), "tenant": d.get("tenant"), "rule": d.get("rule")}
         if "resource" in base:
             caller["resource"] = base["resource"]

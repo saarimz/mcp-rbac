@@ -1295,8 +1295,8 @@ def compile_policy(doc: Any) -> CompiledPolicy:
     for pt, w in approvals:
         if w is None:
             continue
-        for arg, r in w:
-            if r.optional:
+        for arg, wr in w:
+            if wr.optional:
                 continue
             covered = valid_tool_name(pt) and any(k == arg and not x.optional for k, x in tool_base.get(pt, []))
             if not covered:

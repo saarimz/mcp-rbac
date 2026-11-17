@@ -94,7 +94,8 @@ def test_failed_commit_rolls_back_batch(tmp_path):
     o = sqlite3.connect(p)
     o.execute("CREATE TRIGGER boom BEFORE INSERT ON audit WHEN NEW.tool = 'bad' BEGIN SELECT RAISE(ABORT, 'disk full'); END")
     o.commit()
-    s.write({**rec(2), "tool": "bad"})
+    with pytest.raises(RuntimeError, match="not committed"):  # sync: the caller learns the record was not written
+        s.write({**rec(2), "tool": "bad"})
     o.execute("DROP TRIGGER boom")
     o.commit()
     s.write(rec(3))

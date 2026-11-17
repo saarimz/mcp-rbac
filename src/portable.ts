@@ -165,7 +165,7 @@ export function loadYaml(src: string): Json {
 export interface Rule { min?: number; max?: number; integer: boolean; maxLength?: number; optional: boolean; in?: (string | number | boolean)[]; eq?: string | number | boolean; pattern?: string }
 export type Constraints = [string, Rule][];
 interface Pat { raw: string }
-export interface Perm { kind: Kind; pattern: string; constraints?: Constraints }
+export interface Perm { kind: Kind; pattern: string; constraints?: Constraints; /** per-role limits of its own (bypass lint) */ own?: true }
 export interface Limit { pattern: string; kind: Kind; max: number; windowMs: number; sum?: string; shared: string; burst?: [number, number]; name?: string; class?: string; spend?: string }
 export interface RedactRule { tool?: string; label?: string; fields: string[]; unlessRoles: string[]; replacement: Json }
 
@@ -260,6 +260,26 @@ function checkValue(a: Rule, v: Json): string | null {
   if (a.in !== undefined && !a.in.some((x) => x === v)) return "not_allowed_value";
   return null;
 }
+/** 0 string, 1 boolean, 2 finite number, 3 anything else (approval `when` typing). */
+const scalarKind = (v: unknown): number => (typeof v === "string" ? 0 : typeof v === "boolean" ? 1 : finite(v) !== undefined ? 2 : 3);
+function typedOk(a: Rule, v: Json): boolean {
+  const k = scalarKind(v);
+  if ((a.min !== undefined || a.max !== undefined || a.integer) && k !== 2) return false;
+  if ((a.maxLength !== undefined || a.pattern !== undefined) && k !== 0) return false;
+  if (a.eq !== undefined && scalarKind(a.eq) !== k) return false;
+  if (a.in !== undefined && !a.in.some((x) => scalarKind(x) === k)) return false;
+  return true;
+}
+/** Approval `when`, fail-closed (constraints.rs `when_holds`): an argument it cannot evaluate needs approval. */
+function whenHolds(c: Constraints, args: Obj): boolean {
+  for (const [arg, a] of c) {
+    if (!has(args, arg)) { if (a.optional) continue; return true; }
+    const v = args[arg]!;
+    if (!typedOk(a, v)) return true;
+    if (checkValue(a, v) !== null) return false;
+  }
+  return true;
+}
 function check(c: Constraints, args: Obj): string | null {
   for (const [arg, a] of c) {
     if (!has(args, arg)) { if (a.optional) continue; return `missing:${arg}`; }
@@ -302,7 +322,7 @@ function entries(v: unknown, kind: Kind, at: string): Perm[] {
       keysOk(e, ["name", "limits"], a);
       if (typeof e.name !== "string") fail(`${a}: needs name`);
       const c = has(e, "limits") ? parseConstraints(e.limits, `${a}.limits`) : undefined;
-      return { kind, pattern: pat(e.name as string, a), ...(c ? { constraints: c } : {}) };
+      return { kind, pattern: pat(e.name as string, a), ...(c ? { constraints: c, own: true as const } : {}) };
     }
     return fail(`${a}: entry must be a pattern or {name, limits}`);
   });
@@ -511,7 +531,7 @@ export function compilePolicy(input: unknown): CompiledPolicy {
         if (role !== "@any" && !known.includes(role)) fail(`${at}.allow: unknown role ${JSON.stringify(role)} (declare it in roles)`);
         const c = base || extra ? intersect(base ?? [], extra ?? [], `${at}.allow.${role}`) : undefined;
         if (!grants.has(role)) grants.set(role, []);
-        grants.get(role)!.push({ kind: "tool", pattern: name, ...(c ? { constraints: c } : {}) });
+        grants.get(role)!.push({ kind: "tool", pattern: name, ...(c ? { constraints: c } : {}), ...(extra ? { own: true as const } : {}) });
       };
       const expand = (r: string): string[] => {
         if (r === "*") return ["@any"];
@@ -634,6 +654,30 @@ export function compilePolicy(input: unknown): CompiledPolicy {
   }
 
   for (const [rn, perms] of roles) if (rn !== "@any" && !perms.length) warnings.push(`roles.${rn}: grants nothing`);
+  // per-role limits bind only their own grant (policy.rs lint; same order and text)
+  for (const [rn, perms] of roles) {
+    if (rn === "@any") continue;
+    const seen: string[] = [];
+    // the role's own limited grants (an included role's limits are its own business: widening is inheritance)
+    for (const c of [...(own.get(rn)?.[0] ?? []), ...(grants.get(rn) ?? [])]) {
+      if (c.kind !== "tool" || !c.own || !isValidToolName(c.pattern)) continue;
+      const t = c.pattern;
+      if (seen.includes(t)) continue;
+      seen.push(t);
+      const o = perms.find((o) => o.kind === "tool" && !o.constraints && o.pattern !== t && mt(o.pattern, t));
+      if (o) warnings.push(`roles.${rn}: limits on ${t} are bypassed by its grant "${o.pattern}" (per-role limits bind only their own grant; use tools.${t}.limits for every grant)`);
+      else if ((semantics?.roleClasses.get(rn)?.length ?? 0) > 0) warnings.push(`roles.${rn}: limits on ${t} can be bypassed by its class grants (per-role limits bind only their own grant; use tools.${t}.limits for every grant)`);
+    }
+  }
+  for (const a of approvals) {
+    if (!a.when) continue;
+    const t = a.pattern;
+    for (const [arg, r] of a.when) {
+      if (r.optional) continue;
+      const covered = isValidToolName(t) && (toolBase.get(t)?.some(([k, x]) => k === arg && !x.optional) ?? false);
+      if (!covered) warnings.push(`approvals: when.${arg} on ${t} is not a required tools.${t}.limits argument (a call without a well-typed ${arg} needs approval)`);
+    }
+  }
 
   return {
     ...(typeof top.name === "string" ? { name: top.name } : {}), tenantKey, roles, required, implies, writeImpliesRead, accounts, groups, approvals, limits,
@@ -915,7 +959,7 @@ function decideInner(p: CompiledPolicy, req: unknown): PortableDecision {
     const key = `limit|${i}|${who}`;
     d.limits.push({ index: i, name: l.name ?? `l${i}`, key, amount, max: l.max, windowMs: l.windowMs, burst: l.burst ? { key: `${key}|burst`, max: l.burst[0], windowMs: l.burst[1] } : null, ...(deferred ? { deferred: true as const } : {}) });
   }
-  d.decision = kind === "tool" && (classApprove || p.approvals.some((a) => mt(a.pattern, name) && (!a.when || check(a.when, args) === null))) ? "needs_approval" : "allow";
+  d.decision = kind === "tool" && (classApprove || p.approvals.some((a) => mt(a.pattern, name) && (!a.when || whenHolds(a.when, args)))) ? "needs_approval" : "allow";
   d.reason = "ok";
   if (kind === "tool") {
     for (const rr of p.redact) {

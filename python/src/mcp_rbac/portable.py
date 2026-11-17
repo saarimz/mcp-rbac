@@ -459,6 +459,7 @@ class Perm:
     kind: str
     pattern: str
     constraints: Optional[Constraints] = None
+    own: bool = False  # per-role limits of its own (bypass lint)
 
 
 @dataclass
@@ -717,6 +718,43 @@ def _check_value(a: Rule, v: Any) -> str | None:
     return None
 
 
+def _scalar_kind(v: Any) -> int:
+    """0 string, 1 bool, 2 finite number, 3 anything else (approval ``when`` typing)."""
+    if isinstance(v, str):
+        return 0
+    if isinstance(v, bool):
+        return 1
+    return 2 if _finite(v) is not None else 3
+
+
+def _typed_ok(a: Rule, v: Any) -> bool:
+    k = _scalar_kind(v)
+    if (a.min is not None or a.max is not None or a.integer) and k != 2:
+        return False
+    if (a.max_length is not None or a.pattern is not None) and k != 0:
+        return False
+    if a.has_eq and _scalar_kind(a.eq) != k:
+        return False
+    if a.inn is not None and not any(_scalar_kind(x) == k for x in a.inn):
+        return False
+    return True
+
+
+def _when_holds(c: Constraints, args: dict[str, Any]) -> bool:
+    """Approval ``when``, fail-closed (constraints.rs ``when_holds``): an argument it cannot evaluate needs approval."""
+    for arg, a in c:
+        if arg not in args:
+            if a.optional:
+                continue
+            return True
+        v = args[arg]
+        if not _typed_ok(a, v):
+            return True
+        if _check_value(a, v) is not None:
+            return False
+    return True
+
+
 def _check(c: Constraints, args: dict[str, Any]) -> str | None:
     for arg, a in c:
         if arg not in args:
@@ -785,7 +823,7 @@ def _entries(v: Any, kind: str, at: str) -> list[Perm]:
             if not isinstance(e.get("name"), str):
                 _fail(f"{a}: needs name")
             c = _parse_constraints(e["limits"], f"{a}.limits") if "limits" in e else None
-            out.append(Perm(kind, _pat(e["name"], a), c))
+            out.append(Perm(kind, _pat(e["name"], a), c, c is not None))
         else:
             _fail(f"{a}: entry must be a pattern or {{name, limits}}")
     return out
@@ -1065,7 +1103,7 @@ def compile_policy(doc: Any) -> CompiledPolicy:
                 if role != "@any" and role not in known:
                     _fail(f"{at}.allow: unknown role {json.dumps(role)} (declare it in roles)")
                 c = _intersect(base or [], extra or [], f"{at}.allow.{role}") if (base is not None or extra is not None) else None
-                grants.setdefault(role, []).append(Perm("tool", name, c))
+                grants.setdefault(role, []).append(Perm("tool", name, c, extra is not None))
 
             def expand(r: str, at: str = at) -> list[str]:
                 if r == "*":
@@ -1236,6 +1274,33 @@ def compile_policy(doc: Any) -> CompiledPolicy:
     for rn, perms in roles.items():
         if rn != "@any" and not perms:
             warnings.append(f"roles.{rn}: grants nothing")
+    # per-role limits bind only their own grant (policy.rs lint; same order and text)
+    for rn, perms in roles.items():
+        if rn == "@any":
+            continue
+        seen: list[str] = []
+        # the role's own limited grants (an included role's limits are its own business: widening is inheritance)
+        for c in [*(own[rn][0] if rn in own else []), *grants.get(rn, [])]:
+            if c.kind != "tool" or not c.own or not valid_tool_name(c.pattern):
+                continue
+            t = c.pattern
+            if t in seen:
+                continue
+            seen.append(t)
+            o = next((o for o in perms if o.kind == "tool" and o.constraints is None and o.pattern != t and matches(o.pattern, t)), None)
+            if o is not None:
+                warnings.append(f'roles.{rn}: limits on {t} are bypassed by its grant "{o.pattern}" (per-role limits bind only their own grant; use tools.{t}.limits for every grant)')
+            elif semantics is not None and semantics.role_classes.get(rn):
+                warnings.append(f"roles.{rn}: limits on {t} can be bypassed by its class grants (per-role limits bind only their own grant; use tools.{t}.limits for every grant)")
+    for pt, w in approvals:
+        if w is None:
+            continue
+        for arg, r in w:
+            if r.optional:
+                continue
+            covered = valid_tool_name(pt) and any(k == arg and not x.optional for k, x in tool_base.get(pt, []))
+            if not covered:
+                warnings.append(f"approvals: when.{arg} on {pt} is not a required tools.{pt}.limits argument (a call without a well-typed {arg} needs approval)")
 
     return CompiledPolicy(top.get("name") if isinstance(top.get("name"), str) else None, tenant_key, roles, required, implies, wir, accounts, groups,
                           approvals, limits, labels, label_rules, redact, keep, toolsets, delegation, tool_base, tool_names, warnings, top, semantics)
@@ -1677,7 +1742,7 @@ def _decide(p: CompiledPolicy, req: Any) -> dict[str, Any]:
                             "burst": {"key": f"{key}|burst", "max": lim.burst[0], "windowMs": lim.burst[1]} if lim.burst else None})
         if deferred:
             d["limits"][-1]["deferred"] = True
-    needs = kind == "tool" and (class_approve or any(matches(pt, name) and (w is None or _check(w, args) is None) for pt, w in p.approvals))
+    needs = kind == "tool" and (class_approve or any(matches(pt, name) and (w is None or _when_holds(w, args)) for pt, w in p.approvals))
     d["decision"] = "needs_approval" if needs else "allow"
     d["reason"] = "ok"
     if kind == "tool":

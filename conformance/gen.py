@@ -229,8 +229,9 @@ add("feat", "version: 1\nroles:\n  r: {tools: ['*']}\ndelegation: {unknownActors
 add("feat", "version: 1\nroles:\n  r: {tools: ['*']}\ndelegation: {}\n", R("x", I(roles=["r"], actors=["z"])), expect={"decision": A})
 add("feat", DG, R("x", I(roles=["r"], actors=[1])), expect={"reason": "unauthenticated"})
 # approvals
+# P13: a `when` argument that is missing or wrong-typed needs approval (fail-closed); it used to skip the approval
 AP = "version: 1\nroles:\n  r: {tools: ['*']}\napprovals:\n  - {tool: 'pay*', when: {amount: {min: 100}}}\n  - {tool: nuke}\ntools:\n  wire: {approve: {when: {to: {in: [offshore]}}}}\n"
-for tool, args, exp in [("pay", {"amount": 99}, A), ("pay", {"amount": 100}, N), ("payout", {"amount": 1000}, N), ("pay", {}, A), ("pay", {"amount": "500"}, A), ("nuke", {}, N), ("wire", {"to": "offshore"}, N), ("wire", {"to": "home"}, A)]:
+for tool, args, exp in [("pay", {"amount": 99}, A), ("pay", {"amount": 100}, N), ("payout", {"amount": 1000}, N), ("pay", {}, N), ("pay", {"amount": "500"}, N), ("nuke", {}, N), ("wire", {"to": "offshore"}, N), ("wire", {"to": "home"}, A)]:
     add("feat", AP, R(tool, I(roles=["r"]), args), expect={"decision": exp})
 add("feat", AP, R("nuke", I(roles=["r"]), kind="resource"), expect={"decision": D})
 # labels / redaction

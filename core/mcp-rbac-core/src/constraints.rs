@@ -160,6 +160,47 @@ pub fn check(c: &Constraints, args: &Map<String, Value>) -> Option<String> {
     None
 }
 
+/// Scalar kind of a value for approval `when` typing: 0 string, 1 bool, 2 finite number, 3 anything else.
+fn scalar_kind(v: &Value) -> u8 {
+    match v {
+        Value::String(_) => 0,
+        Value::Bool(_) => 1,
+        _ if finite(v).is_some() => 2,
+        _ => 3,
+    }
+}
+
+/// Whether `v` has the type every rule in `a` needs to be evaluated (numeric rules need a finite number,
+/// maxLength/pattern a string, eq/in a scalar of the same kind as one of the listed values).
+fn typed_ok(a: &ArgRule, v: &Value) -> bool {
+    let k = scalar_kind(v);
+    if (a.min.is_some() || a.max.is_some() || a.integer) && k != 2 { return false }
+    if (a.max_length.is_some() || a.pattern.is_some()) && k != 0 { return false }
+    if let Some(e) = &a.eq { if scalar_kind(e) != k { return false } }
+    if let Some(l) = &a.inn { if !l.iter().any(|x| scalar_kind(x) == k) { return false } }
+    true
+}
+
+/// Approval `when` (fail-closed): true when the call needs approval. The condition holds when every rule holds; an
+/// argument the condition cannot evaluate (absent and not `optional`, or of the wrong type for its rule) also needs
+/// approval, so a missing or wrong-typed argument can never skip an approval. Only a well-typed value that fails a
+/// rule makes the condition false.
+pub fn when_holds(c: &Constraints, args: &Map<String, Value>) -> bool {
+    for (arg, a) in c {
+        match args.get(arg) {
+            None => {
+                if a.optional { continue }
+                return true;
+            }
+            Some(v) => {
+                if !typed_ok(a, v) { return true }
+                if check_value(a, v).is_some() { return false }
+            }
+        }
+    }
+    true
+}
+
 /// Intersect tool-wide limits with a role's own limits (define.ts `intersectLimits`).
 pub fn intersect(a: &Constraints, b: &Constraints, at: &str) -> Result<Constraints, String> {
     let mut keys: Vec<&String> = a.iter().map(|(k, _)| k).collect();

@@ -192,8 +192,8 @@
 {"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:*","tenant":null,"withholdText":false}
 {"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:*","tenant":null,"withholdText":false}
 {"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:*","tenant":null,"withholdText":false}
-{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:*","tenant":null,"withholdText":false}
-{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:*","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:*","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:*","tenant":null,"withholdText":false}
 {"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:*","tenant":null,"withholdText":false}
 {"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:*","tenant":null,"withholdText":false}
 {"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:*","tenant":null,"withholdText":false}
@@ -2290,7 +2290,7 @@
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"actor_unknown:rogue","redact":[],"requiredScopes":["incidents:write"],"rule":null,"tenant":null,"withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"cross_tenant","redact":[],"requiredScopes":["secrets:write"],"rule":null,"tenant":null,"withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"actor_ceiling:pager-bot","redact":[],"requiredScopes":["deploys:read"],"rule":null,"tenant":null,"withholdText":false}
-{"decision":"allow","labels":[],"limits":[{"amount":1,"burst":null,"index":0,"key":"limit|0|c:cli","max":3000,"name":"per-client","windowMs":60000},{"amount":1,"burst":null,"index":4,"key":"limit|4|u:agent-7","max":3,"name":"restarts","windowMs":3600000}],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["services:write"],"rule":"oncall@{}:services.restart","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[{"amount":1,"burst":null,"index":0,"key":"limit|0|c:cli","max":3000,"name":"per-client","windowMs":60000},{"amount":1,"burst":null,"index":4,"key":"limit|4|u:agent-7","max":3,"name":"restarts","windowMs":3600000}],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["services:write"],"rule":"oncall@{}:services.restart","tenant":null,"withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":["deploys:read"],"rule":null,"tenant":null,"withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":["services:write"],"rule":null,"tenant":"o2","withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":["services:write"],"rule":null,"tenant":"o1","withholdText":false}
@@ -2415,7 +2415,7 @@
 {"decision":"allow","labels":[],"limits":[{"amount":1,"burst":null,"index":0,"key":"limit|0|t:o2|c:unknown","max":3000,"name":"per-client","windowMs":60000}],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["deploys:read"],"rule":"release_manager@{org:o2}:deploys.get","tenant":"o2","withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"actor_ceiling:pager-bot","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
 {"decision":"allow","labels":[],"limits":[{"amount":1,"burst":null,"index":0,"key":"limit|0|t:o1|c:unknown","max":3000,"name":"per-client","windowMs":60000}],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["secrets:read"],"rule":"oncall@{}:secrets.list","tenant":"o1","withholdText":false}
-{"decision":"allow","labels":[],"limits":[{"amount":1,"burst":null,"index":0,"key":"limit|0|t:o1|c:unknown","max":3000,"name":"per-client","windowMs":60000},{"amount":1,"burst":null,"index":4,"key":"limit|4|t:o1|u:agent-7","max":3,"name":"restarts","windowMs":3600000}],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["services:write"],"rule":"sre@{}:services.restart","tenant":"o1","withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[{"amount":1,"burst":null,"index":0,"key":"limit|0|t:o1|c:unknown","max":3000,"name":"per-client","windowMs":60000},{"amount":1,"burst":null,"index":4,"key":"limit|4|t:o1|u:agent-7","max":3,"name":"restarts","windowMs":3600000}],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["services:write"],"rule":"sre@{}:services.restart","tenant":"o1","withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"actor_unknown:rogue","redact":[],"requiredScopes":["secrets:write"],"rule":null,"tenant":null,"withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
 {"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["x:read"],"rule":"r0@{}:f*","tenant":"t1","withholdText":false}
@@ -3115,7 +3115,7 @@
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:constraint:above_max:n","redact":[],"requiredScopes":[],"rule":null,"tenant":"t1","withholdText":false}
 {"visible":["a","b","c.d","f_g"]}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
-{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"@any@{}:a","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"@any@{}:a","tenant":null,"withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
 {"visible":["a"]}
 {"error":"policy_invalid"}
@@ -3330,7 +3330,7 @@
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
 {"visible":["b","c.d","f_g"]}
-{"decision":"allow","labels":["secret"],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["x:write"],"rule":"@any@{}:b","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":["secret"],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["x:write"],"rule":"@any@{}:b","tenant":null,"withholdText":false}
 {"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r3@{}:a","tenant":null,"withholdText":false}
 {"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r3@{}:a","tenant":"t1","withholdText":false}
 {"visible":["b","c.d"]}
@@ -3371,7 +3371,7 @@
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":[],"rule":null,"tenant":"t1","withholdText":false}
 {"visible":["a","b","c.d","c.e","f_g"]}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
-{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["x:read"],"rule":"@any@{}:f_g","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["x:read"],"rule":"@any@{}:f_g","tenant":null,"withholdText":false}
 {"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":["x:read"],"rule":"@any@{}:f_g","tenant":null,"withholdText":false}
 {"visible":["f_g"]}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
@@ -4126,3 +4126,105 @@
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":[],"rule":null,"semantics":{"classes":["write","destructive"],"resources":[],"sensitivity":[],"source":"policy","spend":null},"tenant":null,"withholdText":false}
 {"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"class_denied:destructive","redact":[],"requiredScopes":[],"rule":null,"semantics":{"classes":["write","destructive"],"resources":[],"sensitivity":[],"source":"policy","spend":null},"tenant":"t1","withholdText":false}
 {"visible":["a","b","f"]}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:constraint:missing:amount","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
+{"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:constraint:not_a_finite_number:amount","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:pay","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:admin.*","tenant":null,"withholdText":false}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:admin.*","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:admin.*","tenant":null,"withholdText":false}
+{"decision":"needs_approval","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:admin.*","tenant":null,"withholdText":false}
+{"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
+{"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:no_matching_permission","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}
+{"ok":true,"warnings":["roles.r: limits on refund are bypassed by its grant \"*\" (per-role limits bind only their own grant; use tools.refund.limits for every grant)"]}
+{"ok":true,"warnings":[]}
+{"ok":true,"warnings":[]}
+{"ok":true,"warnings":["roles.r: limits on refund are bypassed by its grant \"*\" (per-role limits bind only their own grant; use tools.refund.limits for every grant)"]}
+{"ok":true,"warnings":["roles.r: limits on billing.refund are bypassed by its grant \"billing.*\" (per-role limits bind only their own grant; use tools.billing.refund.limits for every grant)"]}
+{"ok":true,"warnings":["roles.r: limits on refund are bypassed by its grant \"ref*\" (per-role limits bind only their own grant; use tools.refund.limits for every grant)"]}
+{"ok":true,"warnings":[]}
+{"ok":true,"warnings":["roles.r: limits on refund are bypassed by its grant \"r*\" (per-role limits bind only their own grant; use tools.refund.limits for every grant)"]}
+{"ok":true,"warnings":[]}
+{"ok":true,"warnings":["roles.r: limits on refund can be bypassed by its class grants (per-role limits bind only their own grant; use tools.refund.limits for every grant)"]}
+{"ok":true,"warnings":["roles.s: grants nothing"]}
+{"ok":true,"warnings":["approvals: when.amount on pay is not a required tools.pay.limits argument (a call without a well-typed amount needs approval)"]}
+{"ok":true,"warnings":[]}
+{"ok":true,"warnings":["approvals: when.amount on pay is not a required tools.pay.limits argument (a call without a well-typed amount needs approval)"]}
+{"ok":true,"warnings":[]}
+{"ok":true,"warnings":["approvals: when.env on a.* is not a required tools.a.*.limits argument (a call without a well-typed env needs approval)","approvals: when.n on a.* is not a required tools.a.*.limits argument (a call without a well-typed n needs approval)"]}
+{"ok":true,"warnings":[]}
+{"decision":"allow","labels":[],"limits":[],"missingScopes":[],"reason":"ok","redact":[],"requiredScopes":[],"rule":"r@{}:*","tenant":null,"withholdText":false}
+{"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"user:constraint:above_max:amount","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}

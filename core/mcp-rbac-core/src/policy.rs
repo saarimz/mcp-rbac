@@ -18,7 +18,12 @@ impl Kind {
 }
 
 #[derive(Debug, Clone)]
-pub struct Perm { pub kind: Kind, pub pattern: Pattern, pub constraints: Option<Constraints> }
+pub struct Perm {
+    pub kind: Kind, pub pattern: Pattern, pub constraints: Option<Constraints>,
+    /// The grant carries per-role limits of its own (`tools.X.allow.<role>: {limits}` or a role entry `{name, limits}`),
+    /// not only the tool-wide `limits` (used by the bypass lint).
+    pub own: bool,
+}
 
 #[derive(Debug, Clone)]
 pub struct Limit {
@@ -143,12 +148,13 @@ fn entries(v: &Value, kind: Kind, at: &str) -> R<Vec<Perm>> {
     for (i, e) in a.iter().enumerate() {
         let at = format!("{at}[{i}]");
         match e {
-            Value::String(s) => out.push(Perm { kind, pattern: pat(s, &at)?, constraints: None }),
+            Value::String(s) => out.push(Perm { kind, pattern: pat(s, &at)?, constraints: None, own: false }),
             Value::Object(m) => {
                 keys_ok(m, &["name", "limits"], &at)?;
                 let n = m.get("name").and_then(Value::as_str).ok_or_else(|| format!("{at}: needs name"))?;
                 let c = m.get("limits").map(|l| constraints::parse(l, &format!("{at}.limits"))).transpose()?;
-                out.push(Perm { kind, pattern: pat(n, &at)?, constraints: c });
+                let own = c.is_some();
+                out.push(Perm { kind, pattern: pat(n, &at)?, constraints: c, own });
             }
             _ => return Err(format!("{at}: entry must be a pattern or {{name, limits}}")),
         }
@@ -261,7 +267,7 @@ impl Policy {
                     let list = psets.get(set).and_then(|l| l.get(lvl)).ok_or_else(|| format!("{at}: unknown permission set level {set}.{lvl}"))?;
                     for p in strs(list, &at)? {
                         let (kind, n) = if let Some(r) = p.strip_prefix("resource:") { (Kind::Resource, r.to_string()) } else if let Some(r) = p.strip_prefix("prompt:") { (Kind::Prompt, r.to_string()) } else { (Kind::Tool, p.clone()) };
-                        perms.push(Perm { kind, pattern: pat(&n, &at)?, constraints: None });
+                        perms.push(Perm { kind, pattern: pat(&n, &at)?, constraints: None, own: false });
                     }
                 }
                 if perms.is_empty() { return Err(format!("{at}: needs at least one permission set")) }
@@ -410,7 +416,7 @@ impl Policy {
                         (None, None) => None,
                         (b, e) => Some(constraints::intersect(b.as_ref().unwrap_or(&vec![]), e.as_ref().unwrap_or(&vec![]), &format!("{at}.allow.{role}"))?),
                     };
-                    grants.entry(role.to_string()).or_default().push(Perm { kind: Kind::Tool, pattern: me.clone(), constraints: c });
+                    grants.entry(role.to_string()).or_default().push(Perm { kind: Kind::Tool, pattern: me.clone(), constraints: c, own: extra.is_some() });
                     Ok(())
                 };
                 let expand = |r: &str| -> R<Vec<String>> {
@@ -558,6 +564,37 @@ impl Policy {
         // ---- lint
         for (rn, perms) in &roles {
             if rn != "@any" && perms.is_empty() { warnings.push(format!("roles.{rn}: grants nothing")); }
+        }
+        // Per-role limits bind only their own grant: another grant of the same role that matches the tool (a wildcard,
+        // an included role's grant, a class grant) is checked on its own and wins. Exact-name grants are deliberate.
+        for (rn, perms) in &roles {
+            if rn == "@any" { continue }
+            let mut seen: Vec<&str> = vec![];
+            // the role's own limited grants (an included role's limits are its own business: widening is inheritance)
+            let direct = own.get(rn).map(|o| o.0.iter()).into_iter().flatten().chain(grants.get(rn).into_iter().flatten());
+            for c in direct {
+                if c.kind != Kind::Tool || !c.own || !valid_tool_name(&c.pattern.raw) { continue }
+                let t = c.pattern.raw.as_str();
+                if seen.contains(&t) { continue }
+                seen.push(t);
+                if let Some(o) = perms.iter().find(|o| o.kind == Kind::Tool && o.constraints.is_none() && o.pattern.raw != t && o.pattern.matches(t)) {
+                    warnings.push(format!("roles.{rn}: limits on {t} are bypassed by its grant \"{}\" (per-role limits bind only their own grant; use tools.{t}.limits for every grant)", o.pattern.raw));
+                } else if semantics.as_ref().is_some_and(|s| s.role_classes.get(rn).is_some_and(|g| !g.is_empty())) {
+                    warnings.push(format!("roles.{rn}: limits on {t} can be bypassed by its class grants (per-role limits bind only their own grant; use tools.{t}.limits for every grant)"));
+                }
+            }
+        }
+        // Approval `when` arguments that no required tool-wide limit covers: a call without a well-typed value needs approval.
+        for a in &approvals {
+            let Some(w) = &a.when else { continue };
+            let t = a.pattern.raw.as_str();
+            for (arg, r) in w {
+                if r.optional { continue }
+                let covered = valid_tool_name(t) && tool_base.get(t).is_some_and(|b| b.iter().any(|(k, x)| k == arg && !x.optional));
+                if !covered {
+                    warnings.push(format!("approvals: when.{arg} on {t} is not a required tools.{t}.limits argument (a call without a well-typed {arg} needs approval)"));
+                }
+            }
         }
 
         Ok(Policy {

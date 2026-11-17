@@ -421,7 +421,7 @@ impl Policy {
         }
         // 10. approval
         d.outcome = Outcome::Allow;
-        if kind == Kind::Tool && (class_approve || self.approvals.iter().any(|a| a.pattern.matches(name) && a.when.as_ref().is_none_or(|w| constraints::check(w, args).is_none()))) {
+        if kind == Kind::Tool && (class_approve || self.approvals.iter().any(|a| a.pattern.matches(name) && a.when.as_ref().is_none_or(|w| constraints::when_holds(w, args)))) {
             d.outcome = Outcome::NeedsApproval;
         }
         d.reason = "ok".into();

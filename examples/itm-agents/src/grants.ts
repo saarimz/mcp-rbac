@@ -16,6 +16,16 @@ import type { DatabaseSync } from "node:sqlite";
 import { stringify } from "yaml";
 import { canonical, decidePortable, expandScopes, loadPortablePolicy, requiredScopes, visiblePortable, type CompiledPolicy, type PortableDecision, type Rule } from "../../../src/portable.ts";
 import { verifyProof } from "./dpop.ts";
+import { summarizeArgs } from "../../../src/approvers.ts";
+
+/**
+ * What the approving human reads. Every argument appears, keys in canonical (sorted) order so padding placed first
+ * by the agent cannot push the meaningful values out of view; long values are cut with an explicit `…[+N chars]`
+ * marker. The approval itself stays bound to the hash of the FULL arguments, so what runs is exactly what was asked.
+ */
+export function approvalSummary(tool: string, args: Record<string, unknown>): string {
+  return summarizeArgs(tool, args, undefined, { maxArgs: 50, maxValue: 300 });
+}
 
 export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export const MAX_GRANT_SECONDS = 90 * 24 * 3600; // ITM partner connections: 90-day absolute limit
@@ -51,6 +61,7 @@ export interface Decision { decision: "allow" | "deny" | "needs_approval"; reaso
 
 export class GrantStore {
   private overlayCache = new Map<string, CompiledPolicy>();
+  static readonly OVERLAY_CACHE_MAX = 1024;
   /**
    * @param opts.momentPinning  OFF by default (Saarim 2026-11-15: AGENT staff stay brand-wide, matching today's
    *   BrandMemberGuard). When ON, an AGENT member with AdminUserBrand.momentUid set is limited to that moment, and so
@@ -60,7 +71,7 @@ export class GrantStore {
    *   itm:bookings:spend can't be granted, grants can't carry spend budgets (budgets with `sum`), and spend limits
    *   in the base policy / overlays are not enforced. Call-count limits (no `sum`) still work.
    */
-  constructor(readonly db: DatabaseSync, readonly base: CompiledPolicy, readonly toolNames: string[], readonly now: () => number = () => Date.now(), readonly opts: { momentPinning?: boolean; spendBudgets?: boolean } = {}) {}
+  constructor(readonly db: DatabaseSync, readonly base: CompiledPolicy, readonly toolNames: string[], readonly now: () => number = () => Date.now(), readonly opts: { momentPinning?: boolean; spendBudgets?: boolean; freeTools?: string[] } = {}) {}
   static readonly PHASE2_SCOPES = ["itm:bookings:spend"];
   /** The moment an AGENT member is pinned to, or null (always null unless the momentPinning knob is on). */
   pinnedMoment(m: { role: string; momentUid?: string | null }): string | null { return this.opts.momentPinning && m.role === "AGENT" && m.momentUid ? m.momentUid : null; }
@@ -93,15 +104,28 @@ export class GrantStore {
   overlayOf(g: GrantRow): CompiledPolicy {
     const k = `${g.uid}#${g.epoch}`;
     let p = this.overlayCache.get(k);
-    if (!p) { p = loadPortablePolicy(g.overlay); this.overlayCache.set(k, p); }
+    if (!p) {
+      p = loadPortablePolicy(g.overlay);
+      if (this.overlayCache.size >= GrantStore.OVERLAY_CACHE_MAX) this.overlayCache.delete(this.overlayCache.keys().next().value!); // bounded, oldest first
+      this.overlayCache.set(k, p);
+    }
     return p;
   }
 
-  /** Tools a set of scopes unlocks in the base policy (tools with no required scope only if explicitly free, e.g. get_connection). */
+  /**
+   * Tools a set of scopes unlocks in the base policy. A tool with NO required scope is not unlocked by every scope
+   * set (that would make any scope-less tool, including one added to the base policy later by mistake, join every
+   * grant); it joins only if it is listed in `opts.freeTools` (default: get_connection, the connection's own info).
+   */
   toolsForScopes(scopes: string[]): string[] {
     const exp = expandScopes(this.base, scopes);
-    return this.toolNames.filter((t) => requiredScopes(this.base, t).every((s) => exp.has(s) || exp.has("*")));
+    const free = new Set(this.opts.freeTools ?? GrantStore.FREE_TOOLS);
+    return this.toolNames.filter((t) => {
+      const req = requiredScopes(this.base, t);
+      return req.length ? req.every((s) => exp.has(s) || exp.has("*")) : free.has(t);
+    });
   }
+  static readonly FREE_TOOLS: readonly string[] = ["get_connection"];
   /** The human's effective constraints on a tool (role permission constraints + tool-wide limits). */
   private humanConstraints(role: string, tool: string): Map<string, Rule> {
     const out = new Map<string, Rule>();
@@ -319,7 +343,7 @@ export class GrantStore {
       if (!ok) {
         const pending = this.db.prepare("SELECT uid FROM AgentGrantApproval WHERE grantId = ? AND tool = ? AND inputHash = ? AND status = 'PENDING' AND expiresAt > ?").get(ctx.grant.id, tool, inputHash, this.iso()) as any;
         const uid = pending?.uid ?? `appr_${randomUUID()}`;
-        if (!pending) this.db.prepare("INSERT INTO AgentGrantApproval (uid, grantId, tool, inputHash, summary, status, requestedAt, expiresAt) VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?)").run(uid, ctx.grant.id, tool, inputHash, JSON.stringify(args).slice(0, 500), this.iso(), this.iso(15 * 60_000));
+        if (!pending) this.db.prepare("INSERT INTO AgentGrantApproval (uid, grantId, tool, inputHash, summary, status, requestedAt, expiresAt) VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?)").run(uid, ctx.grant.id, tool, inputHash, approvalSummary(tool, args), this.iso(), this.iso(15 * 60_000));
         return { decision: "needs_approval", reason: "approval_required", approvalUid: uid, base: b, overlay: o, auditSeq: audit("needs_approval", `approval_required:${uid}`, b, o) };
       }
       this.db.prepare("UPDATE AgentGrantApproval SET status = 'CONSUMED' WHERE uid = ?").run(ok.uid);

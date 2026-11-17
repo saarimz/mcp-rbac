@@ -93,6 +93,13 @@ export interface GuardOptions<R extends Scope, Roles extends Record<string, Role
   engine?: DecisionEngine;
   store?: GuardStore;
   resolveUser: (credential: string, extra?: any) => MaybePromise<User<R, keyof Roles & string> | User<R> | undefined>;
+  /**
+   * Reload a grant's human by id on EVERY call made with a grant token. Set this in production: it is what makes
+   * demoting or removing the human shrink or kill their outstanding grants. Without it, grant tokens are checked
+   * against a SNAPSHOT of the human taken when the grant was minted (still intersected with the grant's own,
+   * narrower permissions, and still killed by revoke/expiry), so a demotion does not reach existing grants until
+   * they expire or are revoked. Returning undefined (user gone) makes every grant of that user unauthenticated.
+   */
   loadUser?: (id: string) => MaybePromise<User<R, keyof Roles & string> | User<R> | undefined>;
   scopeFrom?: (name: string, args: Record<string, unknown>, ctx: CallContext) => MaybePromise<Partial<R>>;
   approve?: readonly (string | ApprovalRule)[];

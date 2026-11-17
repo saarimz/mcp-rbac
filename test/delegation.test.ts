@@ -145,6 +145,21 @@ describe("delegation grants only narrow", () => {
     expect((await g.check(a.token, "checkin", { ticketId: "t1" })).allowed).toBe(false);
   });
 
+  it("without loadUser, grants use the snapshot taken at grant time (documented): demotion needs revoke or expiry", async () => {
+    const store = createStore();
+    const g = new Guard(itmGuardOptions(store, {}));
+    const a = await g.grant("tok-maya", { agent: "a", can: ["tickets.*"] });
+    const before = people["tok-maya"]!;
+    people["tok-maya"] = { ...before, assignments: [{ role: "door", scope: { venue: "elsewhere" } }] };
+    try {
+      // the live human is now door staff, but the grant still reads the snapshot
+      expect((await g.check(a.token, "tickets.list", { eventId: "elsewhere-1114" })).allowed).toBe(true);
+      expect((await g.check("tok-maya", "tickets.list", { eventId: "elsewhere-1114" })).allowed).toBe(false);
+      await g.revoke(a.id);
+      expect((await g.check(a.token, "tickets.list", { eventId: "elsewhere-1114" })).allowed).toBe(false);
+    } finally { people["tok-maya"] = before; }
+  });
+
   it("forged and look-alike tokens are rejected", async () => {
     env = setup();
     const g = await env.guard.grant("tok-maya", { agent: "a", can: ["checkin"] });

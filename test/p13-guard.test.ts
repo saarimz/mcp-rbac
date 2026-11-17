@@ -255,6 +255,14 @@ describe("in place: progress tokens and an atomic setup", () => {
     expect(seen).toEqual([{ progress: 1, total: 2 }]);
     await c.close();
   });
+  it("progress also flows through the hop (inPlace: false), under the caller's own token", async () => {
+    const c = await connect((await protectWithCore(build(), { policy: POLICY, inPlace: false, identity: () => ({ id: "d", roles: ["staff"] }) })).server);
+    const seen: unknown[] = [];
+    const r = await c.callTool({ name: "slow", arguments: {} }, undefined, { onprogress: (p) => seen.push(p) });
+    expect(text(r)).toBe("done");
+    expect(seen).toEqual([{ progress: 1, total: 2 }]);
+    await c.close();
+  });
   it("if the audit sink cannot open, the server is left untouched (no half-guarded state)", async () => {
     const s = build();
     const handlers = (s.server as any)._requestHandlers as Map<string, unknown>;

@@ -329,7 +329,14 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
       capabilities: caps.tools ? { tools: { listChanged: !!caps.tools.listChanged } } : {},
       instructions: client.getInstructions(),
     });
-    callInner = (params, extra) => client.request({ method: "tools/call", params: params as any }, CallToolResultSchema, { signal: extra.signal, timeout });
+    callInner = (params, extra) => {
+      // hop: the SDK client mints its own progress token upstream; relay each upstream progress notification to the
+      // caller under the caller's token, so progress flows through the hop as it does in place
+      const token = (extra?._meta as { progressToken?: string | number } | undefined)?.progressToken;
+      const onprogress = token === undefined || typeof extra?.sendNotification !== "function" ? undefined
+        : (p: { progress: number; total?: number; message?: string }) => { void extra.sendNotification({ method: "notifications/progress", params: { ...p, progressToken: token } }).catch(() => {}); };
+      return client.request({ method: "tools/call", params: params as any }, CallToolResultSchema, { signal: extra.signal, timeout, ...(onprogress ? { onprogress, resetTimeoutOnProgress: true } : {}) });
+    };
     listInner = (params, extra) => client.request({ method: "tools/list", params: params as any }, ListToolsResultSchema, { signal: extra.signal, timeout });
     hasTools = !!caps.tools;
   }

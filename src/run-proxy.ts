@@ -24,6 +24,13 @@ export interface ProxyOptions {
   command: string[];
   preset?: PresetMode;
   policyFile?: string;
+  /**
+   * Which engine runs `policyFile`. Default: "core" (the Rust core via WASM, the same decisions as every library
+   * binding) for a portable policy (YAML, or JSON that is not the legacy proxy format), "legacy" for the legacy
+   * JSON format (`mcp-rbac init` output). Presets always use the TypeScript engine (path scoping needs filesystem
+   * checks the portable core does not do).
+   */
+  engine?: "core" | "legacy";
   role?: string;
   paths?: string[];
   repos?: string[];
@@ -78,6 +85,13 @@ export async function listAllTools(client: Client): Promise<ToolDef[]> {
   return out;
 }
 
+/** "legacy" when the text is the legacy JSON proxy policy, else "core" (portable mcp-rbac.yaml / JSON). */
+export function detectPolicyEngine(text: string): "core" | "legacy" {
+  let json: unknown;
+  try { json = JSON.parse(text); } catch { return "core"; } // not JSON: YAML, the portable format
+  try { loadPolicy(json); return "legacy"; } catch { return "core"; }
+}
+
 export async function runProxy(o: ProxyOptions) {
   const log = o.log ?? ((s: string) => process.stderr.write(`[mcp-rbac] ${s}\n`));
   const [cmd, ...args] = o.command;
@@ -102,6 +116,10 @@ export async function runProxy(o: ProxyOptions) {
   const dbFile = o.db ?? defaultDbPath();
   // The agent must never read/alter our own state (audit db, approval queue, OAuth credentials).
   const protect = [...new Set([stateDir(), o.queueDir ?? defaultQueueDir(), defaultOAuthDir(), ...(dbFile !== ":memory:" ? [dbFile, `${dbFile}-wal`, `${dbFile}-shm`, `${dbFile}-journal`] : [])].map((x) => resolve(x)))];
+  if (o.policyFile) {
+    const text = readFileSync(o.policyFile, "utf8");
+    if ((o.engine ?? detectPolicyEngine(text)) === "core") return runCoreProxy(o, { client, remote, text, userId, dbFile, log, tools });
+  }
   const presetFor = (list: ToolDef[]) => buildPreset(list, { mode: o.preset ?? "approve-destructive", paths: o.paths, repos: o.repos, allow: o.allow, deny: o.deny, maxDestructivePerDay: o.maxDestructivePerDay, protect }, userId);
 
   let roles: Record<string, any>, user: User, approve: string[], limits: RateLimit[], scopeFrom: any;
@@ -145,16 +163,19 @@ export async function runProxy(o: ProxyOptions) {
     approvalTimeoutMs: (o.approvalTimeoutMs ?? 110_000) + 5_000,
     verboseErrors: !!o.explain,
   });
-  // Upstream tool list changed (or we reconnected): re-classify so new tools get a decision instead of
-  // silently inheriting nothing. With a policy file the policy is static; unknown tools stay denied.
+  // Upstream tool list changed (or we reconnected). A preset was planned for the tools the human saw at startup
+  // (--print-plan); a tool that appears later was never reviewed, so it is denied (and hidden) until the proxy is
+  // restarted and plans it. With a policy file the policy is static: it decides every tool by name.
+  const initial = new Set(tools.map((t) => t.name));
   const replan = async () => {
     tools = client.getServerCapabilities()?.tools ? await listAllTools(client) : [];
     learnTitles();
     if (o.policyFile) return;
-    const p = presetFor(tools);
+    const added = tools.filter((t) => !initial.has(t.name)).map((t) => t.name);
+    const p = buildPreset(tools, { mode: o.preset ?? "approve-destructive", paths: o.paths, repos: o.repos, allow: o.allow, deny: [...(o.deny ?? []), ...added], maxDestructivePerDay: o.maxDestructivePerDay, protect }, userId);
     guard.updatePolicy({ roles: p.roles, approve: p.approve, limits: p.limits, scopeFrom: p.scopeFrom });
     user = p.user;
-    log(`tool list changed: re-planned ${tools.length} tools`);
+    log(`tool list changed: re-planned ${tools.length} tools${added.length ? `; ${added.length} new tool(s) denied until the proxy is restarted and plans them: ${added.join(", ")}` : ""}`);
     if (o.printPlan) log(`plan:\n${formatPlan(p.rows)}`);
   };
   const outer = await wrapServer(guard, client, { onToolListChanged: replan, ...(o.timeoutMs ? { forwardTimeoutMs: o.timeoutMs } : {}) });
@@ -190,4 +211,53 @@ export async function runProxy(o: ProxyOptions) {
     else client.onclose = () => stop(0); // upstream died: nothing left to guard
   }
   return { guard, outer, client, plan, remote, replan };
+}
+
+/** `--policy` with a portable policy: the Rust core (WASM) decides, exactly like the library bindings. */
+async function runCoreProxy(o: ProxyOptions, c: { client: Client; remote?: RemoteUpstream; text: string; userId: string; dbFile: string; log: (s: string) => void; tools: ToolDef[] }) {
+  const { protectWithCore, createCoreEngine, loadCoreWasm } = await import("./core-guard.js");
+  const { parse } = await import("yaml");
+  const engine = createCoreEngine(c.text); // throws on an invalid policy, before anything is served
+  const roleName = o.role ?? "operator";
+  const roles = Object.keys((parse(c.text) as { roles?: Record<string, unknown> } | null)?.roles ?? {});
+  if (!roles.includes(roleName)) throw new Error(`Role "${roleName}" not in ${o.policyFile} (have: ${roles.join(", ")})`);
+  for (const w of (JSON.parse(loadCoreWasm().check(c.text)) as { warnings?: string[] }).warnings ?? []) c.log(`policy warning: ${w}`);
+  const identity = { id: c.userId, roles: [roleName] };
+  const mode = o.approval ?? "auto";
+  if (c.dbFile !== ":memory:") mkdirSync(dirname(c.dbFile), { recursive: true });
+  const { server } = await protectWithCore(c.client, {
+    engine, identity: () => identity, shareEngine: false,
+    approve: mode === "allow" ? () => true : mode === "deny" ? () => false : mode,
+    approvalQueueDir: o.queueDir ?? defaultQueueDir(), approvalTimeoutMs: o.approvalTimeoutMs ?? 110_000,
+    // the core audit chain lives next to the legacy tables, in its own table
+    ...(c.dbFile !== ":memory:" ? { audit: { path: c.dbFile, table: "core_audit", mode: "batched" as const } } : {}),
+    denials: o.explain ? "reason" : "uniform",
+    ...(o.timeoutMs ? { forwardTimeoutMs: o.timeoutMs } : {}),
+  });
+  const outer = server as unknown as { connect(t: Transport): Promise<void>; close(): Promise<void>; onclose?: () => void };
+  c.log(`guarding ${o.url ?? `"${o.command.join(" ") || "upstream"}"`} (${c.tools.length} tools); policy ${o.policyFile}, role ${roleName}, engine core${c.dbFile !== ":memory:" ? `; audit -> ${c.dbFile} (table core_audit)` : ""}`);
+  if (c.remote) {
+    c.remote.onGiveUp = () => { void outer.close(); };
+    outer.onclose = () => { void c.remote!.close(); };
+  } else {
+    outer.onclose = () => { void c.client.close(); };
+    c.client.onclose = () => { void outer.close(); };
+  }
+  const down = o.downstream ?? new StdioServerTransport();
+  await outer.connect(c.remote ? scrubSecrets(down, () => c.remote!.secretValues()) : down);
+  if (!o.downstream) {
+    let stopping = false;
+    const stop = (code = 0) => {
+      if (stopping) return;
+      stopping = true;
+      setTimeout(() => process.exit(code), 2000).unref();
+      void Promise.allSettled([c.remote ? c.remote.close() : c.client.close(), outer.close()]).then(() => process.exit(code));
+    };
+    process.stdin.once("end", () => stop(0));
+    process.stdin.once("close", () => stop(0));
+    for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.once(sig, () => stop(0));
+    if (c.remote) c.remote.onGiveUp = () => stop(1);
+    else c.client.onclose = () => stop(0);
+  }
+  return { guard: undefined, outer, client: c.client, plan: `policy ${o.policyFile}, role ${roleName}, engine core`, remote: c.remote, replan: async () => {} };
 }

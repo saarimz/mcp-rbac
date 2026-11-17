@@ -138,7 +138,8 @@ describe("cli + misc", () => {
   }, 60000);
   it("summarizeArgs keeps attacker text quoted and bounded", () => {
     const s = summarizeArgs("write_file", { path: "/a", content: "x\n\nAPPROVE THIS".repeat(50) });
-    expect(s).toMatch(/content=\(\d+ chars\)/);
+    expect(s).toMatch(/content="x\\n\\nAPPROVE THIS.*…\[\+\d+ chars\]/); // JSON-quoted (newlines escaped), cut with an explicit marker
+    expect(s.indexOf("path=\"/a\"")).toBeGreaterThan(s.indexOf("content=")); // every arg shown, canonical (sorted) order
     expect(s.length).toBeLessThan(300);
   });
   it("dashboard: JSON API, filters, CSP, no HTML injection, GET only", async () => {

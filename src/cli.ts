@@ -25,7 +25,9 @@ Usage:
   mcp-rbac proxy [options] -- <server command> [args...]   Guard any stdio MCP server (any language)
   mcp-rbac proxy [options] --url https://host/mcp           Guard a hosted (remote) MCP server
       --preset <mode>        read-only | no-destructive | approve-writes | approve-destructive (default)
-      --policy <file.json> --role <name>   use a policy file instead of a preset
+      --policy <file> --role <name>        use a policy file instead of a preset: a portable mcp-rbac.yaml runs on
+                                           the Rust core; legacy JSON (init output) on the TS engine
+      --engine core|legacy                 force the engine for --policy
       --paths <a,b>          restrict path-like arguments to these absolute roots
       --repos <o/r,o/r>      restrict owner/repo arguments to these repositories
       --allow <t1,t2>        always grant these tools   --deny <t1,t2>  never grant these tools
@@ -54,7 +56,7 @@ Usage:
   mcp-rbac revoke [--db path] <grantId>
   mcp-rbac pdp --policy policy.json [--users users.json] [--port 8181] [--host 127.0.0.1] [--token-env PDP_TOKEN]
                                                 experimental: OpenID AuthZEN 1.0 PDP (POST /access/v1/evaluation[s])
-  mcp-rbac audit-verify [--db path] [--export jsonl|otlp] [--out file]   verify the audit hash chain; export it
+  mcp-rbac audit-verify [--db path] [--table t] [--export jsonl|otlp] [--out file]   verify the audit hash chain(s); export
   mcp-rbac check <policy.yaml> [--json]          validate a portable policy (exit 1 if invalid)
   mcp-rbac test <policy.yaml> <tests.yaml> [--json]
                                                 run allow/deny/approval and tools/list fixtures (exit 1 if any fail)
@@ -179,8 +181,9 @@ export async function main(argv = process.argv.slice(2)) {
       if (preset && !PRESET_MODES.includes(preset)) throw new Error(`Unknown preset "${preset}". Use: ${PRESET_MODES.join(", ")}`);
       const approval = str(flags.approval) as "auto" | "elicit" | "queue" | "deny" | "allow" | undefined;
       if (approval && !["auto", "elicit", "queue", "deny", "allow"].includes(approval)) throw new Error("--approval must be auto, elicit, queue, deny or allow");
+      if (flags.engine !== undefined && !["core", "legacy"].includes(String(flags.engine))) throw new Error("--engine must be core or legacy");
       await runProxy({
-        command: rest, preset, policyFile: str(flags.policy), role: str(flags.role), paths: list(flags.paths), repos: list(flags.repos),
+        command: rest, preset, policyFile: str(flags.policy), engine: str(flags.engine) as "core" | "legacy" | undefined, role: str(flags.role), paths: list(flags.paths), repos: list(flags.repos),
         allow: list(flags.allow), deny: list(flags.deny), approval, db: str(flags.db),
         maxDestructivePerDay: flags["max-destructive"] !== undefined ? Number(flags["max-destructive"]) : undefined,
         explain: !!flags.explain, printPlan: !!flags["print-plan"],
@@ -247,19 +250,52 @@ export async function main(argv = process.argv.slice(2)) {
       return;
     }
     case "audit-verify": {
-      const { verifyAuditChain, toJsonl, toOtlpLogs } = await import("./audit-chain.js");
-      const s = new SqliteStore(str(flags.db) ?? defaultDbPath());
-      const rows = (s.db.prepare("SELECT data FROM audit ORDER BY seq ASC").all() as { data: string }[]).map((r) => JSON.parse(r.data));
-      const chained = rows.filter((e) => typeof e.hash === "string");
-      const v = verifyAuditChain(chained);
-      process.stderr.write(v.ok ? `audit chain OK: ${v.count} events, head ${v.head}${rows.length !== chained.length ? ` (${rows.length - chained.length} unchained older events)` : ""}\n` : `audit chain BROKEN at event ${v.index} (${v.reason})\n`);
+      const dbFile = str(flags.db) ?? defaultDbPath();
+      const { existsSync } = await import("node:fs");
+      if (!existsSync(dbFile)) throw new Error(`no audit database at ${dbFile}`);
+      // Which tables: the legacy proxy/Guard table ("audit" with a `data` column) and/or core sink tables (`event`,
+      // `prev`, `hash` columns: "audit" written by protectWithCore/the Python and Go sinks, "core_audit" by the proxy).
+      const { DatabaseSync } = await import("node:sqlite");
+      const probe = new DatabaseSync(dbFile, { readOnly: true });
+      const cols = (t: string) => new Set((probe.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[]).map((r) => r.name));
+      const want = str(flags.table);
+      if (want && !/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(want)) { probe.close(); throw new Error(`bad --table ${want}`); }
+      const candidates = want ? [want] : ["audit", "core_audit"];
+      const coreTables = candidates.filter((t) => { const c = cols(t); return c.has("event") && c.has("hash") && c.has("prev"); });
+      const legacy = !want || want === "audit" ? cols("audit").has("data") : false;
+      probe.close();
+      if (!coreTables.length && !legacy) throw new Error(`no audit table in ${dbFile}${want ? ` (table ${want})` : ""}`);
+      let ok = true;
+      for (const t of coreTables) {
+        const { verifyAuditTable } = await import("./audit-sink.js");
+        const v = verifyAuditTable(dbFile, t);
+        process.stderr.write(v.ok ? `audit chain OK (table ${t}): ${v.count} events, head ${v.head}\n` : `audit chain BROKEN (table ${t}) at row ${v.id} (${v.reason})\n`);
+        ok &&= v.ok;
+      }
       const fmt = str(flags.export);
-      if (fmt) {
-        const out = fmt === "otlp" ? JSON.stringify(toOtlpLogs(rows)) : toJsonl(rows);
+      if (legacy) {
+        const { verifyAuditChain, toJsonl, toOtlpLogs } = await import("./audit-chain.js");
+        const s = new SqliteStore(dbFile);
+        const rows = (s.db.prepare("SELECT data FROM audit ORDER BY seq ASC").all() as { data: string }[]).map((r) => JSON.parse(r.data));
+        const chained = rows.filter((e) => typeof e.hash === "string");
+        const v = verifyAuditChain(chained);
+        process.stderr.write(v.ok ? `audit chain OK: ${v.count} events, head ${v.head}${rows.length !== chained.length ? ` (${rows.length - chained.length} unchained older events)` : ""}\n` : `audit chain BROKEN at event ${v.index} (${v.reason})\n`);
+        ok &&= v.ok;
+        if (fmt) {
+          const out = fmt === "otlp" ? JSON.stringify(toOtlpLogs(rows)) : toJsonl(rows);
+          const file = str(flags.out);
+          if (file) (await import("node:fs")).writeFileSync(file, out, { mode: 0o600 }); else process.stdout.write(out);
+        }
+      } else if (fmt) {
+        if (fmt !== "jsonl") throw new Error("--export otlp is only available for the legacy audit table; use --export jsonl");
+        const db = new DatabaseSync(dbFile, { readOnly: true });
+        const out = coreTables.flatMap((t) => (db.prepare(`SELECT id, event, prev, hash FROM ${t} ORDER BY id`).all() as { id: number; event: string; prev: string; hash: string }[])
+          .map((r) => JSON.stringify({ table: t, id: r.id, ...JSON.parse(r.event), prev: r.prev, hash: r.hash }))).join("\n") + "\n";
+        db.close();
         const file = str(flags.out);
         if (file) (await import("node:fs")).writeFileSync(file, out, { mode: 0o600 }); else process.stdout.write(out);
       }
-      process.exitCode = v.ok ? 0 : 2;
+      process.exitCode = ok ? 0 : 2;
       return;
     }
     case "dashboard": {

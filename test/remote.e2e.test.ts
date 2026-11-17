@@ -174,7 +174,7 @@ describe("policy on remote tools", () => {
     expect((await call(c, "delete_repo", { owner: "acme", repo: "web" })).ok).toBe(true);
     expect((await call(c, "delete_repo", { owner: "acme", repo: "web" })).ok).toBe(false); // budget 1/day
     expect(m.stats.calls).toMatchObject({ get_issue: 1, delete_repo: 1 });
-    const audit = await r.guard.store.queryAudit?.({ limit: 50 }) as any[] | undefined;
+    const audit = await r.guard!.store.queryAudit?.({ limit: 50 }) as any[] | undefined;
     if (audit) expect(audit.filter((e) => e.tool === "delete_repo").map((e) => e.decision)).toEqual(expect.arrayContaining(["allow", "deny"]));
   });
 
@@ -200,7 +200,7 @@ describe("protocol handling", () => {
     expect(logsSeen).toContain("slow_report started");
   });
 
-  it("tools/list_changed: re-plans so new tools get a decision, then notifies the agent", async () => {
+  it("tools/list_changed: tools added after startup were never planned, so they are denied and hidden; the agent is notified", async () => {
     const m = await mock({ auth: true });
     const { c, logs } = await guarded(m, { preset: "read-only" });
     let changed = 0;
@@ -209,12 +209,14 @@ describe("protocol handling", () => {
     m.addTool("archive_repo", { destructiveHint: true });
     await new Promise((x) => setTimeout(x, 400));
     expect(changed).toBeGreaterThan(0);
-    expect(logs.some((l) => l.includes("re-planned"))).toBe(true);
+    expect(logs.some((l) => l.includes("re-planned") && l.includes("denied until the proxy is restarted") && l.includes("list_releases"))).toBe(true);
     const visible = await names(c);
-    expect(visible).toContain("list_releases");
+    expect(visible).not.toContain("list_releases"); // even a read-annotated tool: nobody reviewed it at startup
     expect(visible).not.toContain("archive_repo");
-    expect((await call(c, "list_releases", { id: "1" })).text).toBe("list_releases ok");
+    expect(visible).toContain("search_docs"); // tools planned at startup keep their decision
+    expect((await call(c, "list_releases", { id: "1" })).ok).toBe(false);
     expect((await call(c, "archive_repo", { id: "1" })).ok).toBe(false);
+    expect(m.stats.calls.list_releases ?? 0).toBe(0);
     expect(m.stats.calls.archive_repo ?? 0).toBe(0);
   });
 

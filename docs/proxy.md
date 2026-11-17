@@ -48,15 +48,30 @@ Modifiers, combinable with any preset:
 - `--approval auto|elicit|queue|deny|allow` sets the approval channel (see below).
 - `--db path` sets the audit store (default `~/.mcp-rbac/audit.db`).
 - `--explain` lets the agent see why a call was blocked (default: a uniform `Forbidden (ref …)`).
-- `--policy file.json --role name` uses a written policy instead of a preset.
+- `--policy file --role name` uses a written policy instead of a preset:
+  - a portable policy (`mcp-rbac.yaml`, the format in [policy-format.md](policy-format.md), YAML or JSON) runs on the
+    **Rust core** (WASM), so the proxy makes exactly the decisions the library bindings make. Its audit chain goes to
+    the `core_audit` table of `--db` (`mcp-rbac audit-verify` checks it). Upstream `tools/list_changed` notifications
+    are not forwarded on this path; the policy decides every tool by name, so a new tool is denied unless the policy
+    names it (or grants `*`).
+  - the legacy JSON format written by `mcp-rbac init` keeps the older TypeScript engine.
+  - `--engine core|legacy` forces one. Presets always use the TypeScript engine: `--paths` needs filesystem checks
+    (symlinks, `~`, relative paths) that the portable core does not do.
 
 **How risk is inferred.**
 
 - `destructiveHint: true`, or a destructive verb in the name (delete, remove, drop, reset, merge, overwrite, force, …), means destructive.
+- Otherwise a write signal in the name means write, even next to a read verb and even with `readOnlyHint: true`: a
+  write verb anywhere (create, update, set, add, replace, move, …: `update_status`, `find_and_replace`,
+  `get_or_create_user`, `user_update`), a verb-or-noun word in verb position (`order_pizza` but not `get_order`), or a
+  verb plus a particle (`check_in`, `sign_up`).
 - Otherwise `readOnlyHint: true`, or a read verb (get, list, read, search, show, status, diff, log, …), means read.
 - Anything else, including unknown verbs, counts as write.
 
-A `readOnlyHint` on a tool named `delete_*` is not trusted. A read-named tool that takes free-form `sql` / `command` / `script` / `code` counts as write. Tools added after startup (`list_changed`) aren't in the plan, so they are denied.
+Annotations are self-declared by the server, so a `readOnlyHint` never overrides the name (`delete_*` stays
+destructive, `update_*` stays write). A read-named tool that takes free-form `sql` / `command` / `script` / `code`
+counts as write. Tools added after startup (`list_changed`) were not in the plan you reviewed, so they are denied and
+hidden until the proxy restarts and plans them (the log names them).
 
 **Approvals.**
 
@@ -88,7 +103,7 @@ mcp-rbac proxy --url https://api.example.com/mcp --header 'Authorization: Bearer
 - **Secrets never reach the agent.** Header values and tokens are scrubbed from every message the proxy sends downstream, even if a hostile upstream echoes its `Authorization` header in a result. Logs show header names only. Audit records only the agent's arguments.
 - **Protocol.**
   - Server notifications are forwarded: progress, logging, and resource and prompt changes.
-  - On `tools/list_changed` the proxy re-classifies the new tool list before telling the client, so a tool added later gets its own decision.
+  - On `tools/list_changed` the proxy re-plans before telling the client: tools from the startup plan keep their decision and tools added later are denied and hidden (restart the proxy to plan them).
   - Expired sessions (404) reconnect, and the failed request is retried once, which is safe because the server never ran it. Dropped connections reconnect with backoff.
   - `--timeout` bounds upstream calls, and progress resets it.
 

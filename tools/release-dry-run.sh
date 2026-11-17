@@ -14,15 +14,12 @@ OUT=${1:-$(mktemp -d /tmp/mcp-rbac-release.XXXXXX)}
 mkdir -p "$OUT"
 PYBOOT=${PYTHON:-python3}
 note() { printf '\n== %s\n' "$*"; }
+# Run a step with its output in a log; a failing step fails the dry run (prints the log), a passing one prints the
+# lines matching $1. (No `| grep ... || true`: that hid failures.)
+step() { local pat=$1 log; shift; log=$(mktemp "$OUT/step.XXXXXX.log"); if ! "$@" >"$log" 2>&1; then echo "FAILED: $*"; cat "$log"; exit 1; fi; grep -E "$pat" "$log" || true; }
 
 note "version consistency"
-V=$(node -p 'require("./package.json").version')
-pyv() { sed -n 's/^version = "\(.*\)"/\1/p' "$1" | head -1; }
-for f in python/pyproject.toml core/mcp-rbac-py/pyproject.toml core/Cargo.toml; do
-  [[ "$(pyv "$f")" == "$V" ]] || { echo "version mismatch: $f has $(pyv "$f"), package.json has $V"; exit 1; }
-done
-grep -q "mcp-rbac-core==$V" python/pyproject.toml || { echo "python/pyproject.toml must pin mcp-rbac-core==$V"; exit 1; }
-echo "all at $V"
+tools/check-versions.sh
 
 note "tooling venv"
 "$PYBOOT" -m venv "$OUT/venv"
@@ -66,8 +63,8 @@ rm -rf python/build python/dist
 ls -l "$OUT"/py
 
 note "PyPI mcp-rbac-core (core/mcp-rbac-py, wheel for this host + sdist)"
-"$OUT/venv/bin/maturin" build --release -m core/mcp-rbac-py/Cargo.toml --out "$OUT/py-core" 2>&1 | grep -E "Built wheel|error" || true
-"$OUT/venv/bin/maturin" sdist -m core/mcp-rbac-py/Cargo.toml --out "$OUT/py-core" 2>&1 | grep -E "Built source|error" || true
+step "Built wheel" "$OUT/venv/bin/maturin" build --release -m core/mcp-rbac-py/Cargo.toml --out "$OUT/py-core"
+step "Built source" "$OUT/venv/bin/maturin" sdist -m core/mcp-rbac-py/Cargo.toml --out "$OUT/py-core"
 "$OUT/venv/bin/twine" check --strict "$OUT"/py-core/*
 ls -l "$OUT"/py-core
 
@@ -78,8 +75,8 @@ note "install both wheels into a clean venv"
 "$OUT/py-app/bin/mcp-rbac-py" check docs/snippets/mcp-rbac.yaml
 
 note "crates.io mcp-rbac-core"
-(cd core && cargo package -p mcp-rbac-core --allow-dirty --target-dir "$OUT/cargo-target" 2>&1 | grep -E "Packaged|Verifying|Finished|error|warning: manifest" || true)
-(cd core && cargo publish --dry-run -p mcp-rbac-core --allow-dirty --target-dir "$OUT/cargo-target" 2>&1 | grep -E "Uploading|aborting upload|error" || true)
+step "Packaged|Verifying|Finished|warning: manifest" cargo package --manifest-path core/Cargo.toml -p mcp-rbac-core --allow-dirty --target-dir "$OUT/cargo-target"
+step "Uploading|aborting upload" cargo publish --manifest-path core/Cargo.toml --dry-run -p mcp-rbac-core --allow-dirty --target-dir "$OUT/cargo-target"
 ls -l "$OUT"/cargo-target/package/*.crate
 
 note "done: artifacts in $OUT (nothing was uploaded)"

@@ -4,9 +4,10 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
   workflow_dispatch:
+  workflow_call: # the release workflow runs the full CI first
 
 permissions:
   contents: read
@@ -41,6 +42,8 @@ jobs:
         with:
           python-version: "3.13"
       - run: npm ci --no-audit --no-fund
+      - name: Versions agree everywhere (manifests, core pin, __version__, instrumentation constants)
+        run: tools/check-versions.sh
       - name: TypeScript typecheck
         run: npx tsc --noEmit -p .
       # rustfmt is not enforced: the core uses a denser style than the rustfmt default
@@ -103,27 +106,44 @@ jobs:
         run: npx vitest run
 
   python:
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # Linux only: the cross-language tests launch TS servers (tsx, the WASM core) and the Go devops server, and the
+    # malformed-server soak reads /proc. The PyO3 wheels for macOS/Windows are built (not tested) by release.yml.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
         python: ["3.11", "3.13"]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: stable
+          targets: wasm32-unknown-unknown
+      - name: Install wasm-pack
+        run: cargo install --locked wasm-pack
+      - name: Node deps and the WASM cores (TS servers used by the Python cross-language tests; Go devops server)
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build:wasm
+          go/build-wasm.sh
       - name: Install the package and the PyO3 core
         run: |
           python -m venv python/.venv
           python/.venv/bin/pip install maturin
           (cd core/mcp-rbac-py && VIRTUAL_ENV="$GITHUB_WORKSPACE/python/.venv" ../../python/.venv/bin/maturin develop --release)
-          python/.venv/bin/pip install -e "python[dev]"
+          python/.venv/bin/pip install -e "python[dev,pdp,otlp]"
       - name: pytest
         working-directory: python
         run: .venv/bin/python -m pytest -q -rs

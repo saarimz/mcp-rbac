@@ -114,6 +114,8 @@ class CoreGuard:
         file, so every guard naming it writes one verifiable chain) or any object with ``write(record)``. One record
         per tools/call decision. A failed write is reported to ``on_audit_error`` (default: stderr); with
         ``audit_fail_closed`` an allowed call is denied (``audit_unavailable``) instead of running unrecorded.
+        ``{"path": ..., "otel": True | {...audit_otel_exporter options}}`` also exports every committed row as an OTel
+        log record with the chain fields, plus a commit span per batch (docs/otel.md, "Audit export").
 
         ``denials``: ``"reason"`` (default) returns ``Denied: <reason>`` to the agent; ``"uniform"`` returns
         ``Denied`` and omits the reason from the result's ``_meta`` (``on_decision`` and the audit still get it).
@@ -126,11 +128,18 @@ class CoreGuard:
         self._audit_fail_closed = audit_fail_closed
         self._on_audit_error = on_audit_error or (lambda e: print(f"mcp-rbac: audit write failed: {e}", file=sys.stderr))
         self.audit: Any = None
+        self._trace_ctx: Callable[[], dict[str, Any] | None] | None = None
         if isinstance(audit, (str, dict)):
             from mcp_rbac.audit_sink import shared_audit_sink
 
             o = {"path": audit} if isinstance(audit, str) else dict(audit)
             path = o.pop("path")
+            otel = o.pop("otel", None)
+            if otel:  # OTel audit export (docs/otel.md); OpenTelemetry is imported only here
+                from mcp_rbac.audit_otel import active_trace_context, audit_otel_exporter
+
+                o["on_commit"] = audit_otel_exporter(**(dict(otel) if isinstance(otel, dict) else {}))
+                self._trace_ctx = active_trace_context
             self.audit = shared_audit_sink(path, **o)
         elif audit is not None:
             if not callable(getattr(audit, "write", None)):
@@ -293,7 +302,10 @@ class CoreGuard:
             from mcp_rbac.audit_sink import audit_record_from_decision
 
             try:
-                aud.write(audit_record_from_decision(ev))
+                rec = audit_record_from_decision(ev)
+                if self._trace_ctx is not None and (tc := self._trace_ctx()) is not None:
+                    rec["trace"] = tc
+                aud.write(rec)
             except Exception as err:  # noqa: BLE001 - reported; fail-closed denies below
                 self._on_audit_error(err)
                 if self._audit_fail_closed and d["decision"] == "allow":

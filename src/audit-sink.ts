@@ -38,6 +38,25 @@ export interface AuditRecord {
   rule?: string | null;
   approved?: boolean;
   durationMs?: number;
+  /**
+   * Trace context of the request that made the decision (set by the OTel audit export, docs/otel.md). Correlation
+   * metadata only: NOT part of the hashed event and not stored, so the chain and audit-verify are unchanged.
+   */
+  trace?: AuditTraceContext;
+}
+
+export interface AuditTraceContext { traceId: string; spanId: string; traceFlags: number }
+
+/** One record as committed: its row id, the hashed event (canonical JSON) and its chain links. */
+export interface CommittedAuditRow {
+  table: string;
+  id: number;
+  event: Record<string, unknown>;
+  /** The exact canonical JSON that was hashed and stored (`chainHash(prev, event)` reproduces `hash`). */
+  canonical: string;
+  prev: string;
+  hash: string;
+  trace?: AuditTraceContext;
 }
 
 export interface AuditSinkOptions {
@@ -50,6 +69,12 @@ export interface AuditSinkOptions {
   /** Flush on SIGINT/SIGTERM (then re-raise if nothing else handles the signal). Default true. `exit` always flushes. */
   shutdownHooks?: boolean;
   onError?: (err: unknown) => void;
+  /**
+   * Called after each successful commit with the committed rows, in chain order (OTel audit export, docs/otel.md).
+   * Runs after COMMIT, so it only ever sees durable records; a throwing callback is reported to `onError` and never
+   * affects the audit itself.
+   */
+  onCommit?: (rows: CommittedAuditRow[]) => void;
 }
 
 export interface AuditSinkStats { written: number; dropped: number; queued: number; batches: number; maxQueued: number; errors: number }
@@ -59,7 +84,10 @@ const TABLE_RE = /^[A-Za-z_][A-Za-z0-9_]{0,62}$/;
 /** The hashed event: every non-null field of the record (`approved` and `durationMs` included), in canonical JSON. */
 export function auditEventOf(r: AuditRecord): Record<string, unknown> {
   const e: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(r)) if (v !== undefined && v !== null) e[k] = k === "durationMs" ? Math.round((v as number) * 1000) / 1000 : v;
+  for (const [k, v] of Object.entries(r)) {
+    if (v === undefined || v === null || k === "trace") continue; // trace: correlation metadata, never hashed
+    e[k] = k === "durationMs" ? Math.round((v as number) * 1000) / 1000 : v;
+  }
   return e;
 }
 
@@ -81,6 +109,7 @@ export class SqliteAuditSink {
   private readonly maxBatch: number;
   private readonly interval: number;
   private readonly onError: (err: unknown) => void;
+  private readonly onCommit: ((rows: CommittedAuditRow[]) => void) | undefined;
   private readonly onExit = () => this.flush();
   private readonly onSignal = (sig: NodeJS.Signals) => {
     this.flush();
@@ -96,6 +125,7 @@ export class SqliteAuditSink {
     this.maxBatch = Math.max(1, opts.maxBatch ?? 512);
     this.interval = Math.max(0, opts.flushIntervalMs ?? 5);
     this.onError = opts.onError ?? ((err) => process.stderr.write(`mcp-rbac audit: ${String(err)}\n`));
+    this.onCommit = opts.onCommit;
     this.db = new DatabaseSync(path);
     this.db.exec(`PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL; PRAGMA synchronous = ${opts.durability === "full" ? "FULL" : "NORMAL"};`);
     this.db.exec(`CREATE TABLE IF NOT EXISTS ${this.table} (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, sub TEXT, tool TEXT NOT NULL,
@@ -126,13 +156,16 @@ export class SqliteAuditSink {
 
   private commit(batch: AuditRecord[]): boolean {
     let head = this.head;
+    const rows: CommittedAuditRow[] | undefined = this.onCommit ? [] : undefined;
     try {
       this.db.exec("BEGIN IMMEDIATE");
       for (const r of batch) {
         const ev = auditEventOf(r);
         const hash = chainHash(head, ev);
-        this.ins.run(r.at, r.sub ?? null, r.tool, r.decision, r.reason, r.tenant ?? null, r.rule ?? null,
-          r.approved === undefined ? null : r.approved ? 1 : 0, ev.durationMs as number ?? null, canonicalJson(ev), head, hash);
+        const canonical = canonicalJson(ev);
+        const res = this.ins.run(r.at, r.sub ?? null, r.tool, r.decision, r.reason, r.tenant ?? null, r.rule ?? null,
+          r.approved === undefined ? null : r.approved ? 1 : 0, ev.durationMs as number ?? null, canonical, head, hash);
+        rows?.push({ table: this.table, id: Number(res.lastInsertRowid), event: ev, canonical, prev: head, hash, ...(r.trace ? { trace: r.trace } : {}) });
         head = hash;
       }
       this.db.exec("COMMIT");
@@ -140,6 +173,7 @@ export class SqliteAuditSink {
       this.s.written += batch.length;
       this.s.batches++;
       this.err = undefined;
+      if (rows) { try { this.onCommit!(rows); } catch (e) { this.onError(new Error(`audit onCommit callback failed (the records are committed): ${String(e)}`)); } }
       return true;
     } catch (err) {
       try { this.db.exec("ROLLBACK"); } catch { /* not in a transaction */ }

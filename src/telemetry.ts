@@ -1,4 +1,9 @@
-import { ROOT_CONTEXT, SpanKind, trace, type Span, type Tracer, TraceFlags } from "@opentelemetry/api";
+import { createRequire } from "node:module";
+import type { Span, Tracer } from "@opentelemetry/api";
+
+/** @opentelemetry/api is an optional peer dependency: loaded on the first traced call (a tracer was configured). */
+let api: typeof import("@opentelemetry/api") | undefined;
+const otelApi = () => (api ??= createRequire(import.meta.url)("@opentelemetry/api") as typeof import("@opentelemetry/api"));
 
 /**
  * OpenTelemetry for guarded MCP calls, following the MCP semantic conventions
@@ -16,7 +21,7 @@ export function parseTraceparent(v: unknown): { traceId: string; spanId: string;
 
 export function formatTraceparent(span: Span): string {
   const sc = span.spanContext();
-  return `00-${sc.traceId}-${sc.spanId}-${(sc.traceFlags & TraceFlags.SAMPLED ? 1 : 0).toString(16).padStart(2, "0")}`;
+  return `00-${sc.traceId}-${sc.spanId}-${(sc.traceFlags & 1 ? 1 : 0).toString(16).padStart(2, "0")}`;
 }
 
 const METHOD = { tool: "tools/call", resource: "resources/read", prompt: "prompts/get" } as const;
@@ -30,6 +35,7 @@ export interface GuardSpan {
 export function startGuardSpan(tracer: Tracer, kind: "tool" | "resource" | "prompt", name: string, extra: any): GuardSpan {
   const meta = extra?._meta && typeof extra._meta === "object" ? extra._meta : {};
   const parent = parseTraceparent(meta.traceparent);
+  const { ROOT_CONTEXT, SpanKind, trace } = otelApi();
   const ctx = parent ? trace.setSpanContext(ROOT_CONTEXT, { ...parent, isRemote: true }) : ROOT_CONTEXT;
   const method = METHOD[kind];
   const attrs: Record<string, string> = { "mcp.method.name": method };

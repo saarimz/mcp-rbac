@@ -13,7 +13,7 @@
  */
 import { isMainThread, MessageChannel, receiveMessageOnPort, Worker, workerData, parentPort, type MessagePort } from "node:worker_threads";
 import { resolve as resolvePath } from "node:path";
-import { SqliteAuditSink, type AuditRecord, type AuditSinkOptions, type AuditSinkStats } from "./audit-sink.js";
+import { SqliteAuditSink, type AuditRecord, type AuditSinkOptions, type AuditSinkStats, type CommittedAuditRow } from "./audit-sink.js";
 
 type Msg = { t: "w"; rs: AuditRecord[] } | { t: "f" | "c"; sab: SharedArrayBuffer; port: MessagePort };
 /** Worker -> main: a commit failed ({e}) or recovered ({ok}). */
@@ -29,6 +29,9 @@ export class WorkerAuditSink {
   private err: string | undefined;
   private dead = false;
   private readonly onError: (err: unknown) => void;
+  /** Committed rows come back on their own port, so flush() can drain them synchronously (receiveMessageOnPort). */
+  private readonly commits: MessagePort | undefined;
+  private readonly onCommit: ((rows: CommittedAuditRow[]) => void) | undefined;
   private readonly onExit = () => { this.flush(); };
   private readonly onSignal = (sig: NodeJS.Signals) => {
     this.flush();
@@ -37,8 +40,17 @@ export class WorkerAuditSink {
   };
 
   constructor(path: string, opts: Omit<AuditSinkOptions, "mode"> = {}) {
-    const { shutdownHooks, onError, ...rest } = opts;
+    const { shutdownHooks, onError, onCommit, ...rest } = opts;
     this.onError = onError ?? ((e) => process.stderr.write(`mcp-rbac audit: ${String(e)}\n`));
+    this.onCommit = onCommit;
+    let commitPort: MessagePort | undefined;
+    if (onCommit) {
+      const ch = new MessageChannel();
+      this.commits = ch.port1;
+      commitPort = ch.port2;
+      this.commits.on("message", (rows: CommittedAuditRow[]) => this.deliver(rows));
+      this.commits.unref();
+    }
     // the worker loads this same module; from TypeScript sources (tests, tsx) it registers tsx first
     const self = import.meta.url;
     // boot handshake: the worker sets ready[0] = 1 once the sink is open, 2 if it failed (bad path, no TS loader, ...)
@@ -47,7 +59,11 @@ export class WorkerAuditSink {
 const fail = (e) => { process.stderr.write("mcp-rbac audit worker failed to start: " + (e && e.stack || e) + "\\n");
   const a = new Int32Array(workerData.ready); Atomics.store(a, 0, 2); Atomics.notify(a, 0); process.exit(1); };
 (async () => { if (workerData.self.endsWith(".ts")) (await import("tsx/esm/api")).register(); await import(workerData.self); })().catch(fail);`;
-    this.w = new Worker(boot, { eval: true, workerData: { mcpRbacAuditWorker: true, self, path, ready, opts: { ...rest, mode: "batched", shutdownHooks: false } } });
+    this.w = new Worker(boot, {
+      eval: true,
+      workerData: { mcpRbacAuditWorker: true, self, path, ready, commits: commitPort, opts: { ...rest, mode: "batched", shutdownHooks: false } },
+      transferList: commitPort ? [commitPort] : [],
+    });
     // a dead worker is never silent: writes throw, healthy() is false, onError hears about it
     this.w.on("exit", (code) => { if (!this.closed) this.die(`audit worker exited with code ${code}`); });
     this.w.on("error", (e) => this.die(`audit worker: ${String(e)}`));
@@ -66,6 +82,16 @@ const fail = (e) => { process.stderr.write("mcp-rbac audit worker failed to star
       throw new Error(st === "timed-out" ? "mcp-rbac audit worker did not start within 30 s" : `mcp-rbac audit worker failed to start (${path})`);
     }
     this.sync("f"); // open + schema created before the first write returns (fail fast on a bad path)
+  }
+
+  private deliver(rows: CommittedAuditRow[]): void {
+    try { this.onCommit?.(rows); } catch (e) { this.onError(new Error(`audit onCommit callback failed (the records are committed): ${String(e)}`)); }
+  }
+
+  /** Hand every commit notification already sent by the worker to onCommit (called after a flush reply). */
+  private drainCommits(): void {
+    if (!this.commits) return;
+    for (let m = receiveMessageOnPort(this.commits); m; m = receiveMessageOnPort(this.commits)) this.deliver(m.message as CommittedAuditRow[]);
   }
 
   private die(why: string): void {
@@ -107,6 +133,7 @@ const fail = (e) => { process.stderr.write("mcp-rbac audit worker failed to star
     if (!m) throw new Error("mcp-rbac audit worker: no reply");
     if ((m.message as { error?: string }).error) throw new Error(`mcp-rbac audit worker: ${(m.message as { error: string }).error}`);
     this.last = m.message as Reply;
+    this.drainCommits(); // the worker posts commit rows before it replies, so they are all queued by now
     return this.last;
   }
 
@@ -122,14 +149,19 @@ const fail = (e) => { process.stderr.write("mcp-rbac audit worker failed to star
     this.closed = true;
     process.off("exit", this.onExit);
     for (const sig of ["SIGINT", "SIGTERM"] as const) process.off(sig, this.onSignal);
+    this.commits?.close();
     void this.w.terminate();
   }
 }
 
 if (!isMainThread && (workerData as { mcpRbacAuditWorker?: boolean } | null)?.mcpRbacAuditWorker) {
-  const { path, opts, ready } = workerData as { path: string; opts: AuditSinkOptions; ready: SharedArrayBuffer };
+  const { path, opts, ready, commits } = workerData as { path: string; opts: AuditSinkOptions; ready: SharedArrayBuffer; commits?: MessagePort };
   let failing = false;
-  const sink = new SqliteAuditSink(path, { ...opts, onError: (e) => { failing = true; parentPort!.postMessage({ e: String(e) } satisfies Note); } });
+  const sink = new SqliteAuditSink(path, {
+    ...opts,
+    onError: (e) => { failing = true; parentPort!.postMessage({ e: String(e) } satisfies Note); },
+    ...(commits ? { onCommit: (rows: CommittedAuditRow[]) => commits.postMessage(rows) } : {}),
+  });
   const recovered = () => { if (failing && sink.healthy()) { failing = false; parentPort!.postMessage({ ok: true } satisfies Note); } };
   { const a = new Int32Array(ready); Atomics.store(a, 0, 1); Atomics.notify(a, 0); }
   parentPort!.on("message", (m: Msg) => {

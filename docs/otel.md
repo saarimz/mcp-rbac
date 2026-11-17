@@ -11,6 +11,19 @@ One telemetry contract, implemented identically by the four Rust-core bindings:
 
 Telemetry is **off by default**. It only uses the OpenTelemetry API, so without an SDK installed every call is a no-op.
 
+**Installing (TypeScript).** OpenTelemetry is not a hard dependency of `mcp-rbac` (0.6): `@opentelemetry/api`,
+`@opentelemetry/api-logs` and `@opentelemetry/core` are optional peer dependencies, and the guard only loads them when
+you set `telemetry` or `audit.otel` (the legacy `Guard` loads `@opentelemetry/api` on its first traced call when given
+a `tracer`). A plain `npm install mcp-rbac` pulls in none of them. To use telemetry:
+
+```sh
+npm install @opentelemetry/api @opentelemetry/api-logs @opentelemetry/core   # + your SDK / exporters
+```
+
+Asking for telemetry without them fails at `protectWithCore` time with the module-not-found error (never silently).
+Python: `mcp` already depends on `opentelemetry-api`; `mcp_rbac.core_otel` / `mcp_rbac.audit_otel` are imported only
+when asked for. Go and Rust: compiled in (Rust behind the `otel` feature).
+
 ## Semantic conventions (version)
 
 OpenTelemetry **GenAI semantic conventions, MCP section**:
@@ -78,10 +91,59 @@ through the binding's native logger or callback:
 
 So a log line can be joined to its trace in any backend.
 
+## Audit export (hash-chained audit as OTel logs + spans)
+
+The decision **audit** (docs/AUDIT.md: SQLite, hash-chained) can be exported to OpenTelemetry as well. This is
+separate from the decision telemetry above: it exports the *committed audit rows*, with their chain fields, so a log
+backend holds a verifiable copy of the audit.
+
+| Language | Enable |
+|----------|--------|
+| TypeScript | `protectWithCore(inner, { ..., audit: { path: "audit.db", otel: true \| { loggerProvider, tracerProvider, spans, includeEvent } } })`; or `onCommit: auditOtelExporter(...)` on `openAuditSink` / `SqliteAuditSink` (`mcp-rbac/audit-otel`) |
+| Python | `CoreGuard(..., audit={"path": "audit.db", "otel": True \| {"logger_provider": ..., "tracer_provider": ..., "spans": ..., "include_event": ...}})`; or `SqliteAuditSink(..., on_commit=audit_otel_exporter(...))` |
+| Go | `NewAuditSink(db, AuditSinkOptions{OnCommit: NewAuditOtelExporter(AuditOtelOptions{...})})`, and `rec.Trace = AuditTraceFromContext(ctx)` when you write the record (the Go guard has no built-in audit; you write records from `OnDecision`) |
+| Rust (rmcp) | not yet (no built-in audit sink in the rmcp decorator) |
+
+**One log record per committed row** (event name `mcp_rbac.audit`, severity INFO for allow, WARN otherwise):
+
+| field | value |
+|-------|-------|
+| body | the exact canonical event that was hashed and stored (`event` column), so `sha256(prev + "\n" + canonical({...event, prev}))` re-derives `hash` from the log alone. With `includeEvent: false` / `include_event=False` / `OmitEvent`: `mcp_rbac.audit {decision} {tool}` |
+| `mcp_rbac.audit.id` | row id (the chain position) |
+| `mcp_rbac.audit.hash`, `mcp_rbac.audit.prev` | the chain links |
+| `mcp_rbac.audit.table` | audit table |
+| `mcp_rbac.audit.at`, `gen_ai.tool.name`, `mcp_rbac.decision`, `mcp_rbac.reason`, `mcp_rbac.rule`, `mcp_rbac.tenant`, `mcp_rbac.approved`, `mcp_rbac.audit.duration_ms` | the event's fields (when present) |
+| trace context | the **request's** trace/span (the span active when the decision was made: the guard's server span, or your SDK's) |
+
+**One span per committed batch**: `mcp_rbac.audit.commit` (INTERNAL, its own root), with **links** to every request
+span in the batch and `mcp_rbac.audit.{table,count,first_id,last_id,prev,head}`. `head` is the chain head after the
+batch, so the span alone pins the chain at that point. Turn it off with `spans: false` / `NoSpans`.
+
+Guarantees and choices:
+- **Only durable records are exported.** Export runs after the SQLite COMMIT (on the worker thread's commit
+  notifications in TS `worker` mode, drained synchronously by `flush()`/`close()`; on the writer thread in Python/Go
+  batched mode). A failed commit exports nothing.
+- **Export never affects the audit.** A throwing/panicking exporter is reported to `onError`/`on_error`/`OnError`
+  ("the records are committed") and the sink stays healthy; `failClosed` is not tripped by an exporter problem.
+- **The trace context is not hashed and not stored**, so the chain format, existing tables and `audit-verify` are
+  unchanged.
+- **The subject is exported by default** (it is in the hashed event, and the body is what makes the logs
+  verifiable). This is the one place an identity value leaves the process through OTel; use `includeEvent: false` to
+  keep it out (the hash fields still let you match each log record to the SQLite row). Arguments and results are
+  never in the audit, so they are never exported.
+- The OTel export is a copy, not a replacement: keep the SQLite chain as the system of record, and alert if the
+  exported `head` stops matching `mcp-rbac audit-verify`.
+
+**Working example**: `npx tsx examples/audit-otel/audit-otel.ts` (console exporters; set
+`OTEL_EXPORTER_OTLP_ENDPOINT` for OTLP/HTTP). It makes three calls, re-verifies the chain from the exported log records
+alone and checks the head against the SQLite chain. Tests: `test/audit-otel.test.ts` (all three TS sink modes, the
+example, lazy loading), `python/tests/test_audit_otel.py`, `go/examples/devops/audit_otel_test.go`.
+
 ## What is never recorded
 
 Tool **arguments**, tool **results**, the **identity** (id, name, clientId, roles, scopes, actors, tenant), tokens,
-limit **keys**, `_meta` other than `traceparent`/`tracestate`, and baggage.
+limit **keys**, `_meta` other than `traceparent`/`tracestate`, and baggage. (Exception, opt-in: the audit export
+above carries the audit event, which includes the subject id and tenant, unless `includeEvent: false`.)
 
 The semconv's opt-in `gen_ai.tool.call.arguments` and `gen_ai.tool.call.result` are deliberately not offered: an
 authorization layer sees every argument of every call, including denied ones. Each binding has a test that plants

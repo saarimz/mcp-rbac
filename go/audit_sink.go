@@ -33,6 +33,25 @@ type AuditRecord struct {
 	Rule       string // "" = null
 	Approved   *bool
 	DurationMs *float64
+	// Trace is the trace context of the request that made the decision (OTel audit export, docs/otel.md).
+	// Correlation metadata only: not hashed, not stored. Set it with AuditTraceFromContext.
+	Trace *AuditTraceContext
+}
+
+// AuditTraceContext is a W3C trace context in hex (traceId 32, spanId 16).
+type AuditTraceContext struct {
+	TraceID, SpanID string
+	TraceFlags      byte
+}
+
+// CommittedAuditRow is one record as committed: row id, the hashed event (canonical JSON) and its chain links.
+type CommittedAuditRow struct {
+	Table     string
+	ID        int64
+	Record    AuditRecord
+	Canonical string // the exact hashed and stored event: AuditChainHash(Prev, Canonical) == Hash
+	Prev      string
+	Hash      string
 }
 
 // AuditSinkOptions configures NewAuditSink. Zero values pick the defaults.
@@ -44,6 +63,10 @@ type AuditSinkOptions struct {
 	FlushInterval time.Duration // default 5ms: how long the writer waits for a batch to fill
 	Overflow      string        // "block" (default: Write waits, nothing lost) or "drop" (counted in Stats().Dropped)
 	OnError       func(error)
+	// OnCommit is called after each successful commit with the committed rows in chain order (OTel audit export:
+	// NewAuditOtelExporter). It runs after COMMIT, on the writer goroutine in batched mode; a panic is recovered and
+	// reported to OnError, and never affects the audit.
+	OnCommit func([]CommittedAuditRow)
 }
 
 // AuditSinkStats are counters since the sink was opened.
@@ -64,6 +87,7 @@ type AuditSink struct {
 	interval time.Duration
 	overflow string
 	onError  func(error)
+	onCommit func([]CommittedAuditRow)
 	ins      string
 
 	ch     chan any // AuditRecord or chan struct{} (flush marker)
@@ -80,7 +104,7 @@ var auditTableRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,62}$`)
 
 // NewAuditSink creates the table if needed and continues the chain from its last row.
 func NewAuditSink(db *sql.DB, o AuditSinkOptions) (*AuditSink, error) {
-	s := &AuditSink{db: db, mode: o.Mode, table: o.Table, maxBatch: o.MaxBatch, interval: o.FlushInterval, overflow: o.Overflow, onError: o.OnError}
+	s := &AuditSink{db: db, mode: o.Mode, table: o.Table, maxBatch: o.MaxBatch, interval: o.FlushInterval, overflow: o.Overflow, onError: o.OnError, onCommit: o.OnCommit}
 	if s.mode == "" {
 		s.mode = "batched"
 	}
@@ -269,6 +293,7 @@ func (s *AuditSink) run() {
 
 func (s *AuditSink) commit(batch []AuditRecord) (err error) {
 	head := s.head
+	var rows []CommittedAuditRow
 	tx, err := s.db.Begin()
 	if err == nil {
 		for _, r := range batch {
@@ -284,8 +309,13 @@ func (s *AuditSink) commit(batch []AuditRecord) (err error) {
 			if r.DurationMs != nil {
 				dur = round3(*r.DurationMs)
 			}
-			if _, err = tx.Exec(s.ins, r.At, nullable(r.Sub), r.Tool, r.Decision, r.Reason, nullable(r.Tenant), nullable(r.Rule), ap, dur, ev, head, h); err != nil {
+			var res sql.Result
+			if res, err = tx.Exec(s.ins, r.At, nullable(r.Sub), r.Tool, r.Decision, r.Reason, nullable(r.Tenant), nullable(r.Rule), ap, dur, ev, head, h); err != nil {
 				break
+			}
+			if s.onCommit != nil {
+				id, _ := res.LastInsertId()
+				rows = append(rows, CommittedAuditRow{Table: s.table, ID: id, Record: r, Canonical: ev, Prev: head, Hash: h})
 			}
 			head = h
 		}
@@ -306,6 +336,16 @@ func (s *AuditSink) commit(batch []AuditRecord) (err error) {
 	s.head = head
 	s.stats.Written += len(batch)
 	s.stats.Batches++
+	if s.onCommit != nil && len(rows) > 0 {
+		func() {
+			defer func() {
+				if p := recover(); p != nil {
+					s.onError(fmt.Errorf("audit OnCommit callback failed (the records are committed): %v", p))
+				}
+			}()
+			s.onCommit(rows)
+		}()
+	}
 	return nil
 }
 

@@ -78,6 +78,14 @@ still verifies (`test/audit-sink.test.ts`, `python/tests/test_audit_sink.py`).
 rounded to 3 decimals. `hash = sha256(prev + "\n" + canonicalJSON({...event, prev}))`. This is the same
 construction as the in-memory chain in `src/audit-chain.ts`.
 
+## Exporting to OpenTelemetry
+
+Committed rows can also be exported as OTel log records (`mcp_rbac.audit`, with `id`/`hash`/`prev` and the hashed
+event as the body) plus one `mcp_rbac.audit.commit` span per batch: `audit: { path, otel: true }` (TS),
+`audit={"path": ..., "otel": True}` (Python), `AuditSinkOptions.OnCommit: NewAuditOtelExporter(...)` (Go). Export runs
+after COMMIT and can never lose or delay a record. Details: [otel.md, "Audit export"](otel.md#audit-export-hash-chained-audit-as-otel-logs--spans);
+example: `examples/audit-otel/audit-otel.ts`.
+
 ## Performance (venue server, one MCP session, loopback; bench/competitors)
 
 | Audit | c=1 p50 / p99 ms | c=32 req/s |

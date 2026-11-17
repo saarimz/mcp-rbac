@@ -20,7 +20,9 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { CoreTelemetry, type CoreTelemetryOptions } from "./core-otel.js";
+// OpenTelemetry is loaded only when asked for (telemetry / audit.otel): @opentelemetry/* are optional peer deps
+import type { CoreTelemetry, CoreTelemetryOptions } from "./core-otel.js";
+import type { AuditOtelOptions } from "./audit-otel.js";
 import type { AuditSinkMode, AuditWriter } from "./audit-worker.js";
 import { CallToolRequestSchema, CallToolResultSchema, ListToolsRequestSchema, ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 
@@ -181,7 +183,16 @@ export interface CoreGuardOptions {
    * `failClosed: true` denies calls (reason `audit_unavailable`) while the sink is unhealthy (a failed commit, a dead
    * worker); by default a failing audit is reported (`onAuditError`, stderr) and calls proceed.
    */
-  audit?: string | { path: string; mode?: AuditSinkMode; table?: string; failClosed?: boolean } | AuditWriter;
+  audit?: string | {
+    path: string; mode?: AuditSinkMode; table?: string; failClosed?: boolean;
+    /**
+     * Export every committed audit row as an OTel log record (`mcp_rbac.audit`, with the chain fields and the hashed
+     * event) plus one `mcp_rbac.audit.commit` span per batch (docs/otel.md, "Audit export"). `true` = global
+     * providers. Needs `@opentelemetry/api` and `@opentelemetry/api-logs` installed. For a shared sink, the first
+     * guard to open the file decides.
+     */
+    otel?: boolean | AuditOtelOptions;
+  } | AuditWriter;
   /** Deny calls while the audit sink is unhealthy (same as `audit: { failClosed: true }`; works with an AuditWriter). */
   auditFailClosed?: boolean;
   /** Called when writing an audit record fails (default: one line on stderr). */
@@ -283,8 +294,15 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
     const { auditRecordFromDecision } = await import("./audit-sink.js");
     toRecord = auditRecordFromDecision;
     const a = opts.audit;
+    let onCommit: ((rows: import("./audit-sink.js").CommittedAuditRow[]) => void) | undefined;
+    if (typeof a === "object" && !("write" in a) && a.otel) {
+      const ao = await import("./audit-otel.js");
+      onCommit = ao.auditOtelExporter(a.otel === true ? {} : a.otel);
+      toRecord = (e) => { const r = auditRecordFromDecision(e); const t = ao.activeTraceContext(); if (t) r.trace = t; return r; };
+    }
     sink = typeof a === "object" && "write" in a ? a
-      : typeof a === "string" ? sharedAuditSink(a) : sharedAuditSink(a.path, { ...(a.mode ? { mode: a.mode } : {}), ...(a.table ? { table: a.table } : {}) });
+      : typeof a === "string" ? sharedAuditSink(a)
+      : sharedAuditSink(a.path, { ...(a.mode ? { mode: a.mode } : {}), ...(a.table ? { table: a.table } : {}), ...(onCommit ? { onCommit } : {}) });
   };
   if (inPlace) await openSink();
   if (inPlace) {
@@ -359,8 +377,9 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
   }
   const ids = (extra: any) => idsOf(extra, protocolVersion ?? outer._negotiatedProtocolVersion);
   const now = opts.now ?? Date.now;
-  const tel = opts.telemetry instanceof CoreTelemetry ? opts.telemetry
-    : opts.telemetry ? new CoreTelemetry(opts.telemetry === true ? {} : opts.telemetry) : undefined;
+  const tel: CoreTelemetry | undefined = !opts.telemetry ? undefined
+    : typeof (opts.telemetry as CoreTelemetry).serverSpan === "function" ? opts.telemetry as CoreTelemetry
+    : new (await import("./core-otel.js")).CoreTelemetry(opts.telemetry === true ? {} : opts.telemetry as CoreTelemetryOptions);
   if (!hasTools) return { server: outer, engine };
   const audit = sink;
   // Tool semantics (spec/tool-semantics.md): only when the policy has a `semantics` block (an invalid request's denial

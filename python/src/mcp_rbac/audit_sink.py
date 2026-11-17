@@ -74,7 +74,12 @@ class SqliteAuditSink:
     def __init__(self, path: str, *, mode: str = "batched", table: str = "audit", max_queue: int = 10_000,
                  max_batch: int = 512, flush_interval_s: float = 0.005, overflow: str = "block",
                  durability: str = "normal", shutdown_hooks: bool = True,
-                 on_error: Callable[[BaseException], None] | None = None) -> None:
+                 on_error: Callable[[BaseException], None] | None = None,
+                 on_commit: Callable[[list[dict[str, Any]]], None] | None = None) -> None:
+        """``on_commit``: called after each successful commit with the committed rows in chain order
+        (``{"table", "id", "event", "canonical", "prev", "hash", "trace"?}``; OTel audit export, docs/otel.md). It runs
+        after COMMIT (on the writer thread in batched mode); an exception is reported to ``on_error`` and never
+        affects the audit."""
         if mode not in ("sync", "batched"):
             raise ValueError(f"bad audit mode: {mode}")
         if not _TABLE.match(table):
@@ -85,6 +90,7 @@ class SqliteAuditSink:
         self.max_batch = max(1, max_batch)
         self.flush_interval_s = max(0.0, flush_interval_s)
         self._on_error = on_error or (lambda err: print(f"mcp-rbac audit: {err}", file=sys.stderr))
+        self._on_commit = on_commit
         self._db = sqlite3.connect(path, check_same_thread=False, isolation_level=None, timeout=5.0)
         self._db.execute("PRAGMA journal_mode = WAL")
         self._db.execute(f"PRAGMA synchronous = {'FULL' if durability == 'full' else 'NORMAL'}")
@@ -235,15 +241,18 @@ class SqliteAuditSink:
         head = self._head
         rows = []
         for r in batch:
-            ev = audit_event_of(r)
+            ev = audit_event_of(r)  # only the known fields: a record's "trace" is correlation metadata, never hashed
             h = chain_hash(head, ev)
             ap = r.get("approved")
             rows.append((r["at"], r.get("sub"), r["tool"], r["decision"], r["reason"], r.get("tenant"), r.get("rule"),
                          None if ap is None else int(bool(ap)), ev.get("durationMs"), canonical_json(ev), head, h))
             head = h
+        last_id = 0
         try:
             self._db.execute("BEGIN IMMEDIATE")
             self._db.executemany(self._sql, rows)
+            if self._on_commit is not None:  # ids are contiguous: one writer holds the lock for the whole batch
+                last_id = int(self._db.execute("SELECT last_insert_rowid()").fetchone()[0])
             self._db.execute("COMMIT")
         except BaseException as err:  # noqa: BLE001
             try:
@@ -260,6 +269,19 @@ class SqliteAuditSink:
         self._head = head
         self._stats["written"] += len(batch)
         self._stats["batches"] += 1
+        if self._on_commit is not None:
+            first = last_id - len(rows) + 1
+            committed = []
+            for i, (r, row) in enumerate(zip(batch, rows)):
+                c: dict[str, Any] = {"table": self.table, "id": first + i, "event": json.loads(row[9]), "canonical": row[9],
+                                     "prev": row[10], "hash": row[11]}
+                if r.get("trace"):
+                    c["trace"] = r["trace"]
+                committed.append(c)
+            try:
+                self._on_commit(committed)
+            except Exception as err:  # noqa: BLE001 - the records are committed; export problems never affect the audit
+                self._on_error(RuntimeError(f"audit on_commit callback failed (the records are committed): {err}"))
         return True
 
 

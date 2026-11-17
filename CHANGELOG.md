@@ -1,5 +1,57 @@
 # Changelog
 
+## Unreleased (planned 0.6.0; local only, version not bumped)
+
+Fixes from the two 0.5 reviews (PROGRESS.md, P13), plus audit export to OpenTelemetry.
+
+**Breaking**
+- **Approval `when` fails closed** (Rust core, pure TS and Python engines): a call skips approval only when every
+  argument the `when` tests is present and well-typed and a rule does not hold. A missing or mistyped argument now
+  needs approval (7 older conformance vectors moved allow → needs_approval).
+- **`narrowIdentity` intersects the scope** and never widens it.
+- **Every guard refuses resources, prompts and completion** (-32601): Python `CoreGuard`, Go and rmcp now match TS.
+- **Cold start is fail-closed** for semantics policies: a `tools/call` before any `tools/list` reads the server's own
+  list for annotations, or is denied `tool_meta_unavailable` (class rules are never skipped). Go denies a
+  `tools/call` with nil params.
+- **Grants:** a scope-less tool joins only free tools.
+- **Packaging:** `@modelcontextprotocol/sdk` is a peer dependency; `@opentelemetry/{api,api-logs,core}` are optional
+  peers, loaded only when telemetry or audit export is turned on.
+- **Redaction:** a top-level array is a list of records (`email` on `[{…}]` is `*.email`) in every engine and the
+  legacy `redactFields`.
+
+**Added**
+- **Audit export to OpenTelemetry** (TS `audit: { path, otel }` / `mcp-rbac/audit-otel`, Python
+  `audit={"path", "otel"}` / `mcp_rbac.audit_otel`, Go `AuditSinkOptions.OnCommit: NewAuditOtelExporter(...)`): each
+  committed audit row becomes an `mcp_rbac.audit` log record with `mcp_rbac.audit.{id,hash,prev,table,at}` and the
+  hashed event as the body (so a collector can re-verify the chain), in the request's trace; one
+  `mcp_rbac.audit.commit` span per batch links the request spans. Export runs after COMMIT and never affects the audit.
+  Example: `examples/audit-otel/`; docs/otel.md "Audit export".
+- **Go `DecisionEvent.Context`**: the request context in `OnDecision`, for `AuditTraceFromContext`.
+- **Python `CoreGuard`**: `audit=` (shared hash-chained sink per file), `audit_fail_closed`, `on_audit_error`, async
+  `identity`, `denials="uniform"`, shared engines.
+- **TS core guard**: built-in approvers (`approve: "elicit" | "queue" | "auto"`), audit failures surface
+  (`onAuditError`, `failClosed`), a byte-bounded parsed decision cache, progress notifications in place and through
+  the hop.
+- **Lints**: an approval argument that no required `tools.<t>.limits` entry covers; per-role limits bypassed by a
+  second grant of the same role.
+- **Proxy**: YAML policies (`--policy`) run on the Rust core; tools added after startup are denied.
+- **Release**: CI is reusable and runs on master and main with a Linux Python job; the release workflow is gated on
+  CI, `tools/check-versions.sh` and the dry run, publishes crates → PyPI core → PyPI → npm with skip-existing, and
+  publishes for real only from a `v*` tag. The dry run fails on release placeholders (SECURITY.md contact) unless
+  `ALLOW_PLACEHOLDERS=1`.
+- **Soak**: servers report post-GC heap and RSS (`MCP_RBAC_SOAK_STATS=1`); the gate is a least-squares heap slope over
+  the second half of the run.
+
+**Fixed**
+- Approver summaries show every argument (canonical order, explicit truncation markers).
+- The proxy classifier no longer trusts read verbs or `readOnlyHint` over write signals; `audit-verify` reads the
+  core audit tables.
+- The release dry run no longer hides failing steps.
+
+**Removed**
+- Launch drafts and the ITM staging client are no longer tracked (kept locally, gitignored); no machine-specific
+  paths in tests, benches or examples.
+
 ## 0.5.0 (release candidate; local only, not published)
 
 The first version meant for the registries: a narrower default surface, faster defaults, and release plumbing.

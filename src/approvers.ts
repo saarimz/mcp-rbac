@@ -13,7 +13,7 @@ export function elicitationApprover(o: { timeoutMs?: number; requireReason?: boo
     if (!extra?.sendRequest) return "deny";
     const lines = [
       `"${req.agent}" (acting for ${req.user.name ?? req.user.id}) wants to run: ${req.tool}`,
-      req.effect ?? `Arguments: ${JSON.stringify(req.args).slice(0, 800)}`,
+      req.effect ?? summarizeArgs(req.tool, req.args),
       req.reasonRequired ? `You've approved ${req.recentApprovals} actions recently. A written reason is required.` : "",
     ].filter(Boolean);
     const res = await extra.sendRequest({
@@ -37,13 +37,30 @@ export function elicitationApprover(o: { timeoutMs?: number; requireReason?: boo
   };
 }
 
-/** Generic, server-agnostic effect text: tool + a compact summary of each argument. */
-export function summarizeArgs(tool: string, args: Record<string, unknown>, title?: string): string {
-  const parts = Object.entries(args).slice(0, 12).map(([k, v]) => {
-    if (typeof v === "string") return v.length > 120 ? `${k}=(${v.length} chars) "${v.slice(0, 60)}..."` : `${k}=${JSON.stringify(v)}`;
-    if (Array.isArray(v)) return `${k}=[${v.length} items] ${JSON.stringify(v).slice(0, 100)}`;
-    return `${k}=${JSON.stringify(v)?.slice(0, 100)}`;
+/** Canonical JSON: object keys sorted at every level, so equal arguments always read the same. */
+export function canonicalJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map((x) => canonicalJson(x === undefined ? null : x)).join(",")}]`;
+  if (v && typeof v === "object") {
+    return `{${Object.keys(v).sort().filter((k) => (v as Record<string, unknown>)[k] !== undefined).map((k) => `${JSON.stringify(k)}:${canonicalJson((v as Record<string, unknown>)[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(v) ?? "null";
+}
+
+/**
+ * Generic, server-agnostic effect text: tool + every argument, keys in canonical (sorted) order. Nothing is hidden
+ * silently: a long value is cut with an explicit `…[+N chars]` marker, and past `maxArgs` arguments the remaining
+ * argument NAMES are still listed (`+N more: a, b`), so an approver always sees that something was not shown.
+ */
+export function summarizeArgs(tool: string, args: Record<string, unknown>, title?: string, o: { maxArgs?: number; maxValue?: number } = {}): string {
+  const maxArgs = o.maxArgs ?? 12, maxValue = o.maxValue ?? 200;
+  const keys = Object.keys(args ?? {}).filter((k) => args[k] !== undefined).sort();
+  const cut = (s: string) => (s.length > maxValue ? `${s.slice(0, maxValue)}…[+${s.length - maxValue} chars]` : s);
+  const parts = keys.slice(0, maxArgs).map((k) => {
+    const v = args[k];
+    const body = cut(canonicalJson(v));
+    return Array.isArray(v) ? `${k}=[${v.length} items] ${body}` : `${k}=${body}`;
   });
+  if (keys.length > maxArgs) parts.push(`+${keys.length - maxArgs} more: ${keys.slice(maxArgs).join(", ")}`);
   return `${tool}${title ? ` (${title})` : ""}: ${parts.join(", ") || "(no arguments)"}`;
 }
 
@@ -156,7 +173,7 @@ const approvalSchema = {
 };
 const approvalMessage = (req: ApprovalRequest) => [
   `"${req.agent}" (acting for ${req.user.name ?? req.user.id}) wants to run: ${req.tool}`,
-  req.effect ?? `Arguments: ${JSON.stringify(req.args).slice(0, 800)}`,
+  req.effect ?? summarizeArgs(req.tool, req.args),
   req.reasonRequired ? `You've approved ${req.recentApprovals} actions recently. A written reason is required.` : "",
 ].filter(Boolean).join("\n\n");
 

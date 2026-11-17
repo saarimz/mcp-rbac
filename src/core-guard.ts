@@ -57,6 +57,23 @@ export function createCoreEngine(policy: string): CoreEngine {
 }
 
 /**
+ * Engines shared by policy text (P13): every `protectWithCore({ policy })` with the same policy string in this process
+ * uses ONE engine, so rate limits and budgets (which live in the engine) are shared by per-session guards instead of
+ * resetting with every new session. Bounded: past 64 distinct policies the oldest is dropped (its counters with it).
+ */
+const ENGINES = new Map<string, CoreEngine>();
+const MAX_SHARED_ENGINES = 64;
+export function sharedCoreEngine(policy: string): CoreEngine {
+  let e = ENGINES.get(policy);
+  if (!e) {
+    e = createCoreEngine(policy);
+    if (ENGINES.size >= MAX_SHARED_ENGINES) ENGINES.delete(ENGINES.keys().next().value!);
+    ENGINES.set(policy, e);
+  }
+  return e;
+}
+
+/**
  * Crossing into WASM encodes strings as UTF-8, which silently turns a lone surrogate into U+FFFD. Distinct identities
  * would collapse into one (and an escaped surrogate is rejected while a raw one passes). So a string that is not
  * well-formed gets the core's own answer for invalid input: the same as Python (which raises) and Go (ABI error).
@@ -96,16 +113,39 @@ export interface CoreGuardOptions {
   /** Policy text (YAML, or JSON starting with "{"). Ignored when `engine` is given. */
   policy?: string;
   /**
-   * A shared engine (createCoreEngine). Pass the same one to every per-session guard of a multi-session (HTTP) server:
-   * rate limits and budgets live in the engine, so one engine per session would reset them on every new session.
+   * A shared engine (createCoreEngine). Rate limits and budgets live in the engine. With `policy`, guards built from
+   * the same policy text already share one engine per process (see `shareEngine`); pass an engine explicitly to share
+   * counters across differently-spelled policies or to control the engine's lifetime.
    */
   engine?: CoreEngine;
+  /**
+   * With `policy`: reuse one engine per distinct policy text in this process (default true), so per-session guards of
+   * an HTTP server share rate limits and budgets. `false` = a private engine (fresh counters) for this guard.
+   */
+  shareEngine?: boolean;
   /** The caller's identity object (docs/policy-format.md "Decision request"), or undefined when unauthenticated. */
   identity: (extra: any) => unknown | Promise<unknown>;
   /** Enabled toolsets for this session (optional). */
   toolsets?: (extra: any) => string[] | undefined;
-  /** Called for needs_approval decisions; return true once a human approved. Default: never approved. */
-  approve?: (call: { tool: string; args: Record<string, unknown>; identity: unknown }, d: CoreDecision) => Promise<boolean> | boolean;
+  /**
+   * How needs_approval decisions are answered (default: never approved, the call returns "Approval required for X"):
+   * - `"elicit"`: ask the human in the MCP client (elicitation/create); a client without elicitation is denied.
+   * - `"queue"`: hold the call and wait for `mcp-rbac approve <id>` / `mcp-rbac deny <id>` (or `mcp-rbac pending
+   *   --watch`) on this machine; times out to deny (`approvalTimeoutMs`, default 110 s).
+   * - `"auto"`: elicit when the client supports it, else queue.
+   * - a function: return true once a human approved (receives the request context as the third argument).
+   */
+  approve?: "elicit" | "queue" | "auto" | ((call: { tool: string; args: Record<string, unknown>; identity: unknown }, d: CoreDecision, extra?: any) => Promise<boolean> | boolean);
+  /** Wait for a human in the built-in approvers (ms, default 110000). */
+  approvalTimeoutMs?: number;
+  /** Queue directory for `approve: "queue" | "auto"` (default ~/.mcp-rbac/pending, `MCP_RBAC_HOME` overrides). */
+  approvalQueueDir?: string;
+  /**
+   * What a denied agent is told. `"reason"` (default): `Denied: <reason>` (e.g. `user:constraint:above_max:amount`),
+   * which helps an agent recover but reveals policy details. `"uniform"`: every denial reads `Denied`; the reason still
+   * goes to `onDecision`, the audit log and telemetry.
+   */
+  denials?: "reason" | "uniform";
   /**
    * The resource the call touches, resolved by the host from its own data (e.g. the venue that owns the ticket in
    * `args.ticket_id`), never from the caller's say-so. Return undefined for "the caller's own scope" (identity.scope).
@@ -135,26 +175,52 @@ export interface CoreGuardOptions {
   inPlace?: boolean;
   /**
    * Hash-chained decision audit (docs/AUDIT.md), written once per tools/call decision (after `onDecision`).
-   * A SQLite path or `{ path, mode }` opens a sink for this guard (mode "worker" by default: hashing and commits on a
-   * worker thread, falling back to "batched" where a worker cannot start). For per-session guards of one HTTP server,
-   * open one sink with `openAuditSink(path)` (mcp-rbac/audit-worker) and pass the same object to every guard.
+   * A SQLite path or `{ path, mode }` uses the process-wide sink for that file (mode "worker" by default: hashing and
+   * commits on a worker thread, falling back to "batched" where a worker cannot start): every guard naming the same
+   * file shares one sink and one chain, so per-session guards keep the chain verifiable. Or pass any AuditWriter.
+   * `failClosed: true` denies calls (reason `audit_unavailable`) while the sink is unhealthy (a failed commit, a dead
+   * worker); by default a failing audit is reported (`onAuditError`, stderr) and calls proceed.
    */
-  audit?: string | { path: string; mode?: AuditSinkMode; table?: string } | AuditWriter;
+  audit?: string | { path: string; mode?: AuditSinkMode; table?: string; failClosed?: boolean } | AuditWriter;
+  /** Deny calls while the audit sink is unhealthy (same as `audit: { failClosed: true }`; works with an AuditWriter). */
+  auditFailClosed?: boolean;
+  /** Called when writing an audit record fails (default: one line on stderr). */
+  onAuditError?: (err: unknown) => void;
   /**
    * Memoize core decisions that carry no rate limits or budgets (P11). Such a decision is a pure function of the
    * (immutable) policy and the exact request JSON, so a repeat of the same request text gets the same answer without
-   * crossing into WASM. Decisions with limits, approvals or deferred spend are never cached. Number = max entries
-   * (default 4096; the map is cleared when full), 0 or false = off.
+   * crossing into WASM. Only parsed allow/deny decisions of an authenticated caller with no limits are cached (never
+   * approvals, rate limits, budgets, or unauthenticated / invalid-input denials). One cache per engine, shared by its
+   * guards, bounded by entries and bytes (default 4096 entries, 8 MiB of keys + values; requests over 8 KiB are not
+   * cached; cleared when full). A number = max entries; false or 0 = off.
    */
-  decisionCache?: number | false;
+  decisionCache?: number | false | { maxEntries?: number; maxBytes?: number };
 }
 
 export const DENIAL_META_KEY = "mcp-rbac/denial";
 /** `_meta` key on the forwarded tools/call: {identity, tenant, rule, resource?} for the (trusted) inner server. */
 export const CORE_CALLER_META_KEY = "mcp-rbac/caller";
 /** Guard-level denial when the host's resource resolver throws (same shape as a core decision). */
-const RESOURCE_UNRESOLVED = JSON.stringify({ decision: "deny", labels: [], limits: [], missingScopes: [], reason: "resource_unresolved",
+const guardDeny = (reason: string) => JSON.stringify({ decision: "deny", labels: [], limits: [], missingScopes: [], reason,
   redact: [], requiredScopes: [], rule: null, tenant: null, withholdText: false });
+const RESOURCE_UNRESOLVED = guardDeny("resource_unresolved");
+/** Guard-level denial when the policy has `semantics` and the server's tool metadata could not be read (fail closed). */
+const TOOL_META_UNAVAILABLE = guardDeny("tool_meta_unavailable");
+/** Guard-level denial while a `failClosed` audit sink is unhealthy. */
+const AUDIT_UNAVAILABLE = guardDeny("audit_unavailable");
+
+/** Decision cache shared by every guard of one engine (bounded by entries and bytes). */
+interface DecisionCache { map: Map<string, string>; bytes: number; maxEntries: number; maxBytes: number }
+const CACHES = new WeakMap<CoreEngine, DecisionCache>();
+const CACHE_MAX_KEY = 8192;
+/** Cacheable = a pure function of policy + request: allow/deny with no limits, of an authenticated, valid request. */
+const NOT_CACHED = new Set(["unauthenticated", "invalid_input", "invalid_request", "unsafe_arguments", "invalid_tool_name", "invalid_tool_meta"]);
+export function cacheableDecision(raw: string): boolean {
+  let d: { decision?: unknown; reason?: unknown; limits?: unknown };
+  try { d = JSON.parse(raw); } catch { return false; }
+  return (d.decision === "allow" || d.decision === "deny") && Array.isArray(d.limits) && d.limits.length === 0
+    && typeof d.reason === "string" && !NOT_CACHED.has(d.reason);
+}
 
 /** Anything with the SDK's connect/close (the guarded server of either SDK major). */
 export interface ConnectableServer { connect(transport: any): Promise<void>; close(): Promise<void> }
@@ -183,7 +249,7 @@ export async function protectWithCore(inner: McpServer | Server | Client, opts: 
 export async function protectWithCore(inner: SdkV2Server, opts: CoreGuardOptions): Promise<ProtectedCore<ConnectableServer>>;
 export async function protectWithCore(inner: McpServer | Server | Client | SdkV2Server, opts: CoreGuardOptions): Promise<ProtectedCore<any>> {
   if (!opts.engine && opts.policy === undefined) throw new Error("protectWithCore: pass `policy` or `engine`");
-  const engine = opts.engine ?? createCoreEngine(opts.policy!);
+  const engine = opts.engine ?? (opts.shareEngine === false ? createCoreEngine(opts.policy!) : sharedCoreEngine(opts.policy!));
   const timeout = opts.forwardTimeoutMs ?? 600_000;
   type Fwd = (params: Record<string, unknown>, extra: any) => Promise<any>;
   type ListRes = { tools: { name: string; annotations?: unknown; _meta?: unknown }[]; nextCursor?: string; [k: string]: unknown };
@@ -208,6 +274,19 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
   if (v2 && want === false) throw new Error("protectWithCore: SDK v2 servers are guarded in place only (drop inPlace: false)");
   if (v2 && !canInPlace) throw new Error("protectWithCore: register the server's tools first (no tools/call handler found)");
   const inPlace = want ?? canInPlace;
+  // The audit sink opens BEFORE the server is touched: if it throws, the server is left exactly as it was.
+  let sink: AuditWriter | undefined;
+  let toRecord: ((e: Parameters<NonNullable<CoreGuardOptions["onDecision"]>>[0]) => any) | undefined;
+  const openSink = async () => {
+    if (opts.audit === undefined) return;
+    const { sharedAuditSink } = await import("./audit-worker.js");
+    const { auditRecordFromDecision } = await import("./audit-sink.js");
+    toRecord = auditRecordFromDecision;
+    const a = opts.audit;
+    sink = typeof a === "object" && "write" in a ? a
+      : typeof a === "string" ? sharedAuditSink(a) : sharedAuditSink(a.path, { ...(a.mode ? { mode: a.mode } : {}), ...(a.table ? { table: a.table } : {}) });
+  };
+  if (inPlace) await openSink();
   if (inPlace) {
     outer = host;
     for (const m of [...handlers!.keys()]) if (UNGUARDED.test(m)) handlers!.delete(m);
@@ -215,6 +294,7 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
     const ctxWith = (extra: any, meta: unknown) => v2 ? { ...extra, mcpReq: { ...extra?.mcpReq, _meta: meta } } : { ...extra, _meta: meta };
     const rpc = (method: string, params: Record<string, unknown>, extra: any) => ({ jsonrpc: "2.0", id: extra?.requestId ?? extra?.mcpReq?.id ?? 0, method, params });
     callInner = (params, extra) => ic!(rpc("tools/call", params, extra), ctxWith(extra, params._meta));
+    // (params._meta = our caller key plus the client's progressToken, so progress notifications still flow)
     listInner = (params, extra) => il!(rpc("tools/list", params, extra), ctxWith(extra, undefined));
     hasTools = true;
   } else {
@@ -238,28 +318,33 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
   // v1: setRequestHandler(zodSchema, h); v2: setRequestHandler("method", h). Both hand h (validated request, ctx).
   const setHandler = (method: "tools/list" | "tools/call", schema: unknown, h: (req: any, extra: any) => Promise<any>) =>
     v2 ? outer.setRequestHandler(method, h) : outer.setRequestHandler(schema, h);
-  let sink: AuditWriter | undefined;
-  let toRecord: ((e: Parameters<NonNullable<CoreGuardOptions["onDecision"]>>[0]) => any) | undefined;
-  if (opts.audit !== undefined && hasTools) {
-    const { openAuditSink } = await import("./audit-worker.js");
-    const { auditRecordFromDecision } = await import("./audit-sink.js");
-    toRecord = auditRecordFromDecision;
-    const a = opts.audit;
-    sink = typeof a === "object" && "write" in a ? a
-      : typeof a === "string" ? openAuditSink(a) : openAuditSink(a.path, { ...(a.mode ? { mode: a.mode } : {}), ...(a.table ? { table: a.table } : {}) });
+  if (!inPlace && hasTools) await openSink();
+  const auditFailClosed = opts.auditFailClosed ?? (typeof opts.audit === "object" && !("write" in opts.audit) && !!opts.audit.failClosed);
+  const onAuditError = opts.onAuditError ?? ((e: unknown) => process.stderr.write(`mcp-rbac: audit write failed: ${String(e)}\n`));
+  const dc = opts.decisionCache;
+  const cacheMax = dc === false ? 0 : typeof dc === "number" ? dc : dc?.maxEntries ?? 4096;
+  const cacheBytes = typeof dc === "object" && dc ? dc.maxBytes ?? 8 << 20 : 8 << 20;
+  let cache: DecisionCache | undefined;
+  if (cacheMax > 0 && cacheBytes > 0) {
+    cache = CACHES.get(engine);
+    if (!cache) { cache = { map: new Map(), bytes: 0, maxEntries: cacheMax, maxBytes: cacheBytes }; CACHES.set(engine, cache); }
+    else { cache.maxEntries = Math.min(cache.maxEntries, cacheMax); cache.maxBytes = Math.min(cache.maxBytes, cacheBytes); }
   }
-  const cacheMax = opts.decisionCache === false ? 0 : opts.decisionCache ?? 4096;
-  const cache = new Map<string, string>();
   const authorize = (reqJson: string, nowMs: number): string => {
-    if (cacheMax > 0) { const hit = cache.get(reqJson); if (hit !== undefined) return hit; }
+    const c = cache && reqJson.length <= CACHE_MAX_KEY ? cache : undefined;
+    if (c) { const hit = c.map.get(reqJson); if (hit !== undefined) return hit; }
     const raw = engine.authorize(reqJson, nowMs);
-    // cacheable = no counters/budgets were consulted and no approval/deferred step follows (pure in policy + request)
-    if (cacheMax > 0 && raw.includes('"limits":[]') && !raw.includes('"needs_approval"')) {
-      if (cache.size >= cacheMax) cache.clear();
-      cache.set(reqJson, raw);
+    // cacheable = a parsed allow/deny with no counters/budgets, of an authenticated, valid request (pure in policy + request)
+    if (c && cacheableDecision(raw)) {
+      const size = 2 * (reqJson.length + raw.length);
+      if (c.map.size >= c.maxEntries || c.bytes + size > c.maxBytes) { c.map.clear(); c.bytes = 0; }
+      c.map.set(reqJson, raw);
+      c.bytes += size;
     }
     return raw;
   };
+  // Built-in approvers ("elicit" | "queue" | "auto") or the host's function.
+  const approveFn = await buildApprover(opts, outer);
   // TS SDK 1.32 does not expose the negotiated protocol version: capture it from the initialize result (feature-detected;
   // without the hook the attribute is simply omitted). Needed for the mcp.protocol.version span attribute.
   let protocolVersion: string | undefined;
@@ -329,18 +414,20 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
         try { resource = await opts.resource({ tool, args, identity }, extra); } catch { unresolved = true; }
       }
       let meta: unknown;
-      try { meta = identity === undefined ? undefined : await metaFor(tool, extra); } catch { meta = undefined; }
+      let metaFailed = false;
+      // class rules need the server's metadata: if it cannot be read, deny (fail closed) rather than decide without it
+      try { meta = identity === undefined ? undefined : await metaFor(tool, extra); } catch { meta = undefined; metaFailed = true; }
       const reqJson = JSON.stringify({ tool, args, ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}), ...(resource ? { resource } : {}), ...(meta !== undefined ? { toolMeta: meta } : {}) });
       const authSpan = tel?.startAuthorize(tool);
       let e0 = performance.now();
-      let raw = unresolved ? RESOURCE_UNRESOLVED : authorize(reqJson, now());
+      let raw = identity !== undefined && unresolved ? RESOURCE_UNRESOLVED : identity !== undefined && metaFailed ? TOOL_META_UNAVAILABLE : authorize(reqJson, now());
       let engineMs = performance.now() - e0;
       let d = JSON.parse(raw) as CoreDecision;
       let approved = false;
       let approval: "none" | "granted" | "rejected" | "unavailable" = "none";
       if (d.decision === "needs_approval") {
-        if (!opts.approve) approval = "unavailable";
-        else if (await opts.approve({ tool, args, identity }, d)) {
+        if (!approveFn) approval = "unavailable";
+        else if (await approveFn({ tool, args, identity }, d, extra)) {
           e0 = performance.now();
           raw = engine.authorizeApproved(reqJson, now());
           engineMs += performance.now() - e0;
@@ -350,17 +437,26 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
         } else approval = "rejected";
       }
       if (tel && authSpan && server) tel.endAuthorize(authSpan, server, tool, d, approval, engineMs / 1000);
+      // fail-closed audit: an allowed call does not run while the audit sink cannot record it
+      if (audit && auditFailClosed && d.decision === "allow" && audit.healthy?.() === false) { raw = AUDIT_UNAVAILABLE; d = JSON.parse(raw) as CoreDecision; approved = false; }
       const ev = { tool, identity, decision: d, durationMs: performance.now() - t0, approved };
       opts.onDecision?.(ev);
-      if (audit) audit.write(toRecord!(ev));
+      if (audit) {
+        try { audit.write(toRecord!(ev)); } catch (e) {
+          onAuditError(e);
+          if (auditFailClosed && d.decision === "allow") { raw = AUDIT_UNAVAILABLE; d = JSON.parse(raw) as CoreDecision; }
+        }
+      }
       if (d.decision !== "allow") {
-        const text = d.decision === "needs_approval" ? `Approval required for ${tool}` : `Denied: ${d.reason}`;
-        return { content: [{ type: "text" as const, text }], isError: true, _meta: { [DENIAL_META_KEY]: { decision: d.decision, reason: d.reason } } };
+        const text = d.decision === "needs_approval" ? `Approval required for ${tool}` : opts.denials === "uniform" ? "Denied" : `Denied: ${d.reason}`;
+        const meta = opts.denials === "uniform" && d.decision === "deny" ? { decision: d.decision } : { decision: d.decision, reason: d.reason };
+        return { content: [{ type: "text" as const, text }], isError: true, _meta: { [DENIAL_META_KEY]: meta } };
       }
       // The inner server is trusted and in-process: tell it who is calling (client _meta is never forwarded, so this
       // key cannot be spoofed) so it can scope its own queries to the caller's tenant.
       const caller = { identity, tenant: d.tenant, rule: d.rule, ...(resource ? { resource } : {}) };
-      const result = await callInner({ name: tool, arguments: args, _meta: { [CORE_CALLER_META_KEY]: caller } }, extra);
+      const progressToken = (req.params._meta as { progressToken?: unknown } | undefined)?.progressToken;
+      const result = await callInner({ name: tool, arguments: args, _meta: { ...(inPlace && progressToken !== undefined ? { progressToken } : {}), [CORE_CALLER_META_KEY]: caller } }, extra);
       if (d.limits.some((l) => (l as { deferred?: boolean }).deferred)) {
         // post-call spend (tool semantics): read the cost from the result and charge the deferred budgets; an
         // unreadable cost charges each budget's max (fail-closed), so the next call is denied until the window ends
@@ -392,4 +488,41 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
 
 function idsOf(extra: any, protocolVersion: string | undefined): { requestId?: string | number; sessionId?: string; protocolVersion?: string } {
   return { requestId: extra?.requestId ?? extra?.mcpReq?.id, sessionId: extra?.sessionId, protocolVersion };
+}
+
+type CoreApproveFn = (call: { tool: string; args: Record<string, unknown>; identity: unknown }, d: CoreDecision, extra?: any) => Promise<boolean> | boolean;
+/** The built-in approvers (elicitation / CLI queue) adapted to the core guard; undefined = never approved. */
+async function buildApprover(opts: CoreGuardOptions, outer: any): Promise<CoreApproveFn | undefined> {
+  const a = opts.approve;
+  if (a === undefined || typeof a === "function") return a;
+  if (a !== "elicit" && a !== "queue" && a !== "auto") throw new TypeError(`protectWithCore: approve must be a function, "elicit", "queue" or "auto" (got ${JSON.stringify(a)})`);
+  const { elicitationApprover, queueApprover } = await import("./approvers.js");
+  const timeoutMs = opts.approvalTimeoutMs ?? 110_000;
+  const { homedir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = opts.approvalQueueDir ?? join(process.env.MCP_RBAC_HOME ?? join(homedir(), ".mcp-rbac"), "pending");
+  const elicit = elicitationApprover({ timeoutMs });
+  const queue = queueApprover({
+    dir, timeoutMs,
+    onPending: (p) => process.stderr.write(`[mcp-rbac] APPROVAL NEEDED ${p.id}: ${p.effect}\n    approve: mcp-rbac approve ${p.id}    deny: mcp-rbac deny ${p.id}    (or: mcp-rbac pending --watch)\n`),
+  });
+  const { randomUUID } = await import("node:crypto");
+  const { summarizeArgs } = await import("./approvers.js");
+  return async (call, _d, extra) => {
+    const id = call.identity as { id?: unknown; name?: unknown } | undefined;
+    const ctl = new AbortController();
+    const signal: AbortSignal = extra?.signal ?? ctl.signal;
+    const req = {
+      ref: randomUUID(), tool: call.tool, args: call.args,
+      user: { id: typeof id?.id === "string" ? id.id : "unknown", ...(typeof id?.name === "string" ? { name: id.name } : {}) },
+      agent: outer?.getClientVersion?.()?.name ?? "agent", recentApprovals: 0, reasonRequired: false, signal, extra,
+      effect: summarizeArgs(call.tool, call.args),
+    };
+    const canElicit = !!outer?.getClientCapabilities?.()?.elicitation && typeof extra?.sendRequest === "function";
+    if (a === "elicit" && !canElicit) return false; // fail closed: nobody can be asked
+    const who = a === "elicit" ? elicit : a === "queue" ? queue : canElicit ? elicit : queue;
+    let r: unknown;
+    try { r = await who(req); } catch { return false; } // a failed or timed-out prompt is a denial, never an error path around the guard
+    return r === "allow" || r === true || (typeof r === "object" && r !== null && (r as { decision?: string }).decision === "allow");
+  };
 }

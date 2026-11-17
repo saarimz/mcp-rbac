@@ -67,7 +67,7 @@ for (const major of ["v1", "v2"] as const) {
     it("filters tools/list, allows, denies, enforces argument limits and approvals", async () => {
       const who = { id: "dana", roles: ["staff"] };
       const inner = build(major, []);
-      const { server } = await protectWithCore(inner as any, { policy: POLICY, identity: () => who });
+      const { server } = await protectWithCore(inner as any, { policy: POLICY, shareEngine: false, identity: () => who });
       expect(server === (inner as any).server).toBe(!hop); // in place: the same server object
       const c = await connect(major, server);
       expect((await c.listTools()).tools.map((t: any) => t.name)).toEqual(["list_events", "checkin"]);
@@ -83,7 +83,7 @@ for (const major of ["v1", "v2"] as const) {
     it("approval is bound to the exact arguments the human saw", async () => {
       const seenArgs: unknown[] = [];
       const { server } = await protectWithCore(build(major, []) as any, {
-        policy: POLICY, identity: () => ({ id: "o", roles: ["owner"] }),
+        policy: POLICY, shareEngine: false, identity: () => ({ id: "o", roles: ["owner"] }),
         approve: (call) => { seenArgs.push(call.args); return (call.args as any).amount === 250; },
       });
       const c = await connect(major, server);
@@ -95,7 +95,7 @@ for (const major of ["v1", "v2"] as const) {
 
     it("rate limits hold, and the tool sees the guard's caller (a client-supplied caller _meta is dropped)", async () => {
       const seen: unknown[] = [];
-      const { server } = await protectWithCore(build(major, seen) as any, { policy: POLICY, identity: () => ({ id: "dana", roles: ["staff"] }) });
+      const { server } = await protectWithCore(build(major, seen) as any, { policy: POLICY, shareEngine: false, identity: () => ({ id: "dana", roles: ["staff"] }) });
       const c = await connect(major, server);
       for (let i = 0; i < 3; i++) expect(text(await c.callTool({ name: "checkin", arguments: { ticketId: `t${i}` } }))).toMatch(/^checked in/);
       expect(text(await c.callTool({ name: "checkin", arguments: { ticketId: "t9" } }))).toMatch(/^Denied: rate_limited/);
@@ -107,7 +107,7 @@ for (const major of ["v1", "v2"] as const) {
 
     it("fails closed: resources are not served, and registering one (or new tools handlers) after protect throws", async () => {
       const inner: any = build(major, []);
-      const { server } = await protectWithCore(inner, { policy: POLICY, identity: () => ({ id: "o", roles: ["owner"] }) });
+      const { server } = await protectWithCore(inner, { policy: POLICY, shareEngine: false, identity: () => ({ id: "o", roles: ["owner"] }) });
       const c = await connect(major, server);
       await expect(c.readResource({ uri: "mem://secret" })).rejects.toThrow();
       if (!hop) {
@@ -119,8 +119,8 @@ for (const major of ["v1", "v2"] as const) {
 
     it("`audit: path` writes the hash chain (worker by default) and it verifies", async () => {
       const db = join(mkdtempSync(join(tmpdir(), `p12-${major}-`)), "audit.db");
-      const { server, audit } = await protectWithCore(build(major, []) as any, { policy: POLICY, identity: () => ({ id: "dana", roles: ["staff"] }), audit: db });
-      expect(audit?.constructor.name).toBe("WorkerAuditSink");
+      const { server, audit } = await protectWithCore(build(major, []) as any, { policy: POLICY, shareEngine: false, identity: () => ({ id: "dana", roles: ["staff"] }), audit: db });
+      expect(audit?.healthy?.()).toBe(true); // the process-wide sink for this file (worker by default)
       const c = await connect(major, server);
       await c.callTool({ name: "checkin", arguments: { ticketId: "a" } });
       await c.callTool({ name: "refund", arguments: { ticketId: "a", amount: 1 } });
@@ -134,19 +134,19 @@ for (const major of ["v1", "v2"] as const) {
 
 describe("SDK-specific", () => {
   it("v2: inPlace false is rejected (v2 servers are guarded in place only), and a server without tools is rejected", async () => {
-    await expect(protectWithCore(build("v2", []) as any, { policy: POLICY, identity: () => undefined, inPlace: false })).rejects.toThrow(/in place only/);
-    await expect(protectWithCore(new v2s.McpServer({ name: "empty", version: "1" }) as any, { policy: POLICY, identity: () => undefined })).rejects.toThrow(/register the server's tools first/);
+    await expect(protectWithCore(build("v2", []) as any, { policy: POLICY, shareEngine: false, identity: () => undefined, inPlace: false })).rejects.toThrow(/in place only/);
+    await expect(protectWithCore(new v2s.McpServer({ name: "empty", version: "1" }) as any, { policy: POLICY, shareEngine: false, identity: () => undefined })).rejects.toThrow(/register the server's tools first/);
   });
   it("v1: inPlace false keeps the hop (a new outer Server)", async () => {
     const inner = build("v1", []) as V1McpServer;
-    const { server } = await protectWithCore(inner, { policy: POLICY, identity: () => ({ id: "dana", roles: ["staff"] }), inPlace: false });
+    const { server } = await protectWithCore(inner, { policy: POLICY, shareEngine: false, identity: () => ({ id: "dana", roles: ["staff"] }), inPlace: false });
     expect(server).not.toBe(inner.server);
     const c = await connect("v1", server);
     expect(text(await c.callTool({ name: "checkin", arguments: { ticketId: "t1" } }))).toBe("checked in t1");
     await c.close();
   });
   it("unauthenticated (identity undefined) sees no tools and every call is denied, on v2", async () => {
-    const { server } = await protectWithCore(build("v2", []) as any, { policy: POLICY, identity: () => undefined });
+    const { server } = await protectWithCore(build("v2", []) as any, { policy: POLICY, shareEngine: false, identity: () => undefined });
     const c = await connect("v2", server);
     expect((await c.listTools()).tools).toEqual([]);
     expect(text(await c.callTool({ name: "list_events", arguments: {} }))).toMatch(/^Denied: /);

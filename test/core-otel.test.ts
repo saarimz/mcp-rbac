@@ -43,7 +43,7 @@ async function session(identity: unknown, extra: { approve?: boolean; tel?: Core
   const records: DecisionLogRecord[] = [];
   const tel = extra.tel ?? new CoreTelemetry({ tracerProvider, meterProvider, loggerProvider, log: (r) => records.push(r) });
   const { server } = await protectWithCore(innerServer(), {
-    policy: POLICY, identity: () => identity, now: () => 1_800_000_000_000,
+    policy: POLICY, shareEngine: false, identity: () => identity, now: () => 1_800_000_000_000,
     approve: extra.approve === undefined ? undefined : () => extra.approve!,
     telemetry: extra.telemetry === false ? undefined : tel,
   });

@@ -22,6 +22,9 @@ import { createHash } from "node:crypto";
  * - Bounded queue: commits run on the event loop, so the queue never exceeds `maxBatch` (reaching it commits inline,
  *   which is the backpressure). A failed commit (disk full, I/O error) rolls back the whole batch, reports it to
  *   `onError` and counts it in `stats().dropped`; the chain head is not advanced, so the chain stays valid.
+ * - Failures are never silent: `healthy()` is false (and `lastError()` says why) from a failed commit until the next
+ *   successful one. In `sync` mode a failed commit also throws from `write()`, so "committed before `write()`
+ *   returns" holds. `protectWithCore(..., { audit: { path, failClosed: true } })` denies calls while unhealthy.
  */
 export type AuditMode = "sync" | "batched";
 
@@ -74,6 +77,7 @@ export class SqliteAuditSink {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private closed = false;
   private s: AuditSinkStats = { written: 0, dropped: 0, queued: 0, batches: 0, maxQueued: 0, errors: 0 };
+  private err: string | undefined;
   private readonly maxBatch: number;
   private readonly interval: number;
   private readonly onError: (err: unknown) => void;
@@ -107,7 +111,7 @@ export class SqliteAuditSink {
 
   write(r: AuditRecord): void {
     if (this.closed) throw new Error("audit sink is closed");
-    if (this.mode === "sync") { this.commit([r]); return; }
+    if (this.mode === "sync") { if (!this.commit([r])) throw new Error(`mcp-rbac audit: record not committed: ${this.err}`); return; }
     this.q.push(r);
     if (this.q.length > this.s.maxQueued) this.s.maxQueued = this.q.length;
     if (this.q.length >= this.maxBatch) this.flush();
@@ -120,7 +124,7 @@ export class SqliteAuditSink {
     while (this.q.length) this.commit(this.q.splice(0, this.maxBatch));
   }
 
-  private commit(batch: AuditRecord[]): void {
+  private commit(batch: AuditRecord[]): boolean {
     let head = this.head;
     try {
       this.db.exec("BEGIN IMMEDIATE");
@@ -135,13 +139,22 @@ export class SqliteAuditSink {
       this.head = head;
       this.s.written += batch.length;
       this.s.batches++;
+      this.err = undefined;
+      return true;
     } catch (err) {
       try { this.db.exec("ROLLBACK"); } catch { /* not in a transaction */ }
       this.s.errors++;
       this.s.dropped += batch.length;
+      this.err = String(err);
       this.onError(err);
+      return false;
     }
   }
+
+  /** False from a failed commit until the next successful one (or after close). */
+  healthy(): boolean { return !this.closed && this.err === undefined; }
+  /** Why the last commit failed (undefined when healthy). */
+  lastError(): string | undefined { return this.closed ? "closed" : this.err; }
 
   stats(): AuditSinkStats { return { ...this.s, queued: this.q.length }; }
   headHash(): string { return this.head; }

@@ -9,8 +9,10 @@ repository.
    - The server isn't theirs, or they want no code changes: `mcp-rbac proxy --preset <read-only|no-destructive|approve-writes|approve-destructive> -- <server command>`.
    - Their own server, TypeScript (SDK v1 or v2): `protectWithCore(server, { policy, identity, audit: "audit.db" })` from
      `mcp-rbac/core`. Call it after every tool is registered: it guards the server in place and refuses later resource/prompt
-     registrations.
-   - Python: `protect_with_core(server, policy, identity=...)` from `mcp_rbac.core_guard`.
+     registrations. Every guard (TS, Python, Go, Rust) answers resources, prompts and completion with -32601: it
+     guards tools only.
+   - Python: `protect_with_core(server, policy, identity=..., audit="audit.db")` from `mcp_rbac.core_guard`; `identity`
+     may be sync or async.
    - Go (preview, not published in 0.5): `rt.NewEngine(ctx, policy)` then `engine.Protect(server, mcprbac.GuardOptions{Identity: ...})`.
    - Rust (rmcp): `Guarded` in `core/mcp-rbac-rmcp`.
 2. **Write `mcp-rbac.yaml`** (`docs/policy-format.md`, schema `spec/mcp-rbac.schema.json`). Validate it with
@@ -18,15 +20,19 @@ repository.
    `docs/snippets/mcp-rbac.test.yaml` and `examples/policies/venue.test.yaml`). Copy the shape of
    `docs/snippets/mcp-rbac.yaml`.
 3. **Identity must come from verified credentials** (an OAuth/JWT layer, `extra.authInfo` in TS). Never take it from
-   tool arguments. Returning `undefined` / `None` / `nil` means unauthenticated, and everything is denied.
+   tool arguments. Returning `undefined` / `None` / `nil` means unauthenticated, and everything is denied. The identity
+   object is strict: only `id, roles, scope, tenant, orgRoles, scopes, actors, clientId, name`; any other key makes it
+   invalid (denied), so map your claims onto these instead of passing a raw JWT payload.
 4. **For third-party or fast-changing servers, prefer classes over tool names:** add a `semantics` block, grant roles
    classes, and load a pack (`packs: [github]`, `{name: klaviyo, prefix: klaviyo_}`). Load the file with
    `loadPolicyWithPacks` / `load_policy_with_packs` / `rt.LoadPolicyWithPacks`. The engine rejects an unresolved
    `packs` key. Grant `unknown` to nobody.
 5. **Record ownership:** if a tool touches a record that belongs to a tenant or venue, pass a `resource` resolver that
    looks the owner up in the host's own data, not in the arguments.
-6. **Approvals:** `approvals:` entries or class rules with `approve: true`. Without an `approve` callback the call
-   returns "Approval required for <tool>" and never runs.
+6. **Approvals:** `approvals:` entries or class rules with `approve: true`. Without an approver (`approve:` a callback,
+   or in TS `"elicit" | "queue" | "auto"`) the call returns "Approval required for <tool>" and never runs. An approval
+   `when` fails closed: a missing or mistyped argument it tests means approval is required. `mcp-rbac check` lints
+   approvals that bind no argument and per-role limits that another role bypasses.
 7. **Check your work:** write a `tests.yaml` and run `mcp-rbac test`, or call the tools as each role and assert the
    exact denial strings (`Denied: user:no_matching_permission`, `Denied: rate_limited:N`, `Approval required for X`).
    The snippets in `docs/snippets/` show the pattern. Put `mcp-rbac check`, `mcp-rbac test` and
@@ -38,7 +44,9 @@ them. Prefer the stable features unless the user asks for these.
 
 Common mistakes: putting identity in arguments; forgetting `includes` (role inheritance); currency budgets on tools
 with no `spend` declared (they deny with `limit_N:unknown_spend`, by design); expecting `labelRules` to hide tools
-from `tools/list` (they only deny calls).
+from `tools/list` (they only deny calls); passing extra identity keys (the identity becomes invalid); expecting the
+guard to filter resources or prompts (they are refused); wrapping the server before registering its tools in TS (later
+registrations are refused) or relying on an `approve` callback that throws (that is a deny).
 
 ## Working on this repository
 

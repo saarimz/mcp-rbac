@@ -9,12 +9,21 @@ asks the core, and applies the answer.
 |---|---|---|---|---|
 | TypeScript (Node ≥ 22.13), SDK v1 ≥ 1.32 or v2 ≥ 2.4 | `mcp-rbac/core` | WASM (wasm-bindgen) | `protectWithCore(server, opts)` | `callerOf(extra)` (`_meta["mcp-rbac/caller"]`) |
 | Python ≥ 3.11 | `mcp_rbac.core_guard` (+ `mcp-rbac-core` wheel) | PyO3 native extension (abi3) | `CoreGuard(policy, identity=...)` as MCPServer middleware | `current_caller()` |
-| Go | `github.com/mcp-rbac/mcp-rbac-go` | WASM in wazero (pure Go, **no cgo**) | `engine.Protect(server, GuardOptions{...})` | `mcprbac.CallerFrom(ctx)` |
-| Rust | `mcp-rbac-rmcp` | native | `protect(handler, &policy, GuardOptions::with_identity(...))` | `Extension<Caller>` |
+| Go (preview, **not published** in 0.5; planned module path) | `github.com/mcp-rbac/mcp-rbac-go` | WASM in wazero (pure Go, **no cgo**) | `engine.Protect(server, GuardOptions{...})` | `mcprbac.CallerFrom(ctx)` |
+| Rust (`publish = false`: use from the repository) | `mcp-rbac-rmcp` | native | `protect(handler, &policy, GuardOptions::with_identity(...))` | `Extension<Caller>` |
 
 All four guards take the same options: `identity` (who is calling; the shape is in docs/policy-format.md), `resource`
 (the record's owner, resolved from *your* data), `approve` (human-in-the-loop for `needs_approval`), `toolsets`, `now`,
 `onDecision` (an audit hook with tool, identity, decision, duration and whether it was approved) and `telemetry` (docs/otel.md).
+
+They also behave the same where the SDKs differ (tests in each language pin these):
+
+| behavior | all guards | TS | Python | Go | Rust |
+|---|---|---|---|---|---|
+| resources / prompts / completion | refused, -32601 | | | | |
+| cold start (`tools/call` before any `tools/list`) | reads the server's own `tools/list` for annotations, or denies `tool_meta_unavailable` | | | | |
+| unauthenticated caller / `tools/call` with nil params | denied (`unauthenticated` / invalid request) | | | | |
+| denial text | `Denied: <reason>` / `Approval required for <tool>`; uniform mode returns just `Denied` (reason only in the audit/`onDecision`) | `denials: "uniform"` | `denials="uniform"` | `Denials: "uniform"` | `uniform_denials: true` |
 
 ## Minimal use
 
@@ -76,7 +85,7 @@ clients, because the SDKs' JSON encoders escape such characters, but direct engi
 
 ## Proof
 
-- **Conformance**: `conformance/run.sh`. 3620 vectors (policies, requests, YAML documents, visibility, budgets) × 6
+- **Conformance**: `conformance/run.sh`. 4230 vectors (policies, requests, YAML documents, visibility, budgets) × 6
   runners: Rust, TS/WASM, Python/PyO3, Go/wazero, plus the pure-TS and pure-Python reference evaluators. The decision
   JSON must be byte-identical. See CONFORMANCE.md.
 - **Fuzzing**: `core/fuzz/run-all.sh` (cargo-fuzz, 5 targets). Results are in PROGRESS.md (P2 and P8e).

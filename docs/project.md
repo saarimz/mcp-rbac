@@ -2,6 +2,10 @@
 
 ## Security model
 
+This section describes the legacy TypeScript `Guard` (`wrap()`, the presets proxy). The Rust-core guards
+(`protectWithCore`, `protect_with_core`, Go `Protect`, rmcp `Guarded`) share the decision model in
+[policy-format.md](policy-format.md) and the behavior contract below.
+
 **Enforced at the MCP layer:**
 
 - **Default deny.** Uniform `Forbidden (ref …)` errors carry no policy detail; the reason goes to the audit log.
@@ -11,7 +15,13 @@
 - **Delegation.** Checked at grant time and intersected again on every call.
 - **Revocation and budgets.** A synchronous liveness check plus budget consumption run right before forwarding, so there's no await gap with sync stores.
 - **Approvals.** Effect text, budgets per delegation tree (sub-agents can't mint fresh budgets), and fatigue guards.
-- **Caller identity.** It reaches the wrapped server only via `_meta["mcp-guard/caller"]`, and a client-supplied value is stripped.
+- **Caller identity.** It reaches the wrapped server only via `_meta["mcp-guard/caller"]` (legacy `Guard`, key kept for
+  compatibility; the Rust-core guards use `_meta["mcp-rbac/caller"]`), and a client-supplied value is stripped.
+- **Identity contract (Rust-core guards).** The identity comes from the host's verified credentials; `undefined`/`None`/`nil`
+  is unauthenticated, and only the keys `id, roles, scope, tenant, orgRoles, scopes, actors, clientId, name` are accepted.
+- **Guard feature parity.** All guards refuse resources/prompts/completion (-32601), read `tools/list` on a cold start
+  (or deny with `tool_meta_unavailable`) and return uniform denials. Audit is built in for TS and Python (`audit:`),
+  Go writes it from `OnDecision` (`AuditSink`), rmcp has none; the parsed decision cache is TS-only.
 - **Proxy state.** The proxy refuses path arguments that point into its own state (audit db, approval queue, OAuth tokens), so a filesystem agent can't approve its own requests, erase the log or read credentials.
 - **Remote credentials.** Header values and OAuth tokens stay in the proxy process and a 0600 file. They are scrubbed from everything sent to the client and never logged or audited.
 
@@ -90,7 +100,7 @@ Free when checked on 2026-11-13: `mcp-rbac` (chosen), `mcp-grants`, `mcp-permit`
   - Multi-instance deployments need a shared store and a shared `requestStateKey` (TS) / `RequestStateSecurity(keys=...)` (Python).
   - No RateLimit headers on legacy SSE.
   - The Python package has no token-exchange endpoint (use the TS one).
-  - Python list filtering isn't audited.
+  - List filtering (`tools/list`) isn't audited, in any guard: only `tools/call` decisions are.
   - The Klaviyo role matrix in the example is an approximation, with mock data.
 - **0.4 limits:**
   - RBAC can't tell a hijacked agent from its user *within* the user's role. Small in-role writes without an approval rule

@@ -90,6 +90,7 @@ included role's full list (depth-first, `includes` order, each role at most once
 | `limits` | Constraints for every grant made by `allow`, intersected with per-role limits: min = max(min), max = min(max), maxLength = min, integer = or, optional = and, `in` = intersection (empty → error); `eq`/`pattern` set differently on both sides → error. Tool-wide limits are also checked for **every other grant** of the tool (e.g. `owner: tools: ["*"]`), so no role bypasses them. (Difference from the TS declarative API, where central-role grants skip a tool's `limits`.) |
 | `scopes` | OAuth scopes the token must hold (merged into `scopes.required[<tool>]`) |
 | `approve` | `true`, `false`, or `{when: Constraints}` (needs approval when the arguments satisfy the constraints) |
+| `approve.when` / `approvals[].when` | **fails closed**: approval is skipped only when every argument it tests is present and well-typed and some rule does not hold; a missing or mistyped argument means approval is required |
 | `labels` | merged into `output.labels[<tool>]` |
 | `redact` | `{fields, unlessRoles?, replacement?}` appended to `output.redact` as a rule for this tool |
 | `toolset` | name or list; the tool is added to those `toolsets.sets` |
@@ -120,6 +121,14 @@ possible there; pair every `pattern` with a `maxLength` (Rust and Go evaluate in
 ### Limit
 `{tool: pattern, kind?: tool|resource|prompt, max: >0, per: minute|hour|day|<ms integer > 0>, sum?: arg,
 shared?: delegation|user|global|tenant|client|agent, burst?: {max, per}, name?}`.
+
+## Lints for approvals and per-role limits
+`mcp-rbac check` (and the engines' warnings) flags two policies that load but do less than they seem to:
+- `approvals: when.<arg> on <tool> is not a required tools.<tool>.limits argument`: the approval tests an argument the
+  tool does not require, so a call without it needs approval (fail closed). Add the argument to `tools.<tool>.limits`.
+- `roles.<role>: limits on <tool> are bypassed by its grant "<pattern>"` (or `by its class grants`): per-role limits
+  bind only their own grant, and the same role also reaches the tool through a wildcard or class grant. Use
+  `tools.<tool>.limits` so the limits hold for every grant.
 
 ## Decision request
 ```json
@@ -159,7 +168,8 @@ Hosts resolve `resource` from their own data (the record the tool touches); the 
    finite number ≥ 0 → else `limit_<i>:unbudgetable_argument` (the denial keeps `rule`, `limits` is empty). Key `limit|<i>|<who>`: `t:<tenant>|` prefix (if a tenant)
    plus global `*`, tenant `t:<tenant or ->` (no prefix), client `c:<clientId or agent>`, agent `a:<agent>`,
    user/delegation `u:<id>`. Burst adds `<key>|burst`. The core reports these; hosts count them in their store.
-10. Approval (kind tool): any approval rule matching the tool whose `when` (if any) is satisfied → `needs_approval`, else `allow`.
+10. Approval (kind tool): any approval rule matching the tool whose `when` (if any) is satisfied, or cannot be evaluated
+    because an argument it tests is missing or mistyped (fail closed) → `needs_approval`, else `allow`.
 11. Redaction (allow/needs_approval, kind tool): rules (global, then per tool) whose `tool` matches (if set) and `label` is
     present (if set), unless the caller holds an `unlessRoles` role at the resource. `withholdText` = rules non-empty and
     `unstructuredText` ≠ keep. Replacement default `"[REDACTED]"`.

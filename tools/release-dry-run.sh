@@ -21,6 +21,13 @@ step() { local pat=$1 log; shift; log=$(mktemp "$OUT/step.XXXXXX.log"); if ! "$@
 note "version consistency"
 tools/check-versions.sh
 
+note "release placeholders"
+# SECURITY.md must name a real security contact before anything is published (ALLOW_PLACEHOLDERS=1 to rehearse)
+if grep -nE 'TODO\(Saarim, release blocker\)|Security contact: TODO' SECURITY.md; then
+  if [ "${ALLOW_PLACEHOLDERS:-}" = 1 ]; then echo "placeholders present (allowed: ALLOW_PLACEHOLDERS=1)"
+  else echo "release placeholders present (above): set them, or ALLOW_PLACEHOLDERS=1 for a rehearsal"; exit 1; fi
+else echo "none"; fi
+
 note "tooling venv"
 "$PYBOOT" -m venv "$OUT/venv"
 "$OUT/venv/bin/pip" install -q --upgrade pip build twine "maturin>=1.7,<2"

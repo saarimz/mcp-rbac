@@ -76,6 +76,9 @@ jobs:
       - run: npm run build:wasm
       - name: Build, check and install every artifact (uploads nothing)
         run: tools/release-dry-run.sh
+        env:
+          # release placeholders (e.g. the SECURITY.md contact) are tolerated in a dry run only, never in a real publish
+          ALLOW_PLACEHOLDERS: ${{ env.DRY_RUN == 'true' && '1' || '' }}
 
   npm-build:
     needs: dry-run

@@ -46,6 +46,26 @@ app = rbac.http_app(server)   # streamable HTTP + 403 insufficient_scope step-up
   RFC 8693 delegation (`DelegationOptions`, `ActorPolicy`), and the AuthZEN client, engine and PDP
   (`python -m mcp_rbac pdp`). See [experimental/README.md](experimental/README.md).
 
+## The Rust-core guard (CoreGuard, YAML policies)
+The section above is the Python-native `RBAC` API. For the portable YAML policy (`mcp-rbac.yaml`, the same decisions as
+TypeScript, Go and Rust), use `CoreGuard` from `mcp_rbac.core_guard` (needs the `mcp-rbac-core` wheel):
+
+```python
+from mcp_rbac.core_guard import protect_with_core
+
+guard = protect_with_core(
+    server, open("mcp-rbac.yaml").read(),
+    identity=lambda ctx: user_from(ctx),       # sync or async; None = unauthenticated
+    audit="audit.db",                          # shared hash-chained SQLite sink ({"path", "otel": True} to export)
+    approve=lambda call, decision: ask(call),  # without it, approval-required calls are denied
+)
+```
+
+It refuses resources, prompts and completion (-32601), reads the server's `tools/list` on a cold start for class
+rules (or denies `tool_meta_unavailable`), reports audit write failures (`on_audit_error`; `audit_fail_closed=True`
+denies instead of running unrecorded) and supports `denials="uniform"`. Options: `CoreGuard.__init__` docstring and
+[polyglot.md](polyglot.md).
+
 ## Example and tests
 `examples/klaviyo-style/server.py` (mock data). Tests: `cd python && .venv/bin/python -m pytest` (48 tests, including
 Redis/Postgres and TS↔Python cross-language checks when `redis-server` / `pg_ctl` are on PATH; skipped otherwise).

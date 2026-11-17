@@ -3,23 +3,23 @@
 **Decide which agent may call which MCP tool, with which arguments, and keep a tamper-evident record of every
 decision. One YAML file; the same decisions in TypeScript, Python, Go and Rust.**
 
+> Status: 0.5.0, release candidate. **Not on npm/PyPI yet**: until it is, run from this repository
+> (`npm ci && npm run build:wasm && npm run build`, then `node dist/cli.js demo`). The `npx` / `npm i` / `pip install`
+> commands below are how it will be installed once published.
+
 ![mcp-rbac demo: staff denied a refund, rate limit, owner refund needs approval, audit chain verified](docs/demo.gif)
 
 ```bash
-npx mcp-rbac demo
+npx mcp-rbac demo   # once published; today: node dist/cli.js demo
 ```
 
 That one command starts an ordinary MCP server in memory (official TypeScript SDK), guards it with the policy below,
-drives it as an agent, and verifies the audit chain. In a clean directory with an empty npm cache the first deny
-printed **2.0-2.5 s** after pressing Enter, npm download included (0.7 s with a warm cache; measured on a
-datacenter connection, so expect longer on home broadband; [docs/launch/fresh-user-test.md](docs/launch/fresh-user-test.md)).
-
-> Status: 0.5.0, release candidate. **Not on npm/PyPI yet**: until it is, run from this repository
-> (`npm ci && npm run build:wasm && npm run build`, then `node dist/cli.js demo`).
+drives it as an agent, and verifies the audit chain.
 
 ## Guard any MCP server, no code
 
-Put `mcp-rbac proxy` in front of the server command in your MCP client config:
+Put `mcp-rbac proxy` in front of the server command in your MCP client config (or `--policy mcp-rbac.yaml` for a
+YAML policy, decided by the same Rust core as the libraries):
 
 ```bash
 npx mcp-rbac proxy --preset read-only -- npx -y @modelcontextprotocol/server-filesystem ~/notes
@@ -55,6 +55,8 @@ const { server: guarded } = await protectWithCore(server, {
   policy: readFileSync("mcp-rbac.yaml", "utf8"),
   identity: (extra) => userFrom(extra),  // your OAuth/JWT layer: { id, roles }
   audit: "audit.db",                     // hash-chained SQLite log, written off the main thread
+  approve: "auto",                       // who approves the refund of 250: the MCP client if it can ask its user
+                                         // (elicitation), else a queue you answer with `mcp-rbac approve <id>`
 });
 ```
 
@@ -63,12 +65,18 @@ const { server: guarded } = await protectWithCore(server, {
 ```python
 from mcp_rbac.core_guard import protect_with_core
 
-protect_with_core(server, open("mcp-rbac.yaml").read(), identity=lambda ctx: user_from(ctx))
+protect_with_core(
+    server, open("mcp-rbac.yaml").read(),
+    identity=lambda ctx: user_from(ctx),       # your OAuth/JWT layer: {"id", "roles"}
+    audit="audit.db",                          # the same hash-chained SQLite log
+    approve=lambda call, decision: ask_a_human(call),  # without an approver, approval-required calls are denied
+)
 ```
 
 Staff see `list_events` and `checkin` only; a staff refund is denied; the 4th check-in in a minute is refused; an
-owner refund of 20 goes through, 250 waits for a human (the approval is bound to those exact arguments), 900 is over
-the limit. Full, runnable versions (tested in CI on every commit): [docs/quickstart.md](docs/quickstart.md). Those
+owner refund of 20 goes through, 250 waits for the approver above (the approval is bound to those exact arguments;
+with no approver it is denied), 900 is over the limit. Full, runnable versions, run and diffed against their expected
+output by `tools/docs-check.sh` in CI: [docs/quickstart.md](docs/quickstart.md). Those
 allow / deny / approval cases are also a fixture you can run with `mcp-rbac test`
 ([docs/snippets/mcp-rbac.test.yaml](docs/snippets/mcp-rbac.test.yaml)).
 
@@ -164,15 +172,16 @@ Caveats, please read them:
 
 ## Proof
 
-One Rust core (`#![forbid(unsafe_code)]`) compiled to WASM, PyO3 and a C ABI; 4,128 conformance vectors give
-byte-identical decisions across 6 engines; 140/140 red-team checks; fuzzed; live runs against Klaviyo's official MCP
+One Rust core (`#![forbid(unsafe_code)]`) compiled to WASM, PyO3 and a C ABI; 4,230 conformance vectors give
+byte-identical decisions across 6 engines, and the TypeScript, Python, Go and Rust guards share one behavior contract
+(non-tool requests refused, cold start reads `tools/list`, uniform denials; [docs/polyglot.md](docs/polyglot.md)); 140/140 red-team checks; fuzzed; live runs against Klaviyo's official MCP
 server. [SECURITY.md](SECURITY.md) · [THREAT-MODEL](docs/THREAT-MODEL.md) · [CONFORMANCE](docs/CONFORMANCE.md)
 
 ## Start here
 
 | I want to… | read |
 |---|---|
-| try it | `npx mcp-rbac demo`, then [docs/quickstart.md](docs/quickstart.md) |
+| try it | `node dist/cli.js demo` from the repo until published (`npx mcp-rbac demo` after), then [docs/quickstart.md](docs/quickstart.md) |
 | guard a server I didn't write | [docs/proxy.md](docs/proxy.md) |
 | write the policy file | [docs/policy-format.md](docs/policy-format.md), [spec/mcp-rbac.schema.json](spec/mcp-rbac.schema.json) |
 | test my roles | `mcp-rbac test policy.yaml tests.yaml`, [examples/policies/venue.test.yaml](examples/policies/venue.test.yaml) |

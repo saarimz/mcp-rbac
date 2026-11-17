@@ -1,18 +1,21 @@
 //! mcp-rbac for rmcp (the official Rust MCP SDK).
 //!
 //! [`Guarded`] wraps any `Service<RoleServer>` (every `ServerHandler` is one) and intercepts `tools/list`
-//! (filtered to what the caller may see) and `tools/call` (deny, approval, rate limits, redaction); every other
-//! request and notification is forwarded untouched. Decisions come from `mcp-rbac-core` and are byte-identical to
+//! (filtered to what the caller may see) and `tools/call` (deny, approval, rate limits, redaction). Only tools are
+//! guarded: `resources/*`, `prompts/*` and `completion/*` requests are refused (method not found) for every caller,
+//! the same fail-closed design as the TypeScript, Python and Go guards. Other protocol requests and notifications
+//! are forwarded untouched. Decisions come from `mcp-rbac-core` and are byte-identical to
 //! the TypeScript (WASM), Python (PyO3) and Go (wazero) bindings.
 #![forbid(unsafe_code)]
 
 use mcp_rbac_core::engine::{redact_json, Engine};
-use rmcp::model::{CallToolResult, ClientRequest, ContentBlock, MetaObject, ServerResult};
+use rmcp::model::{CallToolResult, ClientRequest, ContentBlock, ErrorCode, ListToolsRequest, MetaObject, PaginatedRequestParams, ServerResult, Tool};
 use rmcp::service::{NotificationContext, RequestContext, RoleServer, Service, ServiceRole};
 use rmcp::ErrorData as McpError;
 use serde_json::{json, Value};
 use std::borrow::Cow;
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(feature = "otel")]
@@ -44,6 +47,21 @@ pub struct Caller {
 
 /// Guard-level denial when the resource resolver fails (same shape as a core decision).
 const RESOURCE_UNRESOLVED: &str = r#"{"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"resource_unresolved","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}"#;
+/// Guard-level denial when a semantics policy needs the server's tool metadata and it cannot be read.
+const TOOL_META_UNAVAILABLE: &str = r#"{"decision":"deny","labels":[],"limits":[],"missingScopes":[],"reason":"tool_meta_unavailable","redact":[],"requiredScopes":[],"rule":null,"tenant":null,"withholdText":false}"#;
+
+fn unguarded(method: &str) -> bool { method.starts_with("resources/") || method.starts_with("prompts/") || method.starts_with("completion/") }
+
+fn tool_meta_of(t: &Tool) -> Value {
+    let mut m = serde_json::Map::new();
+    if let Some(a) = &t.annotations {
+        m.insert("annotations".into(), serde_json::to_value(a).unwrap_or(Value::Null));
+    }
+    if let Some(x) = &t.meta {
+        m.insert("_meta".into(), serde_json::to_value(x).unwrap_or(Value::Null));
+    }
+    Value::Object(m)
+}
 
 /// One tools/call decision, passed to [`GuardOptions::on_decision`].
 #[derive(Debug, Clone)]
@@ -68,6 +86,8 @@ pub struct GuardOptions {
     pub on_decision: Option<Arc<OnDecisionFn>>,
     /// The resource a call touches, resolved from the host's own data (never the caller's say-so).
     pub resource: Option<Arc<ResourceFn>>,
+    /// `true`: denials answer `Denied` and omit the reason from the result's `_meta` (`on_decision` still gets it).
+    pub uniform_denials: bool,
     /// OpenTelemetry (docs/otel.md); feature `otel`. None = off.
     #[cfg(feature = "otel")]
     pub telemetry: Option<Arc<otel::Telemetry>>,
@@ -76,7 +96,7 @@ pub struct GuardOptions {
 impl GuardOptions {
     pub fn with_identity(f: impl Fn(&RequestContext<RoleServer>) -> Option<Value> + Send + Sync + 'static) -> Self {
         GuardOptions {
-            identity: Arc::new(f), toolsets: None, approve: None, now: None, on_decision: None, resource: None,
+            identity: Arc::new(f), toolsets: None, approve: None, now: None, on_decision: None, resource: None, uniform_denials: false,
             #[cfg(feature = "otel")]
             telemetry: None,
         }
@@ -104,10 +124,23 @@ pub struct Guarded<S> {
     inner: S,
     engine: Arc<Engine>,
     opts: GuardOptions,
+    /// Tool semantics on (the policy has `semantics`): tools/list entries feed the engine as `toolMeta`.
+    semantics: bool,
+    meta: RwLock<HashMap<String, Value>>,
 }
 
 impl<S> Guarded<S> {
-    pub fn new(inner: S, engine: Arc<Engine>, opts: GuardOptions) -> Self { Guarded { inner, engine, opts } }
+    pub fn new(inner: S, engine: Arc<Engine>, opts: GuardOptions) -> Self {
+        let semantics = serde_json::from_str::<Value>(&engine.decide("{}")).is_ok_and(|v| v.get("semantics").is_some());
+        Guarded { inner, engine, opts, semantics, meta: RwLock::new(HashMap::new()) }
+    }
+    fn remember(&self, tools: &[Tool]) {
+        if let Ok(mut m) = self.meta.write() {
+            for t in tools {
+                m.insert(t.name.to_string(), tool_meta_of(t));
+            }
+        }
+    }
     pub fn engine(&self) -> &Arc<Engine> { &self.engine }
 }
 
@@ -118,13 +151,22 @@ pub fn protect<S>(inner: S, policy: &str, opts: GuardOptions) -> Result<Guarded<
 
 fn internal(msg: impl Into<Cow<'static, str>>) -> McpError { McpError::internal_error(msg, None) }
 
-fn denial(tool: &str, d: &Value) -> CallToolResult {
+fn denial(tool: &str, d: &Value) -> CallToolResult { denial_as(tool, d, false) }
+
+fn denial_as(tool: &str, d: &Value, uniform: bool) -> CallToolResult {
     let decision = d["decision"].as_str().unwrap_or("deny");
     let reason = d["reason"].as_str().unwrap_or("");
-    let text = if decision == "needs_approval" { format!("Approval required for {tool}") } else { format!("Denied: {reason}") };
+    let uniform = uniform && decision == "deny";
+    let text = if decision == "needs_approval" {
+        format!("Approval required for {tool}")
+    } else if uniform {
+        "Denied".to_string()
+    } else {
+        format!("Denied: {reason}")
+    };
     let mut r = CallToolResult::error(vec![ContentBlock::text(text)]);
     let mut meta = serde_json::Map::new();
-    meta.insert(DENIAL_META_KEY.into(), json!({"decision": decision, "reason": reason}));
+    meta.insert(DENIAL_META_KEY.into(), if uniform { json!({"decision": decision}) } else { json!({"decision": decision, "reason": reason}) });
     r.meta = Some(MetaObject(meta));
     r
 }
@@ -186,15 +228,39 @@ impl Obs {
 }
 
 impl<S: Service<RoleServer>> Guarded<S> {
+    /// Read the inner server's full tools/list (pagination followed, at most 50 pages) and remember the metadata.
+    async fn load_meta(&self, context: &RequestContext<RoleServer>) -> Result<(), McpError> {
+        let mut cursor: Option<String> = None;
+        for _ in 0..50 {
+            let req = ClientRequest::ListToolsRequest(ListToolsRequest::with_param(PaginatedRequestParams::default().with_cursor(cursor.take())));
+            let ServerResult::ListToolsResult(lr) = self.inner.handle_request(req, context.clone()).await? else {
+                return Err(internal("mcp-rbac: unexpected tools/list result"));
+            };
+            self.remember(&lr.tools);
+            match lr.next_cursor {
+                Some(c) if !c.is_empty() => cursor = Some(c),
+                _ => return Ok(()),
+            }
+        }
+        Ok(())
+    }
+
     async fn list(&self, request: ClientRequest, context: RequestContext<RoleServer>) -> Result<ServerResult, McpError> {
         let mut base = self.opts.base(&context);
         let res = self.inner.handle_request(request, context).await?;
         let ServerResult::ListToolsResult(mut lr) = res else { return Ok(res) };
+        if self.semantics {
+            self.remember(&lr.tools);
+        }
         if !base.contains_key("identity") {
             lr.tools.clear();
             return Ok(ServerResult::ListToolsResult(lr));
         }
         base.insert("tools".into(), json!(lr.tools.iter().map(|t| t.name.as_ref()).collect::<Vec<_>>()));
+        if self.semantics {
+            let metas: serde_json::Map<String, Value> = lr.tools.iter().map(|t| (t.name.to_string(), tool_meta_of(t))).collect();
+            base.insert("toolMeta".into(), Value::Object(metas));
+        }
         let vis: Value = serde_json::from_str(&self.engine.visible(&Value::Object(base).to_string()))
             .map_err(|e| internal(format!("mcp-rbac: visible: {e}")))?;
         let ok: Vec<&str> = vis["visible"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
@@ -218,12 +284,37 @@ impl<S: Service<RoleServer>> Guarded<S> {
                 Err(_) => unresolved = true,
             }
         }
+        let mut meta_failed = false;
+        if self.semantics && body.contains_key("identity") {
+            let known = self.meta.read().ok().and_then(|m| m.get(&tool).cloned());
+            let m = match known {
+                Some(m) => Some(m),
+                // cold start (no tools/list seen yet) or a tool added since: read the inner server's own list so
+                // class rules apply; if it cannot be read, deny rather than decide without the metadata
+                None => match self.load_meta(&context).await {
+                    Ok(()) => self.meta.read().ok().and_then(|m| m.get(&tool).cloned()),
+                    Err(_) => {
+                        meta_failed = true;
+                        None
+                    }
+                },
+            };
+            if let Some(m) = m {
+                body.insert("toolMeta".into(), m);
+            }
+        }
         let body_identity = body.get("identity").cloned();
         let body_resource = body.get("resource").and_then(Value::as_object).cloned();
         let req = Value::Object(body).to_string();
         obs.start_authorize(&tool);
         let e0 = Instant::now();
-        let mut raw = if unresolved { RESOURCE_UNRESOLVED.to_string() } else { self.engine.authorize(&req, self.opts.now_ms()) };
+        let mut raw = if unresolved {
+            RESOURCE_UNRESOLVED.to_string()
+        } else if meta_failed {
+            TOOL_META_UNAVAILABLE.to_string()
+        } else {
+            self.engine.authorize(&req, self.opts.now_ms())
+        };
         let mut engine = e0.elapsed();
         let mut d: Value = serde_json::from_str(&raw).map_err(|e| internal(format!("mcp-rbac: decision: {e}")))?;
         let mut approved = false;
@@ -252,7 +343,7 @@ impl<S: Service<RoleServer>> Guarded<S> {
             let modern = |v: Option<rmcp::model::ProtocolVersion>| {
                 v.is_some_and(|v| v.as_str() >= rmcp::model::ProtocolVersion::V_2026_07_28.as_str())
             };
-            let mut out = ServerResult::CallToolResult(denial(&tool, &d));
+            let mut out = ServerResult::CallToolResult(denial_as(&tool, &d, self.opts.uniform_denials));
             if modern(context.protocol_version()) || modern(context.meta.protocol_version()) {
                 out.fill_missing_cache_hints();
             } else {
@@ -306,6 +397,7 @@ impl<S: Service<RoleServer>> Service<RoleServer> for Guarded<S> {
                 obs.finish(&res);
                 res
             }
+            other if unguarded(other.method()) => Err(McpError::new(ErrorCode::METHOD_NOT_FOUND, "Method not found", None)),
             other => self.inner.handle_request(other, context).await,
         }
     }

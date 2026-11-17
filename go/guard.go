@@ -65,6 +65,8 @@ type DecisionEvent struct {
 	Raw      string
 	Duration time.Duration
 	Approved bool
+	// Context is the request context (carries the active span: AuditTraceFromContext(ev.Context) for the audit).
+	Context context.Context
 }
 
 // GuardOptions configures Middleware. Identity is required; returning nil means unauthenticated.
@@ -306,7 +308,7 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 		// never forward a call the guard could not read: deny (fail closed) instead of trusting the SDK to reject it
 		d := Decision{Decision: "deny", Reason: "invalid_request"}
 		if o.OnDecision != nil {
-			o.OnDecision(DecisionEvent{Decision: d, Raw: denyJSON("invalid_request"), Duration: time.Since(t0)})
+			o.OnDecision(DecisionEvent{Decision: d, Raw: denyJSON("invalid_request"), Duration: time.Since(t0), Context: ctx})
 		}
 		return denialAs("", d, o.Denials), nil
 	}
@@ -410,7 +412,7 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 		o.Telemetry.endAuthorize(az, server, tool, d, approval, engine)
 	}
 	if o.OnDecision != nil {
-		o.OnDecision(DecisionEvent{Tool: tool, Identity: body["identity"], Decision: d, Raw: raw, Duration: time.Since(t0), Approved: approved})
+		o.OnDecision(DecisionEvent{Tool: tool, Identity: body["identity"], Decision: d, Raw: raw, Duration: time.Since(t0), Approved: approved, Context: ctx})
 	}
 	if d.Decision != "allow" {
 		return denialAs(tool, d, o.Denials), nil

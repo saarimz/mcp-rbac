@@ -28,7 +28,9 @@ engine.Protect(server, mcprbac.GuardOptions{
   read fails.
 - `Denials: "uniform"` answers `Denied` without the reason (`OnDecision` still gets it).
 - `mcprbac.CallerFrom(ctx)` inside a tool gives the identity, tenant and matched rule.
-- `AuditSink` writes the hash-chained audit table shared with the TS and Python sinks (docs/AUDIT.md).
+- `AuditSink` writes the hash-chained audit table shared with the TS and Python sinks (docs/AUDIT.md); write records
+  from `OnDecision`. `AuditSinkOptions.OnCommit: mcprbac.NewAuditOtelExporter(...)` exports committed rows as OTel logs
+  with the chain fields (set `rec.Trace = mcprbac.AuditTraceFromContext(ev.Context)`; docs/otel.md "Audit export").
 
 See `docs/quickstart.md` (Go section), `docs/polyglot.md` and `examples/core-servers/go`.
 

@@ -6,7 +6,7 @@ package mcprbac
 // request's trace; each committed batch gets one INTERNAL span mcp_rbac.audit.commit linked to those requests.
 //
 //	sink, _ := mcprbac.NewAuditSink(db, mcprbac.AuditSinkOptions{OnCommit: mcprbac.NewAuditOtelExporter(mcprbac.AuditOtelOptions{})})
-//	// per decision: rec := ...; rec.Trace = mcprbac.AuditTraceFromContext(ctx); sink.Write(rec)
+//	// in GuardOptions.OnDecision: rec := ...; rec.Trace = mcprbac.AuditTraceFromContext(ev.Context); sink.Write(rec)
 
 import (
 	"context"

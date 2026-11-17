@@ -47,7 +47,8 @@ type otelHarness struct {
 	logs   *memLogs
 	slog   *bytes.Buffer
 	tel    *Telemetry
-	raw    bool          // session() only connects the server; the test drives h.ct with raw JSON-RPC
+	raw    bool // session() only connects the server; the test drives h.ct with raw JSON-RPC
+	onDec  func(DecisionEvent)
 	ct     mcp.Transport // client end when raw
 }
 
@@ -93,7 +94,7 @@ func (h *otelHarness) session(t *testing.T, identity any, approve *bool) *mcp.Cl
 			return nil, map[string]any{"ok": true}, nil
 		})
 	}
-	opts := GuardOptions{Identity: func(context.Context, mcp.Request) any { return identity }, Telemetry: h.tel, Now: func() float64 { return 1.8e12 }}
+	opts := GuardOptions{Identity: func(context.Context, mcp.Request) any { return identity }, Telemetry: h.tel, Now: func() float64 { return 1.8e12 }, OnDecision: h.onDec}
 	if approve != nil {
 		v := *approve
 		opts.Approve = func(context.Context, string, json.RawMessage, any, Decision) bool { return v }
@@ -423,5 +424,23 @@ func TestOtelRequestsWithoutParamsDoNotPanic(t *testing.T) {
 	}
 	if !list {
 		t.Fatal("no tools/list span")
+	}
+}
+
+// The audit's trace correlation in Go: OnDecision gets the request context, so AuditTraceFromContext(ev.Context) is the
+// guard's server span (the record exported by NewAuditOtelExporter then joins the request's trace).
+func TestDecisionEventContextCarriesServerSpan(t *testing.T) {
+	h := newHarness(t, 0)
+	var got []*AuditTraceContext
+	h.onDec = func(ev DecisionEvent) { got = append(got, AuditTraceFromContext(ev.Context)) }
+	cs := h.session(t, map[string]any{"id": "u1", "roles": []any{"door"}}, nil)
+	callMeta(t, cs, "checkin", args{"ticketId": "t1"}, nil)
+	callMeta(t, cs, "refund", args{"ticketId": "t1", "amount": 5}, nil)
+	srv := h.spansNamed("tools/call checkin")
+	if len(got) != 2 || got[0] == nil || len(srv) != 1 {
+		t.Fatalf("got %v, server spans %d", got, len(srv))
+	}
+	if got[0].TraceID != srv[0].SpanContext().TraceID().String() || got[0].SpanID != srv[0].SpanContext().SpanID().String() {
+		t.Fatalf("trace %+v != server span %s/%s", got[0], srv[0].SpanContext().TraceID(), srv[0].SpanContext().SpanID())
 	}
 }

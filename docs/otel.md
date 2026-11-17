@@ -101,7 +101,7 @@ backend holds a verifiable copy of the audit.
 |----------|--------|
 | TypeScript | `protectWithCore(inner, { ..., audit: { path: "audit.db", otel: true \| { loggerProvider, tracerProvider, spans, includeEvent } } })`; or `onCommit: auditOtelExporter(...)` on `openAuditSink` / `SqliteAuditSink` (`mcp-rbac/audit-otel`) |
 | Python | `CoreGuard(..., audit={"path": "audit.db", "otel": True \| {"logger_provider": ..., "tracer_provider": ..., "spans": ..., "include_event": ...}})`; or `SqliteAuditSink(..., on_commit=audit_otel_exporter(...))` |
-| Go | `NewAuditSink(db, AuditSinkOptions{OnCommit: NewAuditOtelExporter(AuditOtelOptions{...})})`, and `rec.Trace = AuditTraceFromContext(ctx)` when you write the record (the Go guard has no built-in audit; you write records from `OnDecision`) |
+| Go | `NewAuditSink(db, AuditSinkOptions{OnCommit: NewAuditOtelExporter(AuditOtelOptions{...})})`, and `rec.Trace = AuditTraceFromContext(ev.Context)` when you write the record from `OnDecision` (the Go guard has no built-in audit; you write records from `OnDecision`) |
 | Rust (rmcp) | not yet (no built-in audit sink in the rmcp decorator) |
 
 **One log record per committed row** (event name `mcp_rbac.audit`, severity INFO for allow, WARN otherwise):

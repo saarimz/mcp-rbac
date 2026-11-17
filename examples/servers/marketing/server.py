@@ -359,8 +359,32 @@ def main() -> None:
     app = server.streamable_http_app(transport_security=TransportSecuritySettings(allowed_hosts=[f"127.0.0.1:{real}", f"localhost:{real}"]))
     front = BearerFront(app, secret=secret, audience=AUDIENCE,
                         revoked=lambda j: db.execute("SELECT 1 FROM revoked_tokens WHERE jti = ?", (j,)).fetchone() is not None)
+    asgi: Any = soak_stats(front) if os.environ.get("MCP_RBAC_SOAK_STATS") == "1" else front
     print(f"marketing-platform listening on http://127.0.0.1:{real}/mcp", flush=True)
-    asyncio.run(uvicorn.Server(uvicorn.Config(front, log_level="warning", lifespan="on")).serve(sockets=[sock]))
+    asyncio.run(uvicorn.Server(uvicorn.Config(asgi, log_level="warning", lifespan="on")).serve(sockets=[sock]))
+
+
+def soak_stats(app: Any) -> Any:
+    """GET /__soak_stats: Python heap after a full gc (tracemalloc, started here) and RSS, for the session soak
+    (redteam/malformed.py). Only wired when MCP_RBAC_SOAK_STATS=1."""
+    import gc
+    import tracemalloc
+    tracemalloc.start()
+
+    async def wrapped(scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] != "http" or scope["path"] != "/__soak_stats":
+            return await app(scope, receive, send)
+        gc.collect()
+        try:
+            with open("/proc/self/statm") as f:
+                rss: int | None = int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE")
+        except OSError:
+            rss = None
+        heap = tracemalloc.get_traced_memory()[0]
+        body = json.dumps({"gc": True, "heap": heap, "heap_used": heap, "external": 0, "rss": rss}).encode()
+        await send({"type": "http.response.start", "status": 200, "headers": [(b"content-type", b"application/json")]})
+        await send({"type": "http.response.body", "body": body})
+    return wrapped
 
 
 if __name__ == "__main__":

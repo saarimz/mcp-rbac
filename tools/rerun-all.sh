@@ -52,7 +52,7 @@ s["conformance"] = (re.findall(r"^\d+ vectors.*$", log("conformance"), re.M) or 
 try: s["redteam"] = json.loads((pathlib.Path(o / "clone/redteam/report.json")).read_text()).get("summary")
 except Exception as e: s["redteam"] = {"error": str(e)}
 try:
-    mal = json.loads((o / "malformed.json").read_text()); s["malformed"] = {x["server"]: {"failures": x["failures"], "alive": x["alive_after"], "soak": {k: x["soak"][k] for k in ("sequential_ok", "concurrent_ok", "rss_kib_after_warmup", "rss_kib_after_sequential")}} for x in mal}
+    mal = json.loads((o / "malformed.json").read_text()); s["malformed"] = {x["server"]: {"failures": x["failures"], "alive": x["alive_after"], "soak": {k: x["soak"][k] for k in ("sequential_ok", "concurrent_ok", "heap_slope_b_per_session", "late_slope_b_per_session", "late_rss_growth_bytes")}} for x in mal}
 except Exception as e: s["malformed"] = {"error": str(e)}
 try: s["otel_e2e"] = json.loads((o / "clone/tools/otel-e2e/last-run.json").read_text())
 except Exception as e: s["otel_e2e"] = {"error": str(e)}

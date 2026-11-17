@@ -136,18 +136,39 @@ def _root(x: Any) -> str:
     return f"{type(x).__name__}: {x}"[:200]
 
 
-def rss_kib(pid: int) -> int:
-    """RSS of the server's whole process tree (venue runs under a tsx launcher, so the server is a child process)."""
-    with open(f"/proc/{pid}/status") as f:
-        total = next((int(l.split()[1]) for l in f if l.startswith("VmRSS:")), 0)
-    for task in os.listdir(f"/proc/{pid}/task"):
-        with open(f"/proc/{pid}/task/{task}/children") as f:
-            total += sum(rss_kib(int(c)) for c in f.read().split())
-    return total
+def stats(url: str) -> dict[str, Any]:
+    """The server's own memory after a full GC (GET /__soak_stats, served only with MCP_RBAC_SOAK_STATS=1):
+    `heap` is V8 heap + external (incl. WASM memory) for node, tracemalloc'd Python heap, Go HeapAlloc."""
+    r = httpx2.get(url.rsplit("/mcp", 1)[0] + "/__soak_stats", timeout=60)
+    r.raise_for_status()
+    out: dict[str, Any] = r.json()
+    return out
 
 
-async def soak(url: str, server: str, pid: int, warm: int = 300, n: int = 1500, conc: int = 64) -> dict[str, Any]:
-    """Sessions opened, used and closed in sequence, then `conc` at once: server RSS must plateau, every call answered."""
+# A real per-session leak is a constant slope; V8/allocator headroom is a plateau. So measure post-GC heap at evenly
+# spaced checkpoints (after a warm-up) in one server process and gate on the LATE slope: a least-squares fit over the
+# second half of the run. A fit, not the last two points: Python's tracemalloc reading moves by ~1 MiB between
+# collections, which a two-point slope over a short run turns into hundreds of B/session of pure noise.
+MAX_SLOPE_B_PER_SESSION = 1024  # a 1 KiB/session leak is 2 MiB over 2000 sessions: far above post-GC noise
+MAX_LATE_RSS_GROWTH = 8 * MiB  # RSS as a plateau check only (allocators keep pages; never a per-session measure)
+FULL_CHECKPOINTS = tuple(range(2000, 16001, 2000))  # `python -m redteam.malformed`
+TEST_CHECKPOINTS = tuple(range(250, 2001, 250))  # pytest
+
+
+def _fit_slope(points: list[dict[str, Any]]) -> float:
+    """Least-squares heap slope (bytes/session) over the points in the second half of the run (sessions >= last/2)."""
+    last = points[-1]["sessions"]
+    pts = [(p["sessions"], p["heap"]) for p in points if p["sessions"] >= last / 2]
+    n = len(pts)
+    mx, my = sum(x for x, _ in pts) / n, sum(y for _, y in pts) / n
+    den = sum((x - mx) ** 2 for x, _ in pts)
+    return round(sum((x - mx) * (y - my) for x, y in pts) / den, 1) if den else 0.0
+
+
+async def soak(url: str, server: str, warm: int = 2000, checkpoints: tuple[int, ...] = FULL_CHECKPOINTS,
+               conc: int = 64) -> dict[str, Any]:
+    """Sessions opened, used and closed in sequence with post-GC memory read at each checkpoint (cumulative session
+    counts after the warm-up), then `conc` at once. Every call must be answered; the late heap slope must be flat."""
     tool, args = PROFILE[server]["ok"]
     k = iter(range(10**9))
 
@@ -162,37 +183,51 @@ async def soak(url: str, server: str, pid: int, warm: int = 300, n: int = 1500, 
 
     for _ in range(warm):
         await one()
-    r0 = rss_kib(pid)
-    seq = [await one() for _ in range(n)]
-    r1 = rss_kib(pid)
+    points = [{"sessions": 0, **stats(url)}]
+    ok_seq, done = 0, 0
+    for c in checkpoints:
+        while done < c:
+            ok_seq += await one()
+            done += 1
+        points.append({"sessions": c, **stats(url)})
     par = await asyncio.gather(*[one() for _ in range(conc)], return_exceptions=True)
-    r2 = rss_kib(pid)
     good = sum(1 for x in par if x is True)
-    return {"sequential_sessions": n, "sequential_ok": sum(seq), "concurrent_sessions": conc, "concurrent_ok": good,
-            "concurrent_errors": sorted({_root(x) for x in par if x is not True}),
-            "rss_kib_after_warmup": r0, "rss_kib_after_sequential": r1, "rss_kib_after_concurrent": r2,
-            # a per-session leak of even ~10 KiB would show as 15+ MiB over 1500 sessions
-            "ok": sum(seq) == n and good == conc and r1 - r0 < 12 * 1024}
+    slopes = [round((b["heap"] - a["heap"]) / (b["sessions"] - a["sessions"]), 1) for a, b in zip(points, points[1:])]
+    late = _fit_slope(points)
+    a = next(p for p in points if p["sessions"] >= points[-1]["sessions"] / 2)
+    b = points[-1]
+    rss_late = b["rss"] - a["rss"] if a.get("rss") is not None and b.get("rss") is not None else None
+    n = checkpoints[-1]
+    return {"warmup_sessions": warm, "sequential_sessions": n, "sequential_ok": ok_seq, "concurrent_sessions": conc,
+            "concurrent_ok": good, "concurrent_errors": sorted({_root(x) for x in par if x is not True}),
+            "post_gc": bool(points[-1].get("gc")), "points": points, "heap_slope_b_per_session": slopes,
+            "late_slope_b_per_session": late, "late_window_sessions": [a["sessions"], b["sessions"]],
+            "late_rss_growth_bytes": rss_late,
+            "ok": ok_seq == n and good == conc and bool(points[-1].get("gc")) and late <= MAX_SLOPE_B_PER_SESSION
+            and (rss_late is None or rss_late < MAX_LATE_RSS_GROWTH)}
 
 
-async def check_server(server: str, warm: int = 300, n: int = 1500) -> dict[str, Any]:
+async def check_server(server: str, warm: int = 2000,
+                       checkpoints: tuple[int, ...] | None = FULL_CHECKPOINTS) -> dict[str, Any]:
     db = os.path.join(tempfile.mkdtemp(prefix=f"malformed-{server}-"), "db.sqlite")
-    # V8 grows its heap lazily (venue's RSS climbs ~40 KiB/session with no cap, yet stays flat for 5000 sessions under a
-    # 64 MiB cap), so cap it: a real per-session leak then crashes the server instead of hiding in headroom
-    old = os.environ.get("NODE_OPTIONS")
-    os.environ["NODE_OPTIONS"] = "--max-old-space-size=96"
+    # --expose-gc: the soak reads post-GC memory. The heap cap keeps V8 from growing lazily into headroom (venue's RSS
+    # climbs with no cap), so the RSS plateau check means something and a real leak crashes the server.
+    saved = {k: os.environ.get(k) for k in ("NODE_OPTIONS", "MCP_RBAC_SOAK_STATS")}
+    os.environ["NODE_OPTIONS"] = "--max-old-space-size=96 --expose-gc"
+    os.environ["MCP_RBAC_SOAK_STATS"] = "1"
     try:
         url, proc = servers.start_http(server, db)
     finally:
-        if old is None:
-            del os.environ["NODE_OPTIONS"]
-        else:
-            os.environ["NODE_OPTIONS"] = old
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
     tok = servers.token(server, **PROFILE[server]["limited"])
     try:
         t = await transport(url, tok)
         p = await protocol(url, tok, server) + await raw_session(url, tok, server)
-        sk = await soak(url, server, proc.pid, warm, n) if n else None
+        sk = await soak(url, server, warm, checkpoints) if checkpoints else None
         async with servers.http(url, tok) as s:  # liveness: a fresh, well-formed session still works
             tools = await s.list_tools()
             r = await s.call_tool(*PROFILE[server]["ok"])

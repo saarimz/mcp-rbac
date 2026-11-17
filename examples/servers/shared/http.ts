@@ -49,12 +49,24 @@ async function readBody(req: IncomingMessage, max: number): Promise<unknown | "t
   try { return JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { return "bad_json"; }
 }
 
+/** Memory after a full GC, for the session soak (redteam/malformed.py). Only served when MCP_RBAC_SOAK_STATS=1;
+ *  run node with --expose-gc so the numbers are post-GC (WASM linear memory is counted in `external`). */
+function soakStats(res: ServerResponse): void {
+  const gc = (globalThis as { gc?: () => void }).gc;
+  gc?.();
+  gc?.();
+  const m = process.memoryUsage();
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify({ gc: !!gc, heap: m.heapUsed + m.external, heap_used: m.heapUsed, external: m.external, rss: m.rss }));
+}
+
 export async function serveStreamable(o: HttpHostOptions): Promise<{ url: string; close: () => Promise<void> }> {
   if (Buffer.byteLength(o.secret) < 32) throw new Error("token secret must be at least 32 bytes");
   const host = o.host ?? "127.0.0.1";
   const sessions = new Map<string, { transport: StreamableHTTPServerTransport; sub: string; server: Server }>();
   const http = createServer(async (req, res) => {
     try {
+      if (req.url === "/__soak_stats" && process.env.MCP_RBAC_SOAK_STATS === "1") return soakStats(res);
       if (!req.url?.startsWith("/mcp")) return deny(res, 404, "not_found", "use /mcp");
       const asserted = o.assertionHeader ? req.headers[o.assertionHeader] : undefined;
       const auth = typeof asserted === "string" && asserted ? `Bearer ${asserted}` : (req.headers.authorization ?? "");

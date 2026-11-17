@@ -200,7 +200,12 @@ func serveHTTP(server *mcp.Server, db *sql.DB, port string) error {
 		return &auth.TokenInfo{UserID: c["sub"].(string), Scopes: ss, Expiration: time.Unix(int64(exp), 0), Extra: map[string]any{"identity": id}}, nil
 	}
 	mcpHandler := auth.RequireBearerToken(verifier, nil)(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil))
+	soak := os.Getenv("MCP_RBAC_SOAK_STATS") == "1"
 	front := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if soak && r.URL.Path == "/__soak_stats" {
+			soakStats(w)
+			return
+		}
 		if r.URL.Path != "/mcp" {
 			deny(w, http.StatusNotFound, "not_found", "use /mcp")
 			return
@@ -284,4 +289,22 @@ func admin(db *sql.DB, args []string) error {
 	b, _ := json.MarshalIndent(out, "", "  ")
 	fmt.Println(string(b))
 	return nil
+}
+
+// soakStats serves the Go heap after a full GC and the process RSS, for the session soak (redteam/malformed.py).
+// Only routed when MCP_RBAC_SOAK_STATS=1. The guard's wazero memory is Go-allocated, so HeapAlloc includes it.
+func soakStats(w http.ResponseWriter) {
+	runtime.GC()
+	runtime.GC()
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	var rss any
+	if b, err := os.ReadFile("/proc/self/statm"); err == nil {
+		var size, res int64
+		if _, err := fmt.Sscan(string(b), &size, &res); err == nil {
+			rss = res * int64(os.Getpagesize())
+		}
+	}
+	w.Header().Set("content-type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"gc": true, "heap": ms.HeapAlloc, "heap_used": ms.HeapAlloc, "external": 0, "rss": rss})
 }

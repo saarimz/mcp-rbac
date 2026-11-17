@@ -228,7 +228,10 @@ async def check_server(server: str, warm: int = 2000,
         t = await transport(url, tok)
         p = await protocol(url, tok, server) + await raw_session(url, tok, server)
         sk = await soak(url, server, warm, checkpoints) if checkpoints else None
-        async with servers.http(url, tok) as s:  # liveness: a fresh, well-formed session still works
+        # liveness: a fresh, well-formed session still works. Fresh token too: the full soak outlives the demo IdP's
+        # 15-minute TTL, and the server (correctly) answers the expired `tok` with 401.
+        live = servers.token(server, **PROFILE[server]["limited"])
+        async with servers.http(url, live) as s:
             tools = await s.list_tools()
             r = await s.call_tool(*PROFILE[server]["ok"])
         alive = proc.poll() is None and len(tools.tools) > 0 and not r.is_error

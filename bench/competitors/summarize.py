@@ -7,11 +7,13 @@ account identifiers; they are NOT like-for-like with the local loopback runs (cl
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 
 HERE = pathlib.Path(__file__).resolve().parent
 R = HERE / "results"
-PERMIT = pathlib.Path("/workspace/permit-research")
+# private research notes (not in the repository); point PERMIT_RESEARCH at them to refresh the external rows
+PERMIT = pathlib.Path(os.environ.get("PERMIT_RESEARCH", HERE / "results" / "external" / "private"))
 
 
 def external() -> dict:

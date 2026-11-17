@@ -8,8 +8,8 @@ import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-const FS = "/workspace/mcp-servers/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js";
 const root = resolve(import.meta.dirname, "..");
+const FS = process.env.FS_SERVER ?? resolve(root, "../mcp-servers/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js");
 const dist = join(root, "dist/cli.js");
 const cli = existsSync(dist) ? [dist] : [join(root, "node_modules/tsx/dist/cli.mjs"), join(root, "src/cli.ts")];
 const d = mkdtempSync(join(tmpdir(), "pb-"));

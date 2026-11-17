@@ -206,10 +206,10 @@ glue built in.
 
 | Product | Status | Numbers |
 |---|---|---|
-| **Permit Cloud PDP** | Real account test (Development env), `/workspace/permit-research/PERMIT-HOSTED-BENCH.md`; summary copied to `results/external/permit-opa.json` | 15/15 decisions correct on the 15-case marketing role × tool matrix; `POST /allowed` p50 **234 ms** / p99 **423 ms** at c=1 (3.5 req/s), **including Internet RTT**; propagation 0.20 s (unassign) / 0.36 s (reassign) / 0.22 s (remove permission) / **10.9 s** (restore permission, worst) / **7.0 s** first policy visible |
+| **Permit Cloud PDP** | Real account test (Development env), private research notes (PERMIT-HOSTED-BENCH.md, not in the repository); summary copied to `results/external/permit-opa.json` | 15/15 decisions correct on the 15-case marketing role × tool matrix; `POST /allowed` p50 **234 ms** / p99 **423 ms** at c=1 (3.5 req/s), **including Internet RTT**; propagation 0.20 s (unassign) / 0.36 s (reassign) / 0.22 s (remove permission) / **10.9 s** (restore permission, worst) / **7.0 s** first policy visible |
 | Permit Edge PDP (`permitio/pdp-v2`) | **not tested**: no Docker on this box | — |
 | **Permit MCP Gateway** | **not tested**: no MCP Gateway API in the public v2 API, the `app.agent.security` gateway/consent flow was not set up, and `api.agent.security/health` returned 502 | pending real gateway test |
-| Local OPA (OPAL's engine) | `/workspace/permit-research/opal-opa-bench.json`, loopback, OPAL docker stack not started (no Docker) | 15/15; p50 **0.29 ms** / p99 **0.70 ms** |
+| Local OPA (OPAL's engine) | private research notes (opal-opa-bench.json), loopback, OPAL docker stack not started (no Docker) | 15/15; p50 **0.29 ms** / p99 **0.70 ms** |
 | **AWS AgentCore Policy** | **pending: AWS sign-up blocked** | pending real account test |
 
 Cloud PDP latency includes the Internet round trip and Permit's control plane. Local numbers are loopback on one
@@ -259,7 +259,7 @@ Auth + HTTP).
 
 ## Page
 
-The feature grid, charts and verdict are on the Page "mcp-rbac vs the field": https://cursor.com/canvas/store-692e9880-125b-458d-beae-f082c0042b1c/d6662457-c847-4f47-94c7-06e5686764aa. Each grid cell is sourced from docs/MARKET.md, PERMIT-DEEP-DIVE video links, or this benchmark.
+The feature grid, charts and verdict are on an internal page "mcp-rbac vs the field" (not published). Each grid cell is sourced from docs/MARKET.md, PERMIT-DEEP-DIVE video links, or this benchmark.
 
 ## P11 update: perf fixes (2026-11-15)
 

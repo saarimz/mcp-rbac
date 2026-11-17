@@ -17,3 +17,8 @@ test/_deprecation_*.ts
 site/
 tools/docs-check/.tmp/
 core/mcp-rbac-py/python/mcp_rbac_core/*.so
+
+# private: launch drafts, ITM staging client and notes, private research (kept locally, never committed)
+docs/launch/
+examples/itm-agents/staging/
+private/

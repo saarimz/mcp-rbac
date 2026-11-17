@@ -9,7 +9,7 @@ if [[ ! -d node_modules/better-auth ]]; then
 fi
 TSX="$REPO/node_modules/.bin/tsx"
 if [[ ! -x $TSX ]]; then
-  echo "tsx not found in the repo (npm install at /workspace/mcp-guard first)" >&2
+  echo "tsx not found in the repo (run npm install at the repository root first)" >&2
   exit 1
 fi
 "$TSX" src/setup-env.ts

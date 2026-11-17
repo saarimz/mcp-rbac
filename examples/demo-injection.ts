@@ -17,7 +17,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { SqliteStore } from "../src/store-sqlite.js";
 
-const FS = process.env.FS_SERVER ?? "/workspace/mcp-servers/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js";
+const FS = process.env.FS_SERVER ?? resolve(import.meta.dirname, "../../mcp-servers/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js");
 const root = resolve(import.meta.dirname, "..");
 const c = process.stdout.isTTY || process.env.FORCE_COLOR ? { r: "\x1b[31m", g: "\x1b[32m", y: "\x1b[33m", b: "\x1b[1m", d: "\x1b[2m", x: "\x1b[0m" } : { r: "", g: "", y: "", b: "", d: "", x: "" };
 

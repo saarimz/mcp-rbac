@@ -132,7 +132,7 @@ describe("cli + misc", () => {
   });
   it("CLI init against the real python git server writes a loadable policy", () => {
     const out = join(mkdtempSync(join(tmpdir(), "init-")), "p.json");
-    const txt = execFileSync(process.execPath, [resolve(import.meta.dirname, "../node_modules/tsx/dist/cli.mjs"), resolve(import.meta.dirname, "../src/cli.ts"), "init", "--stdio", "/workspace/mcp-servers/.venv/bin/mcp-server-git", "--format", "json", "--out", out], { encoding: "utf8" });
+    const txt = execFileSync(process.execPath, [resolve(import.meta.dirname, "../node_modules/tsx/dist/cli.mjs"), resolve(import.meta.dirname, "../src/cli.ts"), "init", "--stdio", resolve(process.env.MCP_RBAC_REAL_SERVERS ?? resolve(import.meta.dirname, "../../mcp-servers"), ".venv/bin/mcp-server-git"), "--format", "json", "--out", out], { encoding: "utf8" });
     expect(txt).toMatch(/14 tools/);
     expect(loadPolicy(readFileSync(out, "utf8")).approve).toContain("git_reset");
   }, 60000);

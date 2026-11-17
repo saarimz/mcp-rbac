@@ -14,7 +14,9 @@ import { SqliteStore } from "../src/store-sqlite.js";
 
 const root = resolve(import.meta.dirname, "..");
 const tsx = resolve(root, "node_modules/tsx/dist/cli.mjs");
-const S = "/workspace/mcp-servers";
+// the real servers live next to the repo (npm i in ../mcp-servers, plus .venv with mcp-server-git); override with
+// MCP_RBAC_REAL_SERVERS
+const S = process.env.MCP_RBAC_REAL_SERVERS ?? resolve(root, "../mcp-servers");
 const FS = `${S}/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js`;
 const MEM = `${S}/node_modules/@modelcontextprotocol/server-memory/dist/index.js`;
 const GH = `${S}/node_modules/@modelcontextprotocol/server-github/dist/index.js`;

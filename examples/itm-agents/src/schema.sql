@@ -1,5 +1,5 @@
 -- SQLite mirror of the slice of ITM's Prisma schema (itm-backend src/database/schema.prisma, local copy
--- /workspace/itm.prisma) that agent authorization touches. Column names follow Prisma field names.
+-- ITM's Prisma schema) that agent authorization touches. Column names follow Prisma field names.
 -- Tables marked PROPOSED do not exist in ITM today.
 
 -- model Brand (tenant). Real model has ~227 fields; we keep identity fields.

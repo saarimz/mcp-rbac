@@ -3,7 +3,7 @@
 Every line of output in the recording is what the command actually printed in this run; only the pacing is scripted
 (typing at a fixed speed, output replayed with its real relative timing, a pause after each scene to read it).
 Until 0.5.0 is on npm the commands run against the locally built tarball (`npm pack`); the prompt shows the command a
-user will type after publishing (`npx mcp-rbac ...`), which prints the same output (see docs/launch/fresh-user-test.md).
+user will type after publishing (`npx mcp-rbac ...`), which prints the same output.
 
 Usage: python3 tools/demo/record.py <mcp-rbac-x.y.z.tgz> [--agg /path/to/agg]
 """

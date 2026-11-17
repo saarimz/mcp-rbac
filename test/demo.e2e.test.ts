@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runDemo } from "../examples/demo-injection.js";
 
-const FS = "/workspace/mcp-servers/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js";
+const FS = resolve(process.env.MCP_RBAC_REAL_SERVERS ?? resolve(import.meta.dirname, "../../mcp-servers"), "node_modules/@modelcontextprotocol/server-filesystem/dist/index.js");
 describe.skipIf(!existsSync(FS))("prompt-injection demo against the real filesystem server", () => {
   it("unguarded: all damage happens; guarded: none, with an audit trail", async () => {
     const { results, asked, events } = await runDemo(() => {});

@@ -1,4 +1,5 @@
 import json,sys,collections,os
+ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the repository root
 for f in sys.argv[1:]:
     d=json.load(open(f))
     nodes={n['id']:n for n in d['nodes']}
@@ -7,7 +8,7 @@ for f in sys.argv[1:]:
     total=sum(dt.values())
     self_=collections.Counter(); byfile=collections.Counter()
     for nid,t in dt.items():
-        cf=nodes[nid]['callFrame']; u=cf['url'].split('/node_modules/')[-1] if '/node_modules/' in cf['url'] else cf['url'].replace('file:///workspace/mcp-guard/','')
+        cf=nodes[nid]['callFrame']; u=cf['url'].split('/node_modules/')[-1] if '/node_modules/' in cf['url'] else cf['url'].replace('file://'+ROOT+'/','')
         self_[(cf['functionName'] or '(anon)')+' '+u+':'+str(cf['lineNumber'])]+=t
         pkg=u.split('/')[0] if '/node_modules/' in cf['url'] else (u or cf['functionName'])
         if u.startswith('@'): pkg='/'.join(u.split('/')[:2])

@@ -40,8 +40,9 @@ cd go
 go test ./...
 ```
 
-The committed `mcp_rbac_abi.wasm` is embedded with `go:embed`; `build-wasm.sh` must be re-run after any core change
-(CI checks that the conformance runner matches the golden file).
+`mcp_rbac_abi.wasm` is embedded with `go:embed` and is **not committed** (gitignored): run `build-wasm.sh` before
+`go build`/`go test`, and again after any core change (the conformance runner `go-wazero` rebuilds it). A published
+module must ship the built file, so the release job has to build it and commit it to the module's tag (see below).
 
 ## Publishing (plan, not done)
 
@@ -52,7 +53,8 @@ Go resolves a module path to a repository, so one of these is needed before `go 
 2. **Subdirectory module** in the main repository: change the module path to `github.com/<org>/mcp-rbac/go` and tag
    releases `go/vX.Y.Z`. No mirror; the import path names the main repository.
 
-Either way the module version tracks the core version (the conformance golden is shared).
+Either way the module version tracks the core version (the conformance golden is shared), and the tagged tree must
+contain the built `mcp_rbac_abi.wasm` (`go get` does not run build scripts).
 
 ## License
 

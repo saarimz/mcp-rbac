@@ -22,11 +22,19 @@ fn redact_path(v: &mut Value, parts: &[&str], repl: &Value) {
     }
 }
 
-/// Redact field paths ("a.*.email") in a JSON value.
+/// Redact field paths ("a.*.email") in a JSON value. A top-level array is a list of records: a path whose first
+/// segment is not `*` or an index applies to every element (`email` on `[{email}, …]` = `*.email`).
 pub fn redact_fields(v: &Value, fields: &[String], repl: &Value) -> Value {
     let mut c = v.clone();
     for f in fields {
         let parts: Vec<&str> = f.split('.').collect();
+        let index_like = |h: &str| h == "*" || (!h.is_empty() && h.bytes().all(|b| b.is_ascii_digit()));
+        if let (Value::Array(a), Some(head)) = (&mut c, parts.first()) {
+            if !index_like(head) {
+                for el in a.iter_mut() { redact_path(el, &parts, repl) }
+                continue;
+            }
+        }
         redact_path(&mut c, &parts, repl);
     }
     c

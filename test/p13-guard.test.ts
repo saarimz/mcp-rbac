@@ -264,3 +264,20 @@ describe("in place: progress tokens and an atomic setup", () => {
     expect(handlers.get("tools/call")).toBe(before.get("tools/call"));
   });
 });
+
+describe("redaction of a top-level array", () => {
+  it("the core treats a top-level array as records (email = *.email), on text and structured content", async () => {
+    const policy = "version: 1\nroles:\n  r: {tools: [people]}\ntools:\n  people:\n    redact: {fields: [email]}\n";
+    const s = new McpServer({ name: "x", version: "1" });
+    const rows = [{ name: "a", email: "a@x" }, { name: "b", email: "b@x" }];
+    s.registerTool("people", {}, async () => ({ content: [{ type: "text" as const, text: JSON.stringify(rows) }] }));
+    const c = await connect((await protectWithCore(s, { policy, identity: () => ({ id: "u", roles: ["r"] }) })).server);
+    expect(JSON.parse(text(await c.callTool({ name: "people", arguments: {} })))).toEqual([{ name: "a", email: "[REDACTED]" }, { name: "b", email: "[REDACTED]" }]);
+    await c.close();
+  });
+  it("legacy redactFields matches", async () => {
+    const { redactFields } = await import("../src/output.js");
+    expect(redactFields([{ email: "a", p: 1 }, { email: "b" }], ["email", "0.p"])).toEqual([{ email: "[REDACTED]", p: "[REDACTED]" }, { email: "[REDACTED]" }]);
+    expect(redactFields({ email: "a", l: [{ email: "b" }] }, ["email"])).toEqual({ email: "[REDACTED]", l: [{ email: "b" }] });
+  });
+});

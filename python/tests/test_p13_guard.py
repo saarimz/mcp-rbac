@@ -234,3 +234,18 @@ def test_python_narrow_identity_keeps_scope_and_never_widens() -> None:
         narrow_identity(sub, scopes=["a", "b"])  # token scopes intersect only
     with pytest.raises(ValueError):
         narrow_identity(sub, roles=["manager"])  # a role dropped earlier cannot come back
+
+
+def test_redaction_top_level_array_is_records() -> None:
+    import json as _json
+
+    import mcp_rbac_core
+
+    from mcp_rbac.output import redact_fields
+
+    assert redact_fields([{"email": "a", "p": 1}, {"email": "b"}], ["email", "0.p"]) == [{"email": "[REDACTED]", "p": "[REDACTED]"}, {"email": "[REDACTED]"}]
+    assert redact_fields({"email": "a", "l": [{"email": "b"}]}, ["email"]) == {"email": "[REDACTED]", "l": [{"email": "b"}]}
+    e = mcp_rbac_core.Engine("version: 1\nroles:\n  r: {tools: [people]}\ntools:\n  people:\n    redact: {fields: [email]}\n")
+    d = e.decide(_json.dumps({"tool": "people", "identity": {"id": "u", "roles": ["r"]}}))
+    out = _json.loads(e.redact(_json.dumps({"content": [{"type": "text", "text": '[{"email":"a@x"},{"email":"b@x"}]'}]}), d))
+    assert out["content"][0]["text"] == '[{"email":"[REDACTED]"},{"email":"[REDACTED]"}]'

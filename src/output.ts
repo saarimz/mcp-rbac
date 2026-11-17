@@ -89,10 +89,17 @@ function redactPath(v: unknown, parts: readonly string[], repl: unknown): boolea
   return hit;
 }
 
-/** Redact field paths in a JSON value (returns a deep copy; the input is not modified). */
+/**
+ * Redact field paths in a JSON value (returns a deep copy; the input is not modified). A top-level array is a list
+ * of records: a path whose first segment is not `*` or an index applies to every element (`email` = `*.email`).
+ */
 export function redactFields<T>(value: T, fields: readonly string[], replacement: unknown = "[REDACTED]"): T {
   const copy = structuredClone(value);
-  for (const f of fields) redactPath(copy, f.split("."), replacement);
+  for (const f of fields) {
+    const parts = f.split(".");
+    if (Array.isArray(copy) && parts[0] !== "*" && !/^[0-9]+$/.test(parts[0]!)) { for (const el of copy) redactPath(el, parts, replacement); continue; }
+    redactPath(copy, parts, replacement);
+  }
   return copy;
 }
 

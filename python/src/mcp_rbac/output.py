@@ -128,8 +128,14 @@ def _redact_path(v: Any, parts: list[str], repl: Any) -> bool:
 
 
 def redact_fields(value: Any, fields: Sequence[str], replacement: Any = "[REDACTED]") -> Any:
-    """Deep copy of ``value`` with dot paths (``*`` = any key/index) replaced."""
+    """Deep copy of ``value`` with dot paths (``*`` = any key/index) replaced. A top-level list is a list of records: a
+    path whose first segment is not ``*`` or an index applies to every element (``email`` = ``*.email``)."""
     out = copy.deepcopy(value)
     for f in fields:
-        _redact_path(out, f.split("."), replacement)
+        parts = f.split(".")
+        if isinstance(out, list) and parts[0] != "*" and not (parts[0].isascii() and parts[0].isdigit()):
+            for el in out:
+                _redact_path(el, parts, replacement)
+            continue
+        _redact_path(out, parts, replacement)
     return out

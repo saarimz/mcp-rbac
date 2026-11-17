@@ -40,7 +40,8 @@ isolation between accounts, bearer tokens and upstream credentials, the integrit
    300 s), bind tokens with DPoP/mTLS at the IdP or gateway, and revoke grants (`mcp-rbac revoke`).
 4. **Toolsets are not a security boundary.** They narrow lists and calls for usability; roles and scopes are the boundary.
 5. **Redaction is field-based.** PII inside free text (a review body that contains an email) is not detected. When a
-   redaction rule applies, non-JSON text is withheld, but PII in JSON fields that no rule lists passes through.
+   redaction rule applies, non-JSON text is withheld, but PII in JSON fields that no rule lists passes through, and
+   non-text content (images, audio, `resource.blob`) is never inspected or redacted.
 6. **Rate-limit windows are fixed windows.** Up to 2× the limit can pass at a window edge; the burst window limits the spike.
 7. **Audit truncation.** A writer with database access can drop the newest events without breaking the chain.
    Export the head hash periodically (`audit-verify`, OTLP) to storage the writer can't modify.

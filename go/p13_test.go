@@ -149,3 +149,22 @@ func TestP13NilParamsCallIsDeniedNotForwarded(t *testing.T) {
 		t.Fatalf("forwarded %d nil-params calls", forwarded)
 	}
 }
+
+func TestP13RedactTopLevelArray(t *testing.T) {
+	ctx := context.Background()
+	e, err := newRT(t).NewEngine(ctx, "version: 1\nroles:\n  r: {tools: [people]}\ntools:\n  people:\n    redact: {fields: [email]}\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := e.Decide(ctx, `{"tool":"people","identity":{"id":"u","roles":["r"]}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := e.Redact(ctx, `{"content":[{"type":"text","text":"[{\"email\":\"a@x\"},{\"email\":\"b@x\"}]"}]}`, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `[{\"email\":\"[REDACTED]\"},{\"email\":\"[REDACTED]\"}]`; !strings.Contains(out, want) {
+		t.Fatalf("got %s", out)
+	}
+}

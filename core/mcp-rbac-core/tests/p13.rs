@@ -54,3 +54,19 @@ fn lint_approval_when_not_covered_by_required_limits() {
     assert!(w("version: 1\nroles:\n  r: {tools: [pay]}\napprovals:\n  - {tool: pay, when: {amount: {min: 100}}}\n").contains("approvals: when.amount on pay is not a required tools.pay.limits argument"));
     assert_eq!(w("version: 1\nroles:\n  r: {}\ntools:\n  pay: {allow: [r], limits: {amount: {max: 500}}, approve: {when: {amount: {min: 100}}}}\n"), "[]");
 }
+
+#[test]
+fn redaction_treats_a_top_level_array_as_records() {
+    let e = Engine::new("version: 1\nroles:\n  r: {tools: [get]}\ntools:\n  get:\n    redact: {fields: [email, '0.phone', 'a.b']}\n").unwrap();
+    let d = e.decide(r#"{"tool":"get","identity":{"id":"u","roles":["r"]}}"#);
+    let text = r#"[{"email":"a@x","phone":"1","a":{"b":2}},{"email":"b@x","phone":"2"}]"#;
+    let result = serde_json::json!({"content": [{"type": "text", "text": text}], "structuredContent": serde_json::from_str::<serde_json::Value>(text).unwrap()});
+    let out: serde_json::Value = serde_json::from_str(&e.redact(&result.to_string(), &d)).unwrap();
+    let want = r#"[{"email":"[REDACTED]","phone":"[REDACTED]","a":{"b":"[REDACTED]"}},{"email":"[REDACTED]","phone":"2"}]"#;
+    assert_eq!(out["content"][0]["text"], want); // `email` on every record, `0.phone` still an index path
+    assert_eq!(out["structuredContent"], serde_json::from_str::<serde_json::Value>(want).unwrap());
+    // an object root is unchanged: `email` means the top-level key only
+    let obj = serde_json::json!({"content": [{"type": "text", "text": r#"{"email":"a@x","list":[{"email":"b@x"}]}"#}]});
+    let out: serde_json::Value = serde_json::from_str(&e.redact(&obj.to_string(), &d)).unwrap();
+    assert_eq!(out["content"][0]["text"], r#"{"email":"[REDACTED]","list":[{"email":"b@x"}]}"#);
+}

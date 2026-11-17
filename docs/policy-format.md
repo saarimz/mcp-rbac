@@ -164,6 +164,16 @@ Hosts resolve `resource` from their own data (the record the tool touches); the 
     present (if set), unless the caller holds an `unlessRoles` role at the resource. `withholdText` = rules non-empty and
     `unstructuredText` ≠ keep. Replacement default `"[REDACTED]"`.
 
+    Applying the plan to a result (every core binding, byte-identical): `structuredContent`, and each `text` content
+    block / `resource.text` whose text parses as a JSON object or array, has each field path replaced (`*` = any key
+    or index). A **top-level array is a list of records**: a path whose first segment is not `*` or an index applies
+    to every element (`email` on `[{…},{…}]` is `*.email`). Text that does not parse as JSON is withheld when
+    `withholdText` is true. JSON text that parses is returned with the listed paths redacted even if no path matched:
+    redaction is a field list, not a classifier (withholding every JSON result without a listed field would break
+    empty lists and unrelated shapes without making unlisted fields safe; list the fields, or use a label rule to
+    deny). **Non-text content (`image`, `audio`, `resource.blob`, `resource_link`) passes through unchanged**: a tool
+    that can return PII in those must not be granted to a role that should not see it.
+
 `agent` (default `"unknown"`) names the MCP client for limit keys.
 
 ## Decision output (canonical JSON: sorted keys, no whitespace, JS number formatting)

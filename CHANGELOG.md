@@ -25,6 +25,9 @@ The first version meant for the registries: a narrower default surface, faster d
   worker cannot start.
 - **`mcp-rbac demo`**: the quickstart in one command (allow, deny, rate limit, approval, argument limit, verified audit
   chain; prints the time to first deny). `--save-policy mcp-rbac.yaml` writes the policy.
+- **`mcp-rbac test <policy.yaml> <tests.yaml>`**: fixture file of allow / deny / approval / `tools/list` cases, decided
+  by the same engine as runtime. `testPolicy` / `assertPolicy` from `mcp-rbac/testing` (Python: `mcp_rbac.testing`) for
+  Vitest and pytest. Examples: `examples/policies/venue.test.yaml`, `docs/snippets/mcp-rbac.test.yaml`.
 - **Release plumbing**: GitHub Actions CI (lint, TS on Node 22/24 x in-place/hop, Python on Linux/macOS x 3.11/3.13,
   Go, Rust, conformance, docs, red team, package dry run) and a release workflow with npm / PyPI / crates.io trusted
   publishing, dry run by default; actions pinned by SHA; `tools/release-dry-run.sh`; docs/RELEASING.md.

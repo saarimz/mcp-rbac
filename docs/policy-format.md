@@ -178,3 +178,29 @@ role the caller holds anywhere (scope ignored; calls are still fully checked).
 ## Policy errors
 Loading reports the first error as `{"error": "<path>: <message>"}`. Messages are part of conformance for the error
 *category* (`policy_invalid`), not the exact text.
+
+## Testing a policy
+
+`mcp-rbac test <policy.yaml> <tests.yaml> [--json]` (and `testPolicy` from `mcp-rbac/testing`, or
+`mcp_rbac.testing.test_policy`) runs fixtures through the same decision engine as `mcp-rbac decide` and as
+runtime. Exit 1 if any case fails. A tests file is a map with a `tests` list:
+
+```yaml
+tests:
+  - name: staff cannot refund          # optional; default is "<roles> <tool> <expect>"
+    as: {roles: [door_staff]}         # identity; `id` defaults to "test"
+    call: {tool: refund_ticket, args: {amount: 20}}
+    expect: deny                      # allow | deny | approval  (approval is the engine's needs_approval)
+  - as: {roles: [owner], scopes: [refunds:write]}
+    call: {tool: refund_ticket, args: {amount: 250}}
+    expect: approval
+    redact: []                        # optional: exact redacted field names on this decision
+  - as: {roles: [door_staff]}
+    visible: [list_events, check_in]  # optional: exact tools/list for this identity (order ignored)
+```
+
+`as` accepts the portable identity keys (`id`, `roles`, `scope`, `tenant`, `scopes`, `actors`, `clientId`,
+`orgRoles`, `name`). A case needs `call` (with `expect`) or `visible`, or both. The policy's declared tools
+plus any names in `visible` are the universe for the `tools/list` check. Examples:
+[`examples/policies/venue.test.yaml`](../examples/policies/venue.test.yaml),
+[`docs/snippets/mcp-rbac.test.yaml`](snippets/mcp-rbac.test.yaml).

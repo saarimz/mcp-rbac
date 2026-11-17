@@ -34,9 +34,10 @@ const outer = await protect(server, { identity: ({ claims }) => ({ id: claims.su
 - **Central policy is still there.** `new Guard({ roles, resolveUser, scopeFrom, ... })` + `await guard.wrap(server)`, or `protect(server, { roles, guard: {...} })`. The old API is unchanged; see [docs/MIGRATION.md](MIGRATION.md).
 - **Tools, resources (including templates) and prompts** are filtered in lists and checked at call time.
 - **Shared state.** `new SqliteStore(path)` from `mcp-rbac/sqlite` gives several processes shared revocation, budgets and audit (tested with 3 processes).
-- **HTTP.** `serveGuardedHttp` from `mcp-rbac/http` serves Streamable HTTP. It needs a bearer token: missing auth gets 401 + `WWW-Authenticate`, and RFC 9728 protected-resource metadata is served. Sessions are bound to an identity. Use `jwtVerifier({ jwksUrl, issuer, audience })` from `mcp-rbac/jwt` (needs `jose`), or your own verifier.
+- **HTTP.** `serveGuardedHttp` from `mcp-rbac/http` serves Streamable HTTP. It needs a bearer token: missing auth gets 401 + `WWW-Authenticate`, and RFC 9728 protected-resource metadata is served. Sessions are bound to an identity. Use `jwtVerifier({ jwksUrl, issuer, audience })` from `mcp-rbac/jwt` (needs `jose`), or your own verifier. Your `identity` / `userFrom` function maps the verified claims to `{ id, roles }`; token scopes are checked against each tool's `scopes:` in the policy.
 - **Engines.** The built-in engine is the default. External engines (Cerbos, Casbin, Permit, OpenFGA, AuthZEN, Cedar) are experimental: `mcp-rbac/experimental`, see [experimental/README.md](experimental/README.md).
-- **Generate a starter policy.** `mcp-rbac init --stdio "<cmd>"` or `--module server.ts` writes a TS or JSON policy with viewer/operator/admin roles and approvals plus budgets on destructive tools.
+- **Generate a starter policy.** `mcp-rbac init --stdio "<cmd>"` or `--module server.ts` writes a TS or JSON policy with viewer/operator/admin roles and approvals plus budgets on destructive tools. Full examples: [`examples/policies/`](../examples/policies/).
+- **Test a policy.** `mcp-rbac test policy.yaml tests.yaml` (or `testPolicy` / `assertPolicy` from `mcp-rbac/testing`) runs allow / deny / approval and `tools/list` fixtures through the same engine as runtime. Put `mcp-rbac check`, `mcp-rbac test` and `mcp-rbac diff old.yaml new.yaml --fail-on-widen` in CI. Format and examples: [policy-format.md](policy-format.md#testing-a-policy), [`examples/policies/venue.test.yaml`](../examples/policies/venue.test.yaml).
 
 Full API and how a call is decided: [docs/library.md](library.md). Upstream SDK hook proposal: [docs/upstream-hook-proposal.md](upstream-hook-proposal.md).
 
@@ -235,6 +236,7 @@ On top of the phase-1 files above:
 | `http.e2e` | 401 + metadata, JWT via a local JWKS, wrong audience/issuer/expiry, grant tokens as bearer, session hijack across identities → 403 |
 | `engines` | Built-in, Cerbos (mock PDP), real Casbin, Permit (fake) |
 | `presets-cli` | Classification on 4 real inventories; init output (JSON loads, TS compiles); withinPaths/notWithinPaths/pattern; presets; CLI; dashboard XSS/CSP |
+| `policy-test` | `mcp-rbac test` / `testPolicy`: venue and quickstart fixtures pass; mismatches print the deny reason; `--json`; bad tests files are rejected |
 | `real-servers.e2e` | The proxy in front of the real filesystem, memory, github and Python git servers |
 | `demo.e2e` | The filesystem prompt-injection before/after |
 | `define` | The progressive API: protect() one-liner and presets, colocated rules (ITM port), per-role limits, lookup scope, multi-scope people, budgets, approvals, delegation, dev vs prod errors, unsafeTrustArg warnings + editor deprecation, confused-deputy detection, startup warnings, misuse, compile-time type checks |

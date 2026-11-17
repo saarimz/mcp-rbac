@@ -23,6 +23,7 @@ step "snippet ts/proxy-check" run_snippet ts-proxy docs/snippets/ts/proxy-check.
 step "snippet py/quickstart" run_snippet py-quickstart docs/snippets/py/quickstart.expected bash -c "cd docs/snippets && $PY py/quickstart.py"
 step "snippet go/main.go" run_snippet go-quickstart docs/snippets/go/quickstart.expected bash -c 'cd docs/snippets/go && go build -o /tmp/docs-check-go-qs . && cd .. && /tmp/docs-check-go-qs'
 step "mcp-rbac check docs/snippets/mcp-rbac.yaml" bash -c 'node dist/cli.js check docs/snippets/mcp-rbac.yaml >/dev/null'
+step "mcp-rbac test docs/snippets/mcp-rbac.yaml docs/snippets/mcp-rbac.test.yaml" bash -c 'node dist/cli.js test docs/snippets/mcp-rbac.yaml docs/snippets/mcp-rbac.test.yaml >/dev/null'
 step "mcp-rbac demo" bash -c 'node dist/cli.js demo | grep -q "hash chain verified"'
 step "pack resolution TS == Python == Go" $PY tools/docs-check/check_docs.py packs
 step "docs site build (links + anchors)" node tools/docs-site/build.mjs

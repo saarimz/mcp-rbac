@@ -14,7 +14,9 @@ repository.
    - Go (preview, not published in 0.5): `rt.NewEngine(ctx, policy)` then `engine.Protect(server, mcprbac.GuardOptions{Identity: ...})`.
    - Rust (rmcp): `Guarded` in `core/mcp-rbac-rmcp`.
 2. **Write `mcp-rbac.yaml`** (`docs/policy-format.md`, schema `spec/mcp-rbac.schema.json`). Validate it with
-   `mcp-rbac check mcp-rbac.yaml`. Copy the shape of `docs/snippets/mcp-rbac.yaml`.
+   `mcp-rbac check mcp-rbac.yaml` and assert roles with `mcp-rbac test mcp-rbac.yaml mcp-rbac.test.yaml` (see
+   `docs/snippets/mcp-rbac.test.yaml` and `examples/policies/venue.test.yaml`). Copy the shape of
+   `docs/snippets/mcp-rbac.yaml`.
 3. **Identity must come from verified credentials** (an OAuth/JWT layer, `extra.authInfo` in TS). Never take it from
    tool arguments. Returning `undefined` / `None` / `nil` means unauthenticated, and everything is denied.
 4. **For third-party or fast-changing servers, prefer classes over tool names:** add a `semantics` block, grant roles
@@ -25,8 +27,10 @@ repository.
    looks the owner up in the host's own data, not in the arguments.
 6. **Approvals:** `approvals:` entries or class rules with `approve: true`. Without an `approve` callback the call
    returns "Approval required for <tool>" and never runs.
-7. **Check your work:** call the tools as each role and assert the exact denial strings (`Denied: user:no_matching_permission`,
-   `Denied: rate_limited:N`, `Approval required for X`). The snippets in `docs/snippets/` show the pattern.
+7. **Check your work:** write a `tests.yaml` and run `mcp-rbac test`, or call the tools as each role and assert the
+   exact denial strings (`Denied: user:no_matching_permission`, `Denied: rate_limited:N`, `Approval required for X`).
+   The snippets in `docs/snippets/` show the pattern. Put `mcp-rbac check`, `mcp-rbac test` and
+   `mcp-rbac diff --fail-on-widen` in CI.
 
 Stable vs experimental: currency budgets (`spend`), `delegation`, `tenants`/`permissionSets`/`customRoles`, and the
 external engines live in `mcp-rbac/experimental` / `mcp_rbac.experimental`; `mcp-rbac check` notes when a policy uses

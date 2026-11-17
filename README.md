@@ -68,7 +68,47 @@ protect_with_core(server, open("mcp-rbac.yaml").read(), identity=lambda ctx: use
 
 Staff see `list_events` and `checkin` only; a staff refund is denied; the 4th check-in in a minute is refused; an
 owner refund of 20 goes through, 250 waits for a human (the approval is bound to those exact arguments), 900 is over
-the limit. Full, runnable versions (tested in CI on every commit): [docs/quickstart.md](docs/quickstart.md).
+the limit. Full, runnable versions (tested in CI on every commit): [docs/quickstart.md](docs/quickstart.md). Those
+allow / deny / approval cases are also a fixture you can run with `mcp-rbac test`
+([docs/snippets/mcp-rbac.test.yaml](docs/snippets/mcp-rbac.test.yaml)).
+
+## Roles, identity and testing
+
+`mcp-rbac init --stdio "<cmd>"` or `--module server.ts` writes a starter policy with viewer, operator and admin
+roles. Copy a full example from [`examples/policies/`](examples/policies/) (venue, marketing, devops).
+
+mcp-rbac does not issue tokens. Your auth server signs a JWT; `jwtVerifier({ jwksUrl, issuer, audience })` from
+`mcp-rbac/jwt` verifies the signature, issuer, audience and expiry; your `identity` function (the `userFrom` in
+the snippet above) maps those claims to `{ id, roles }`. If the token carries scopes, they are checked against
+the tool's `scopes:` in the YAML. A missing or invalid token makes `identity` return nothing, and every call is
+denied.
+
+Check the policy in CI:
+
+```bash
+mcp-rbac check mcp-rbac.yaml
+mcp-rbac test mcp-rbac.yaml mcp-rbac.test.yaml
+mcp-rbac diff old.yaml mcp-rbac.yaml --fail-on-widen
+```
+
+`check` validates the file, `test` asserts each role's allow / deny / approval (and `tools/list`) against a
+fixture, and `diff --fail-on-widen` fails the build if a role gained access. The same cases run inside Vitest or
+pytest via `testPolicy` from `mcp-rbac/testing` (Python: `mcp_rbac.testing`).
+
+```yaml
+# mcp-rbac.test.yaml
+tests:
+  - name: staff cannot refund
+    as: {roles: [staff]}
+    call: {tool: refund, args: {amount: 20}}
+    expect: deny
+  - name: owner refund needs approval
+    as: {roles: [owner]}
+    call: {tool: refund, args: {amount: 250}}
+    expect: approval
+  - as: {roles: [staff]}
+    visible: [list_events, checkin]
+```
 
 What 0.5 covers: roles with inheritance, deny-by-default, `tools/list` filtered per caller, argument limits, rate
 limits, approvals bound to exact arguments, OAuth scope checks, resource scoping, redaction by role, the hash-chained
@@ -135,6 +175,7 @@ server. [SECURITY.md](SECURITY.md) · [THREAT-MODEL](docs/THREAT-MODEL.md) · [C
 | try it | `npx mcp-rbac demo`, then [docs/quickstart.md](docs/quickstart.md) |
 | guard a server I didn't write | [docs/proxy.md](docs/proxy.md) |
 | write the policy file | [docs/policy-format.md](docs/policy-format.md), [spec/mcp-rbac.schema.json](spec/mcp-rbac.schema.json) |
+| test my roles | `mcp-rbac test policy.yaml tests.yaml`, [examples/policies/venue.test.yaml](examples/policies/venue.test.yaml) |
 | govern by what tools do (classes, packs) | [spec/tool-semantics.md](spec/tool-semantics.md), [packs/](packs/) |
 | use it from TypeScript, Python, Go or Rust | [docs/library.md](docs/library.md), [docs/python.md](docs/python.md), [docs/polyglot.md](docs/polyglot.md) |
 | use the audit log | [docs/AUDIT.md](docs/AUDIT.md) |

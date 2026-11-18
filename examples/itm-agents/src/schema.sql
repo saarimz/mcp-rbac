@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS BrandAgentEmailSendBatch (id INTEGER PRIMARY KEY, uid
 CREATE TABLE IF NOT EXISTS BrandServiceListing (id INTEGER PRIMARY KEY, uid TEXT UNIQUE NOT NULL, title TEXT NOT NULL, city TEXT NOT NULL, kind TEXT NOT NULL, description TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS BrandServiceQuote (id INTEGER PRIMARY KEY, uid TEXT UNIQUE NOT NULL, brandId INTEGER NOT NULL, listingId INTEGER NOT NULL, amountCents INTEGER NOT NULL, status TEXT NOT NULL, createdAt TEXT NOT NULL);
 
--- ===================== PROPOSED: agent connection grants (see ADOPTION.md) =====================
+-- ===================== PROPOSED: agent connection grants =====================
 CREATE TABLE IF NOT EXISTS AgentGrant (
   id INTEGER PRIMARY KEY, uid TEXT UNIQUE NOT NULL, brandId INTEGER NOT NULL REFERENCES Brand(id),
   grantorAdminUserId INTEGER NOT NULL REFERENCES AdminUser(id),        -- the human the agent acts for (act chain root)

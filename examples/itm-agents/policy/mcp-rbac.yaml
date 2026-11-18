@@ -2,7 +2,7 @@
 # Humans: AdminUserBrand roles OWNER / ADMIN / AGENT (enum AdminBrandRole in itm-backend schema.prisma).
 # Agents never get a role of their own: every agent call is decided TWICE, here as the granting human
 # (with the grant's OAuth scopes as the token scopes), and against the grant's generated overlay.
-# Both must allow (intersection). See src/grants.ts and ADOPTION.md.
+# Both must allow (intersection). See src/grants.ts.
 version: 1
 name: itm-local
 description: ITM brand workspace. Tenant = Brand (resource key "brand"); AGENT staff are also scoped to one moment.

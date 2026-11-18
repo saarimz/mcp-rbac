@@ -420,4 +420,3 @@ shared with the human, approvals, expiry and instant revocation. Every grant is 
 - 30 adversarial tests over real HTTP and MCP (`cd examples/itm-agents && npm test`).
 - A live read-only run through mcp-rbac against ITM's **staging** MCP server, on a sandbox brand: 15/15 checks.
   Production was never touched.
-- [`ADOPTION.md`](../examples/itm-agents/ADOPTION.md): how ITM's backend would ship it.

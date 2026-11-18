@@ -7,10 +7,6 @@
   "scripts": {
     "start": "tsx src/server.ts",
     "demo": "tsx scripts/demo.ts",
-    "test": "node --import tsx --test test/*.test.ts",
-    "staging:register": "tsx staging/oauth-client.ts register",
-    "staging:login": "tsx staging/oauth-client.ts login",
-    "staging:finish": "tsx staging/oauth-client.ts finish",
-    "staging:live": "tsx staging/live.ts"
+    "test": "node --import tsx --test test/*.test.ts"
   }
 }

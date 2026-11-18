@@ -12,5 +12,5 @@
     "types": ["node"]
   },
   "include": ["src", "examples", "test", "bench"],
-  "exclude": ["examples/itm-agents", "examples/klaviyo-e2e", "node_modules"]
+  "exclude": ["examples/itm-agents", "examples/klaviyo-e2e", "bench/competitors", "node_modules"]
 }

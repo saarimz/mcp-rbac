@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -130,6 +131,21 @@ func TestAuditSinkTamperAndCrossLanguage(t *testing.T) {
 	}
 	s.Close()
 	root, _ := filepath.Abs("../../..")
+	// The cross-language half needs python/.venv and node_modules (the Python CI job and tools/bootstrap.sh have both;
+	// the Go-only CI job does not): without them, check the Go-written chain and tamper detection only.
+	_, errPy := os.Stat(filepath.Join(root, "python/.venv/bin/python"))
+	_, errTsx := os.Stat(filepath.Join(root, "node_modules/.bin/tsx"))
+	if errPy != nil || errTsx != nil {
+		t.Log("python/.venv or node_modules/.bin/tsx missing: cross-language verification skipped (Go chain + tamper only)")
+		if n := verifyChain(t, db); n != 40 {
+			t.Fatalf("go verify: %d", n)
+		}
+		_, _ = db.Exec(`UPDATE audit SET event = replace(event, '"deny"', '"allow"') WHERE id = 4`)
+		if ok, _, id, why, _ := mcprbac.VerifyAuditTable(db, "audit"); ok || id != 4 || why != "hash_mismatch" {
+			t.Fatalf("tamper not detected: %v %d %s", ok, id, why)
+		}
+		return
+	}
 	// The Python verifier accepts the Go-written table, then the TS sink appends and verifies the whole chain.
 	py := exec.Command(filepath.Join(root, "python/.venv/bin/python"), "-c",
 		"import json,sys; sys.path.insert(0, sys.argv[2]); from mcp_rbac import verify_audit_table; print(json.dumps(verify_audit_table(sys.argv[1])))", p, filepath.Join(root, "python/src"))

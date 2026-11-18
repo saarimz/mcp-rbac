@@ -1,0 +1,18 @@
+# otelcol-contrib config: a logs pipeline that keeps only mcp_rbac.feedback records (docs/feedback.md).
+# Run: otelcol-contrib --config collector.yaml   (tested with otelcol-contrib 0.165.0)
+receivers:
+  otlp: {protocols: {http: {endpoint: 127.0.0.1:4318}}}
+processors:
+  filter/feedback:
+    logs:
+      log_record:
+        - 'event_name != "mcp_rbac.feedback"'
+exporters:
+  file/feedback: {path: ./feedback.jsonl}
+  file/all: {path: ./all.jsonl}
+service:
+  telemetry: {metrics: {level: none}}
+  pipelines:
+    logs/feedback: {receivers: [otlp], processors: [filter/feedback], exporters: [file/feedback]}
+    logs/all: {receivers: [otlp], exporters: [file/all]}
+    traces: {receivers: [otlp], exporters: [file/all]}

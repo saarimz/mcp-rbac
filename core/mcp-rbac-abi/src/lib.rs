@@ -92,6 +92,8 @@ pub const OP_COST: u32 = 11;
 /// YAML → JSON preserving mapping order (`{"doc":…}` / `{"error":"yaml_invalid"}`); used by host-side pack resolution,
 /// where `semantics.tools` order is first-match precedence. OP_YAML_TO_JSON stays canonical (sorted) for conformance.
 pub const OP_YAML_TO_JSON_ORDERED: u32 = 12;
+/// Opt-in `submit_feedback` sanitizer: p1 = `{"args":…,"config"?:…}` (handle ignored; docs/feedback.md).
+pub const OP_FEEDBACK: u32 = 13;
 
 /// One entry point for every string operation. `h` is ignored by CHECK / YAML_TO_JSON / VERSION.
 /// Errors (unknown handle, bad UTF-8, unknown op) come back as `{"error":"abi:<what>"}`.
@@ -107,6 +109,7 @@ pub unsafe extern "C" fn mrc_call(h: u32, op: u32, p1: u32, l1: u32, p2: u32, l2
         OP_VERSION => mcp_rbac_core::VERSION.to_string(),
         OP_REDACT => redact_json(a, b),
         OP_COST => mcp_rbac_core::semantics::cost_json(a),
+        OP_FEEDBACK => mcp_rbac_core::feedback::feedback_json(a),
         OP_YAML_TO_JSON_ORDERED => match mcp_rbac_core::yaml::load(a) {
             Ok(d) => format!("{{\"doc\":{}}}", serde_json::to_string(&d).unwrap_or_else(|_| "null".into())),
             Err(_) => r#"{"error":"yaml_invalid"}"#.into(),

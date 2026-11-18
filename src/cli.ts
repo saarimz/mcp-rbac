@@ -38,6 +38,11 @@ Usage:
       --db <path>            audit/revocation store (default ${defaultDbPath()}; ":memory:" = none)
       --explain              tell the agent why a call was blocked
       --print-plan           log the per-tool decision table to stderr
+      --with-feedback        expose a submit_feedback tool (needs --policy; grant it to roles in the policy):
+                             agents report problems with a proposed fix; sanitized, audited (docs/feedback.md)
+      --otel                 OpenTelemetry: decision spans/metrics/logs, audit + feedback export through the global
+                             providers (load an SDK first, e.g. NODE_OPTIONS="--import ./otel-register.mjs";
+                             see examples/feedback/)
       --timeout <s>          upstream request timeout (default 600, reset by progress)
     remote only:
       --url <url>            Streamable HTTP endpoint (legacy SSE is tried if it is rejected)
@@ -186,7 +191,7 @@ export async function main(argv = process.argv.slice(2)) {
         command: rest, preset, policyFile: str(flags.policy), engine: str(flags.engine) as "core" | "legacy" | undefined, role: str(flags.role), paths: list(flags.paths), repos: list(flags.repos),
         allow: list(flags.allow), deny: list(flags.deny), approval, db: str(flags.db),
         maxDestructivePerDay: flags["max-destructive"] !== undefined ? Number(flags["max-destructive"]) : undefined,
-        explain: !!flags.explain, printPlan: !!flags["print-plan"],
+        explain: !!flags.explain, printPlan: !!flags["print-plan"], withFeedback: !!flags["with-feedback"], otel: !!flags.otel,
         approvalTimeoutMs: flags["approval-timeout"] !== undefined ? Number(flags["approval-timeout"]) * 1000 : undefined,
         timeoutMs: num("timeout") !== undefined ? num("timeout")! * 1000 : undefined,
         ...(flags.url ? { ...remoteOpts(), oauth: flags["no-oauth"] ? false : oauthOpts() } : {}),

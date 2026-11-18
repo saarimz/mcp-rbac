@@ -67,7 +67,10 @@ def audit_otel_exporter(*, logger_provider: Any = None, tracer_provider: Any = N
                 attrs["mcp_rbac.approved"] = e["approved"]
             if isinstance(e.get("durationMs"), (int, float)):
                 attrs["mcp_rbac.audit.duration_ms"] = float(e["durationMs"])
-            allow = e["decision"] == "allow"
+            fb = e.get("feedback")
+            if isinstance(fb, dict) and isinstance(fb.get("id"), str):
+                attrs["mcp_rbac.feedback.id"] = fb["id"]
+            allow = e["decision"] in ("allow", "feedback")
             ctx = trace.set_span_in_context(NonRecordingSpan(_span_context(r["trace"])), otel_context.Context()) if r.get("trace") else batch_ctx
             logger.emit(event_name="mcp_rbac.audit", severity_number=SeverityNumber.INFO if allow else SeverityNumber.WARN,
                         severity_text="INFO" if allow else "WARN", attributes=attrs, context=ctx,

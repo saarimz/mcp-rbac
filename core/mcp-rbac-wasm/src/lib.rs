@@ -33,6 +33,10 @@ impl Engine {
 #[wasm_bindgen]
 pub fn cost(req: &str) -> String { mcp_rbac_core::semantics::cost_json(req) }
 
+/// Opt-in `submit_feedback`: `{"args":…,"config"?:…}` → sanitized feedback or an error (docs/feedback.md).
+#[wasm_bindgen]
+pub fn feedback(req: &str) -> String { mcp_rbac_core::feedback::feedback_json(req) }
+
 /// `{"ok":true,"warnings":[…]}` or `{"error":"policy_invalid","message":…}`.
 #[wasm_bindgen]
 pub fn check(policy: &str) -> String { mcp_rbac_core::check_policy(policy) }

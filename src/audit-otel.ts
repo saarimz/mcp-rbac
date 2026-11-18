@@ -71,10 +71,12 @@ export function auditOtelExporter(o: AuditOtelOptions = {}): AuditCommitHandler 
       if (typeof e.tenant === "string") attributes["mcp_rbac.tenant"] = e.tenant;
       if (typeof e.approved === "boolean") attributes["mcp_rbac.approved"] = e.approved;
       if (typeof e.durationMs === "number") attributes["mcp_rbac.audit.duration_ms"] = e.durationMs;
+      const fid = (e.feedback as { id?: unknown } | undefined)?.id;
+      if (typeof fid === "string") attributes["mcp_rbac.feedback.id"] = fid;
       logger.emit({
         eventName: "mcp_rbac.audit",
-        severityNumber: e.decision === "allow" ? SeverityNumber.INFO : SeverityNumber.WARN,
-        severityText: e.decision === "allow" ? "INFO" : "WARN",
+        severityNumber: e.decision === "allow" || e.decision === "feedback" ? SeverityNumber.INFO : SeverityNumber.WARN,
+        severityText: e.decision === "allow" || e.decision === "feedback" ? "INFO" : "WARN",
         body: includeEvent ? r.canonical : `mcp_rbac.audit ${String(e.decision)} ${String(e.tool)}`,
         attributes,
         // the request's trace when we have it, else the commit span

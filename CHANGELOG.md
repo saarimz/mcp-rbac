@@ -20,6 +20,15 @@ Fixes from the two 0.5 reviews (PROGRESS.md, P13), plus audit export to OpenTele
   legacy `redactFields`.
 
 **Added**
+- **Feedback (`--with-feedback`), opt-in.** A guard-provided `submit_feedback` tool through which agents report problems
+  with a server's tools and propose a fix. It is off by default. Turn it on with the proxy flag `--with-feedback`, a
+  policy `feedback:` block, or the SDK option (TS `feedback`, Python `feedback=`, Go `GuardOptions.Feedback`, Rust
+  `GuardOptions::feedback`). The policy decides who may call it, as for any tool. The Rust core validates and
+  sanitizes each report: size limits, secrets always stripped, emails and phone numbers stripped by default. The pure
+  TS and Python ports are byte-identical, and the conformance corpus covers them with `feedbackJson` vectors and
+  policy `feedback` vectors (4563 total). Each report is exported as an OTel log record `mcp_rbac.feedback` in the
+  request's trace, without the caller's identity. It is also written to the hash-chained audit (decision `feedback`)
+  and passed to `onFeedback`. The proxy also gains `--otel`. See docs/feedback.md and examples/feedback/.
 - **Audit export to OpenTelemetry** (TS `audit: { path, otel }` / `mcp-rbac/audit-otel`, Python
   `audit={"path", "otel"}` / `mcp_rbac.audit_otel`, Go `AuditSinkOptions.OnCommit: NewAuditOtelExporter(...)`): each
   committed audit row becomes an `mcp_rbac.audit` log record with `mcp_rbac.audit.{id,hash,prev,table,at}` and the

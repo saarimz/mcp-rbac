@@ -125,6 +125,44 @@ the tools of GitHub (133), Klaviyo (309) and Stripe (15). Spend budgets in curre
 permission sets and the AuthZEN/Cedar/OpenFGA/Cerbos adapters are in
 [`mcp-rbac/experimental`](docs/experimental/README.md) and may change in a minor release.
 
+## Feedback (`--with-feedback`)
+
+Agents can tell you when your tools let them down. With feedback on, the guard adds a `submit_feedback` tool. An
+agent calls it with a `summary`, `what_happened` and optionally `expected`, `proposed_fix`, `tool_name`, `severity`
+(`low` to `critical`) and session or trace ids. Your server never sees the call. **It is off by default.**
+
+Turn it on with any one of these:
+
+- **Proxy:** `mcp-rbac proxy --policy mcp-rbac.yaml --role agent --with-feedback -- <server command>`
+- **Policy:** a top-level `feedback:` block. Every binding reads it.
+- **SDK option:** `feedback: true` (TS), `feedback=True` (Python), `Feedback: &mcprbac.FeedbackOptions{}` (Go) or
+  `opts.feedback = Some(FeedbackOptions::default())` (Rust).
+
+Your policy still decides who may file feedback. Grant `submit_feedback` to roles, and rate-limit it like any tool:
+
+```yaml
+roles:
+  agent: {tools: [search, get_doc, submit_feedback]}
+limits:
+  - {tool: submit_feedback, max: 5, per: hour}
+feedback: {maxFieldChars: 2000, pii: strip}   # size limits; emails/phones stripped (default)
+```
+
+Each report is checked and sanitized by the Rust core, identically in every language. Secrets such as API keys,
+tokens, passwords, JWTs and URL credentials are always replaced with `[REDACTED:secret]`. By default, emails and phone
+numbers are replaced too. The report then goes to three places:
+
+- an OpenTelemetry log record `mcp_rbac.feedback` in the request's trace, with attributes `mcp_rbac.feedback.id`,
+  `.severity`, `.summary`, `.target_tool` and `.redactions.*`. The caller's identity is never included.
+- the hash-chained audit log, as decision `feedback`.
+- your `onFeedback` hook.
+
+To pipe reports to an OTel collector, send OTLP to it and keep only `event_name == "mcp_rbac.feedback"` in a logs
+pipeline (see [`examples/feedback/collector.yaml`](examples/feedback/collector.yaml)). From there, forward them to
+Slack, to an issue tracker such as GitHub, Linear or Jira (one issue per report id), or to a dashboard. You can also do
+that directly from `onFeedback`. mcp-rbac itself never contacts Slack or an issue tracker. Details are in
+[docs/feedback.md](docs/feedback.md).
+
 ## Benchmarks
 
 One allowed `tools/call` (venue `list_events`) over Streamable HTTP, same app code behind every product, closed-loop

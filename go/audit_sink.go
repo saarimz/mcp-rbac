@@ -36,6 +36,9 @@ type AuditRecord struct {
 	// Trace is the trace context of the request that made the decision (OTel audit export, docs/otel.md).
 	// Correlation metadata only: not hashed, not stored. Set it with AuditTraceFromContext.
 	Trace *AuditTraceContext
+	// Feedback is the canonical JSON of an accepted submit_feedback report ({id, ...report, redactions}; hashed).
+	// Set by FeedbackEvent.AuditRecord; nil for decisions.
+	Feedback json.RawMessage
 }
 
 // AuditTraceContext is a W3C trace context in hex (traceId 32, spanId 16).
@@ -376,6 +379,14 @@ func AuditEventJSON(r AuditRecord) string {
 	}
 	if r.DurationMs != nil {
 		m["durationMs"] = round3(*r.DurationMs)
+	}
+	if len(r.Feedback) > 0 {
+		d := json.NewDecoder(strings.NewReader(string(r.Feedback)))
+		d.UseNumber()
+		var fb any
+		if d.Decode(&fb) == nil {
+			m["feedback"] = fb
+		}
 	}
 	return canonicalJS(m)
 }

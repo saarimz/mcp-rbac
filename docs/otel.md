@@ -139,6 +139,16 @@ Guarantees and choices:
 alone and checks the head against the SQLite chain. Tests: `test/audit-otel.test.ts` (all three TS sink modes, the
 example, lazy loading), `python/tests/test_audit_otel.py`, `go/examples/devops/audit_otel_test.go`.
 
+## Feedback (`mcp_rbac.feedback`)
+
+With the opt-in `submit_feedback` tool on ([feedback.md](feedback.md)), each accepted report is one log record
+`mcp_rbac.feedback` in the request's trace. Its body is the canonical sanitized report, and its attributes are
+`mcp_rbac.feedback.{id,severity,summary,target_tool,session_id,reported_trace_id,chars}`,
+`mcp_rbac.feedback.redactions.{email,phone,secret}`, `gen_ai.tool.name` = `submit_feedback` and `mcp_rbac.tenant`.
+Severity is `INFO` for low and medium, `WARN` for high and `ERROR` for critical. The server span gets
+`mcp_rbac.feedback.id`. The audit row (decision `feedback`) is exported like any other row when audit export is on,
+with `mcp_rbac.feedback.id` added. The caller's identity is never exported.
+
 ## What is never recorded
 
 Tool **arguments**, tool **results**, the **identity** (id, name, clientId, roles, scopes, actors, tenant), tokens,

@@ -38,6 +38,8 @@ export interface AuditRecord {
   rule?: string | null;
   approved?: boolean;
   durationMs?: number;
+  /** Opt-in submit_feedback (docs/feedback.md): the sanitized report with its id and redaction counts (hashed). */
+  feedback?: Record<string, unknown>;
   /**
    * Trace context of the request that made the decision (set by the OTel audit export, docs/otel.md). Correlation
    * metadata only: NOT part of the hashed event and not stored, so the chain and audit-verify are unchanged.

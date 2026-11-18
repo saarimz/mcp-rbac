@@ -35,7 +35,7 @@ from typing import Any
 from .audit import GENESIS, canonical_json
 
 _TABLE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
-_FIELDS = ("at", "tool", "decision", "reason", "sub", "tenant", "rule", "approved", "durationMs")
+_FIELDS = ("at", "tool", "decision", "reason", "sub", "tenant", "rule", "approved", "durationMs", "feedback")
 
 
 def audit_event_of(r: Mapping[str, Any]) -> dict[str, Any]:

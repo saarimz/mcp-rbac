@@ -1,0 +1,24 @@
+# mini.yaml plus the opt-in submit_feedback tool (docs/feedback.md). Shared by every binding's feedback test.
+version: 1
+name: mini-venue-feedback
+roles:
+  owner:
+    description: Everything.
+    tools: ['*']
+  door:
+    description: Door staff. Check guests in, list events, report problems with the tools.
+    tools: [list_events, checkin, submit_feedback]
+  support:
+    description: Support agent. Reads events; may not file feedback.
+    tools: [list_events]
+tools:
+  submit_feedback:
+    limits:
+      severity: {in: [low, medium, high], optional: true}   # agents cannot file "critical"
+      summary: {maxLength: 200}
+limits:
+  - {tool: submit_feedback, max: 2, per: minute}
+feedback:
+  maxFieldChars: 500
+  maxTotalChars: 2000
+  pii: strip

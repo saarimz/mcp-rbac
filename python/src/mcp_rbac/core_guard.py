@@ -98,6 +98,7 @@ class CoreGuard:
         on_audit_error: Callable[[BaseException], None] | None = None,
         denials: str = "reason",
         share_engine: bool = True,
+        feedback: bool | dict[str, Any] | None = None,
     ) -> None:
         """``resource(tool, args, identity, ctx)`` returns the resource the call touches, resolved from the host's own data
         (never the caller's say-so); ``None`` = the caller's own scope. Raising denies with ``resource_unresolved``.
@@ -120,7 +121,11 @@ class CoreGuard:
         ``denials``: ``"reason"`` (default) returns ``Denied: <reason>`` to the agent; ``"uniform"`` returns
         ``Denied`` and omits the reason from the result's ``_meta`` (``on_decision`` and the audit still get it).
 
-        ``share_engine`` (default on): guards built from the same policy text share one engine and its counters."""
+        ``share_engine`` (default on): guards built from the same policy text share one engine and its counters.
+
+        ``feedback`` (opt-in ``submit_feedback`` tool, docs/feedback.md): ``True`` or ``{"max_field_chars", "max_total_chars",
+        "pii", "otel", "on_feedback"}`` = on; ``False`` = off even with a policy ``feedback:`` block; ``None`` (default)
+        = the policy's ``feedback:`` block decides (off without one). Grant ``submit_feedback`` to roles in the policy."""
         if denials not in ("reason", "uniform"):
             raise ValueError('denials must be "reason" or "uniform"')
         self.engine = shared_engine(policy) if share_engine else load_core().Engine(policy)
@@ -160,6 +165,23 @@ class CoreGuard:
             from mcp_rbac.core_otel import CoreTelemetry as _CT
 
             self.telemetry = telemetry if isinstance(telemetry, _CT) else _CT()
+        self._feedback: Any = None
+        self._fb_export: Callable[[Any, str], None] | None = None
+        self._fb_ids: Callable[[], tuple[str, str] | None] | None = None
+        doc = json.loads(load_core().yaml_to_json(policy)).get("doc")
+        has_block = isinstance(doc, dict) and "feedback" in doc
+        if feedback is not None or has_block:
+            from mcp_rbac.feedback_guard import TOOL_DEFINITION, resolve_feedback
+
+            self._feedback = resolve_feedback(feedback, doc.get("feedback") if has_block else None, has_block)
+            if self._feedback is not None:
+                self._meta.setdefault(TOOL_DEFINITION["name"], {"annotations": TOOL_DEFINITION["annotations"]})
+                want = self._feedback.otel if self._feedback.otel is not None else (self.telemetry is not None or self._trace_ctx is not None)
+                if want:
+                    from mcp_rbac.feedback_otel import active_ids, feedback_otel_exporter
+
+                    self._fb_export = feedback_otel_exporter(**(dict(want) if isinstance(want, dict) else {}))
+                    self._fb_ids = active_ids
 
     async def _base(self, ctx: Any) -> dict[str, Any]:
         out: dict[str, Any] = {}
@@ -218,6 +240,12 @@ class CoreGuard:
     async def _handle(self, ctx: Any, call_next: Callable[[Any], Awaitable[Any]], server_span: Any) -> Any:
         if ctx.method == "tools/list":
             res = _dump(await call_next(ctx))
+            if self._feedback is not None:
+                from mcp_rbac.feedback_guard import TOOL_DEFINITION
+
+                # the guard's submit_feedback replaces a server's own; listed on the last page
+                tools_fb = [t for t in res.get("tools", []) if t.get("name") != TOOL_DEFINITION["name"]]
+                res = {**res, "tools": tools_fb if res.get("nextCursor") else [*tools_fb, TOOL_DEFINITION]}
             base = await self._base(ctx)
             if self._semantics:
                 self._remember(res.get("tools", []))
@@ -319,6 +347,8 @@ class CoreGuard:
             return {"resultType": "complete", "content": [{"type": "text", "text": text}], "isError": True,
                     "_meta": {DENIAL_META_KEY: meta_v}}
         caller: dict[str, Any] = {"identity": base.get("identity"), "tenant": d.get("tenant"), "rule": d.get("rule")}
+        if self._feedback is not None and tool == "submit_feedback":
+            return await self._submit_feedback(args, caller)
         if "resource" in base:
             caller["resource"] = base["resource"]
         token = _CALLER.set(caller)
@@ -343,6 +373,45 @@ class CoreGuard:
             return {"resultType": "complete", "content": [{"type": "text", "text": "Denied: redaction_failed"}], "isError": True,
                     "_meta": {DENIAL_META_KEY: {"decision": "deny", "reason": "redaction_failed"}}}
         return red
+
+
+    async def _submit_feedback(self, args: Any, caller: dict[str, Any]) -> dict[str, Any]:
+        from mcp_rbac.feedback_guard import handle_feedback
+
+        result, ev, body = handle_feedback(load_core().feedback, self._feedback.config, args, caller)
+        if ev is None or body is None:
+            return result
+        ids = self._fb_ids() if self._fb_ids is not None else None
+        if ids is not None:
+            ev.trace_id, ev.span_id = ids
+        if self._fb_export is not None:
+            try:
+                self._fb_export(ev, body)
+            except Exception as err:  # noqa: BLE001 - export never affects the call
+                print(f"mcp-rbac: feedback export failed: {err}", file=sys.stderr)
+        if self.audit is not None:
+            from datetime import datetime, timezone
+
+            ident = caller.get("identity") if isinstance(caller.get("identity"), dict) else {}
+            sub = ident.get("id") if isinstance(ident, dict) else None
+            rec: dict[str, Any] = {"at": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+                                   "tool": "submit_feedback", "decision": "feedback", "reason": f"feedback:{ev.feedback['severity']}",
+                                   "sub": sub if isinstance(sub, str) else None, "tenant": ev.tenant, "rule": caller.get("rule"),
+                                   "feedback": {"id": ev.id, **ev.feedback, "redactions": ev.redactions}}
+            if self._trace_ctx is not None and (tc := self._trace_ctx()) is not None:
+                rec["trace"] = tc
+            try:
+                self.audit.write(rec)
+            except Exception as err:  # noqa: BLE001 - reported
+                self._on_audit_error(err)
+        if self._feedback.on_feedback is not None:
+            try:
+                r = self._feedback.on_feedback(ev)
+                if inspect.isawaitable(r):
+                    await r
+            except Exception as err:  # noqa: BLE001 - reported, never surfaced to the agent
+                print(f"mcp-rbac: on_feedback failed: {err}", file=sys.stderr)
+        return result
 
 
 def protect_with_core(server: Any, policy: str, **kw: Any) -> CoreGuard:

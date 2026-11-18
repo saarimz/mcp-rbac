@@ -19,6 +19,9 @@ with open(path, encoding="utf-8") as f:
         if "costJson" in v:
             out.append(core.cost(v["costJson"]))
             continue
+        if "feedbackJson" in v:
+            out.append(core.feedback(v["feedbackJson"]))
+            continue
         key = ("y" + v["policyYaml"]) if "policyYaml" in v else ("j" + v["policyJson"])
         if key not in cache:
             try:

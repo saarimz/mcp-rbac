@@ -32,6 +32,10 @@ fn check(policy: &str) -> String { mcp_rbac_core::check_policy(policy) }
 #[pyfunction]
 fn cost(req: &str) -> String { mcp_rbac_core::semantics::cost_json(req) }
 
+/// Opt-in `submit_feedback`: `{"args":…,"config"?:…}` → sanitized feedback or an error (docs/feedback.md).
+#[pyfunction]
+fn feedback(req: &str) -> String { mcp_rbac_core::feedback::feedback_json(req) }
+
 /// Portable YAML loader: `{"doc":…}` or `{"error":"yaml_invalid"}`.
 #[pyfunction]
 fn yaml_to_json(src: &str) -> String { yaml_doc_json(src) }
@@ -42,6 +46,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(check, m)?)?;
     m.add_function(wrap_pyfunction!(yaml_to_json, m)?)?;
     m.add_function(wrap_pyfunction!(cost, m)?)?;
+    m.add_function(wrap_pyfunction!(feedback, m)?)?;
     m.add("__version__", mcp_rbac_core::VERSION)?;
     Ok(())
 }

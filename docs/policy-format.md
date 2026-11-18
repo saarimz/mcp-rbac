@@ -68,6 +68,7 @@ Portability restrictions on top of YAML 1.2 (each found by differential fuzzing;
 | `output` | {labels?, labelRules?, redact?, unstructuredText?} | output controls |
 | `toolsets` | {sets?, ungrouped?: show\|hide, default?} | client-selectable tool groups (not a boundary) |
 | `delegation` | {actors?: {name: {tools?, scopes?}}, unknownActors?: deny\|allow} | RFC 8693 actor ceilings **Experimental** ([why](experimental/README.md)). |
+| `feedback` | {enabled?: bool, maxFieldChars?: 1–20000, maxTotalChars?: 1–100000, pii?: strip\|keep} | opt-in `submit_feedback` tool ([feedback.md](feedback.md)); present = on unless `enabled: false`. Grant `submit_feedback` to roles like any tool. |
 
 Unknown keys anywhere are errors. Names: role/role-set/custom-role names match
 `^[A-Za-z](?:[A-Za-z0-9_ .:-]{0,62}[A-Za-z0-9_.:-])?$`; identifiers (tenantKey, scope keys) match

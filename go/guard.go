@@ -95,8 +95,12 @@ type GuardOptions struct {
 	// Denials: "" or "reason" (default) answers "Denied: <reason>"; "uniform" answers "Denied" and omits the reason
 	// from the result's _meta (OnDecision still gets it).
 	Denials string
+	// Feedback configures the opt-in submit_feedback tool (docs/feedback.md). Nil = the policy's `feedback:` block
+	// decides (off without one).
+	Feedback *FeedbackOptions
 
 	sem *semState
+	fb  *feedbackState
 }
 
 type semState struct {
@@ -158,6 +162,7 @@ func unguarded(method string) bool {
 // for every caller; other protocol methods (initialize, ping, notifications...) pass through.
 func (e *Engine) Middleware(opts GuardOptions) mcp.Middleware {
 	opts.sem = &semState{meta: map[string]map[string]any{}}
+	opts.fb = e.feedbackSetup(context.Background(), &opts)
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			if unguarded(method) {
@@ -210,6 +215,19 @@ func (e *Engine) guardList(ctx context.Context, method string, req mcp.Request, 
 	lr, ok := res.(*mcp.ListToolsResult)
 	if !ok {
 		return nil, fmt.Errorf("mcp-rbac: unexpected tools/list result %T", res)
+	}
+	if o.fb != nil { // the guard's submit_feedback replaces a server's own; listed on the last page
+		withFb := *lr
+		withFb.Tools = make([]*mcp.Tool, 0, len(lr.Tools)+1)
+		for _, t := range lr.Tools {
+			if t.Name != FeedbackTool {
+				withFb.Tools = append(withFb.Tools, t)
+			}
+		}
+		if lr.NextCursor == "" {
+			withFb.Tools = append(withFb.Tools, feedbackToolDef)
+		}
+		lr = &withFb
 	}
 	base := o.base(ctx, req)
 	filtered := *lr
@@ -420,6 +438,9 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	caller := Caller{Identity: body["identity"], Tenant: d.Tenant, Rule: d.Rule}
 	if r, ok := body["resource"].(map[string]string); ok {
 		caller.Resource = r
+	}
+	if o.fb != nil && tool == FeedbackTool {
+		return e.handleFeedback(ctx, o.fb, args, caller)
 	}
 	ctx = context.WithValue(ctx, callerKey{}, caller)
 	res, err := next(ctx, method, req)

@@ -20,6 +20,8 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(feature = "otel")]
 pub mod otel;
+pub mod feedback;
+pub use feedback::{FeedbackEvent, FeedbackOptions};
 
 /// `_meta` key carrying `{decision, reason}` on denied calls (same in every binding).
 pub const DENIAL_META_KEY: &str = "mcp-rbac/denial";
@@ -91,12 +93,14 @@ pub struct GuardOptions {
     /// OpenTelemetry (docs/otel.md); feature `otel`. None = off.
     #[cfg(feature = "otel")]
     pub telemetry: Option<Arc<otel::Telemetry>>,
+    /// Opt-in `submit_feedback` tool (docs/feedback.md). None = the policy's `feedback:` block decides.
+    pub feedback: Option<FeedbackOptions>,
 }
 
 impl GuardOptions {
     pub fn with_identity(f: impl Fn(&RequestContext<RoleServer>) -> Option<Value> + Send + Sync + 'static) -> Self {
         GuardOptions {
-            identity: Arc::new(f), toolsets: None, approve: None, now: None, on_decision: None, resource: None, uniform_denials: false,
+            identity: Arc::new(f), toolsets: None, approve: None, now: None, on_decision: None, resource: None, uniform_denials: false, feedback: None,
             #[cfg(feature = "otel")]
             telemetry: None,
         }
@@ -127,12 +131,25 @@ pub struct Guarded<S> {
     /// Tool semantics on (the policy has `semantics`): tools/list entries feed the engine as `toolMeta`.
     semantics: bool,
     meta: RwLock<HashMap<String, Value>>,
+    feedback: Option<feedback::State>,
 }
 
 impl<S> Guarded<S> {
+    /// Panics on invalid `opts.feedback` values (use [`protect`] or [`Guarded::try_new`] for an error instead).
     pub fn new(inner: S, engine: Arc<Engine>, opts: GuardOptions) -> Self {
+        match Self::try_new(inner, engine, opts) {
+            Ok(g) => g,
+            Err(e) => panic!("mcp-rbac: {e}"),
+        }
+    }
+    pub fn try_new(inner: S, engine: Arc<Engine>, opts: GuardOptions) -> Result<Self, String> {
         let semantics = serde_json::from_str::<Value>(&engine.decide("{}")).is_ok_and(|v| v.get("semantics").is_some());
-        Guarded { inner, engine, opts, semantics, meta: RwLock::new(HashMap::new()) }
+        let feedback = feedback::resolve(opts.feedback.as_ref(), engine.policy.feedback.as_ref())?;
+        let mut meta = HashMap::new();
+        if feedback.is_some() {
+            meta.insert(feedback::TOOL.to_string(), tool_meta_of(&feedback::tool_definition()));
+        }
+        Ok(Guarded { inner, engine, opts, semantics, meta: RwLock::new(meta), feedback })
     }
     fn remember(&self, tools: &[Tool]) {
         if let Ok(mut m) = self.meta.write() {
@@ -146,7 +163,7 @@ impl<S> Guarded<S> {
 
 /// Load a policy and wrap `inner`.
 pub fn protect<S>(inner: S, policy: &str, opts: GuardOptions) -> Result<Guarded<S>, String> {
-    Ok(Guarded::new(inner, Arc::new(Engine::new(policy)?), opts))
+    Guarded::try_new(inner, Arc::new(Engine::new(policy)?), opts)
 }
 
 fn internal(msg: impl Into<Cow<'static, str>>) -> McpError { McpError::internal_error(msg, None) }
@@ -213,6 +230,12 @@ impl Obs {
             s.cx.span().set_attribute(opentelemetry::KeyValue::new("mcp_rbac.redacted", true));
         }
     }
+    /// Correlate an accepted feedback report with the request's trace and export it (OTel log + tracing event).
+    #[allow(unused_variables)]
+    fn feedback(&self, ev: &mut FeedbackEvent) {
+        #[cfg(feature = "otel")]
+        if let Some((t, s)) = &self.t { t.feedback(s, ev) }
+    }
     #[allow(unused_variables)]
     fn finish(self, res: &Result<ServerResult, McpError>) {
         #[cfg(feature = "otel")]
@@ -249,6 +272,13 @@ impl<S: Service<RoleServer>> Guarded<S> {
         let mut base = self.opts.base(&context);
         let res = self.inner.handle_request(request, context).await?;
         let ServerResult::ListToolsResult(mut lr) = res else { return Ok(res) };
+        if self.feedback.is_some() {
+            // the guard's submit_feedback replaces a server's own; listed on the last page
+            lr.tools.retain(|t| t.name != feedback::TOOL);
+            if lr.next_cursor.as_deref().is_none_or(str::is_empty) {
+                lr.tools.push(feedback::tool_definition());
+            }
+        }
         if self.semantics {
             self.remember(&lr.tools);
         }
@@ -350,6 +380,19 @@ impl<S: Service<RoleServer>> Guarded<S> {
                 out.strip_result_type_for_legacy_peer();
             }
             return Ok(out);
+        }
+        if let (Some(fs), true) = (&self.feedback, tool == feedback::TOOL) {
+            let ident = body_identity.unwrap_or(Value::Null);
+            let tenant = d["tenant"].as_str().map(str::to_string);
+            let out = match feedback::process(&args, &fs.config, ident, tenant) {
+                Err(reason) => CallToolResult::error(vec![ContentBlock::text(format!("Feedback rejected: {reason}"))]),
+                Ok(mut ev) => {
+                    obs.feedback(&mut ev);
+                    if let Some(f) = &fs.on_feedback { f(&ev) }
+                    CallToolResult::success(vec![ContentBlock::text(feedback::result_text(&ev))])
+                }
+            };
+            return Ok(ServerResult::CallToolResult(out));
         }
         context.extensions.insert(Caller {
             identity: body_identity.unwrap_or(Value::Null),

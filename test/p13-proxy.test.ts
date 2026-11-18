@@ -77,6 +77,29 @@ describe("proxy --policy with a portable policy runs on the Rust core", () => {
   });
 });
 
+describe("proxy --with-feedback", () => {
+  const FBY = YAML.replace("[list_events, checkin, refund]", "[list_events, checkin, refund, submit_feedback]");
+  it("is off by default; on with withFeedback (core engine), audited in core_audit, logged without the summary's secrets", async () => {
+    const off = await proxied(FBY, "yaml");
+    expect((await off.c.listTools()).tools.map((t) => t.name)).not.toContain("submit_feedback");
+    const { c, logs, ran, db } = await proxied(FBY, "yaml", { withFeedback: true });
+    expect((await c.listTools()).tools.map((t) => t.name)).toContain("submit_feedback");
+    const r = await c.callTool({ name: "submit_feedback", arguments: { summary: "refund needs a reason field, token=hunter2xyz", what_happened: "refund(amount=50) ok but no reason stored" } });
+    expect(text(r)).toMatch(/^Feedback recorded/);
+    expect(ran).toEqual([]); // never forwarded upstream
+    const line = logs.find((l) => l.startsWith("feedback "))!;
+    expect(line).toContain("[medium]");
+    expect(line).toContain("[REDACTED:secret]");
+    expect(line).not.toContain("hunter2xyz");
+    await c.close();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(verifyAuditTable(db, "core_audit")).toMatchObject({ ok: true, count: 2 });
+  });
+  it("needs a portable policy", async () => {
+    await expect(runProxy({ command: [], upstream: InMemoryTransport.createLinkedPair()[0], preset: "read-only", withFeedback: true, db: ":memory:", log: () => {} } as any)).rejects.toThrow(/--with-feedback needs --policy/);
+  });
+});
+
 describe("read-only classifier", () => {
   const risk = (name: string, annotations?: Record<string, boolean>) => classifyTool({ name, ...(annotations ? { annotations } : {}) }).risk;
   it("write verbs beat read verbs and readOnlyHint", () => {

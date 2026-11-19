@@ -38,6 +38,14 @@ Usage:
       --db <path>            audit/revocation store (default ${defaultDbPath()}; ":memory:" = none)
       --explain              tell the agent why a call was blocked
       --print-plan           log the per-tool decision table to stderr
+      --with-feedback        expose a submit_feedback tool (needs --policy; grant it to roles in the policy):
+                             agents report problems with a proposed fix; sanitized, audited (docs/feedback.md)
+      --otel                 OpenTelemetry: decision spans/metrics/logs, audit + feedback export through the global
+                             providers (load an SDK first, e.g. NODE_OPTIONS="--import ./otel-register.mjs";
+                             see examples/feedback/)
+      --otel-authority      with --otel, include matched role, argument hash, policy version and configured agent ID
+      --agent-id <id>      trusted OAuth client or agent identifier for this portable-policy proxy instance
+      --user <id>          local proxy subject (defaults to the OS username)
       --timeout <s>          upstream request timeout (default 600, reset by progress)
     remote only:
       --url <url>            Streamable HTTP endpoint (legacy SSE is tried if it is rejected)
@@ -61,7 +69,7 @@ Usage:
   mcp-rbac test <policy.yaml> <tests.yaml> [--json]
                                                 run allow/deny/approval and tools/list fixtures (exit 1 if any fail)
   mcp-rbac diff <old.yaml> <new.yaml> [--json] [--tools a,b] [--fail-on-widen]
-                                                effective-access changes per role x tool (exit 2 on widening with --fail-on-widen)
+                                                effective-access changes per role x tool (exit 2 on widening or unclassified changes with --fail-on-widen)
   mcp-rbac decide <policy.yaml> [--visible]     JSON requests on stdin (one per line) -> canonical decisions on stdout
   mcp-rbac export --module <file.js> [--export name] [--out mcp-rbac.yaml]
                                                 emit portable yaml from a module exporting the declarative API pieces
@@ -135,7 +143,7 @@ export async function main(argv = process.argv.slice(2)) {
       if (!a || !b) throw new Error("diff needs <old.yaml> <new.yaml>");
       const d = diffPolicies(loadPortablePolicy(readFileSync(a, "utf8")), loadPortablePolicy(readFileSync(b, "utf8")), str(flags.tools)?.split(",").filter(Boolean) ?? []);
       process.stdout.write(flags.json ? JSON.stringify(d, null, 2) + "\n" : formatDiff(d));
-      if (flags["fail-on-widen"] && d.summary.widens > 0) process.exitCode = 2;
+      if (flags["fail-on-widen"] && (d.summary.widens > 0 || d.summary.changed > 0)) process.exitCode = 2;
       return;
     }
     case "test": {
@@ -177,6 +185,10 @@ export async function main(argv = process.argv.slice(2)) {
       return;
     }
     case "proxy": {
+      for (const key of ["policy", "role", "preset", "engine", "paths", "repos", "allow", "deny", "approval", "db", "agent-id", "user", "max-destructive"]) {
+        const value = flags[key];
+        if (value !== undefined && (value === true || !value.trim())) throw new Error(`--${key} requires a value`);
+      }
       const preset = str(flags.preset) as PresetMode | undefined;
       if (preset && !PRESET_MODES.includes(preset)) throw new Error(`Unknown preset "${preset}". Use: ${PRESET_MODES.join(", ")}`);
       const approval = str(flags.approval) as "auto" | "elicit" | "queue" | "deny" | "allow" | undefined;
@@ -186,7 +198,8 @@ export async function main(argv = process.argv.slice(2)) {
         command: rest, preset, policyFile: str(flags.policy), engine: str(flags.engine) as "core" | "legacy" | undefined, role: str(flags.role), paths: list(flags.paths), repos: list(flags.repos),
         allow: list(flags.allow), deny: list(flags.deny), approval, db: str(flags.db),
         maxDestructivePerDay: flags["max-destructive"] !== undefined ? Number(flags["max-destructive"]) : undefined,
-        explain: !!flags.explain, printPlan: !!flags["print-plan"],
+        user: str(flags.user), agentId: str(flags["agent-id"]), authorityTelemetry: !!flags["otel-authority"],
+        explain: !!flags.explain, printPlan: !!flags["print-plan"], withFeedback: !!flags["with-feedback"], otel: !!flags.otel,
         approvalTimeoutMs: flags["approval-timeout"] !== undefined ? Number(flags["approval-timeout"]) * 1000 : undefined,
         timeoutMs: num("timeout") !== undefined ? num("timeout")! * 1000 : undefined,
         ...(flags.url ? { ...remoteOpts(), oauth: flags["no-oauth"] ? false : oauthOpts() } : {}),

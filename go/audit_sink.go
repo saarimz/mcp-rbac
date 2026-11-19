@@ -36,6 +36,9 @@ type AuditRecord struct {
 	// Trace is the trace context of the request that made the decision (OTel audit export, docs/otel.md).
 	// Correlation metadata only: not hashed, not stored. Set it with AuditTraceFromContext.
 	Trace *AuditTraceContext
+	// Feedback is the canonical JSON of an accepted submit_feedback report ({id, ...report, redactions}; hashed).
+	// Set by FeedbackEvent.AuditRecord; nil for decisions.
+	Feedback json.RawMessage
 }
 
 // AuditTraceContext is a W3C trace context in hex (traceId 32, spanId 16).
@@ -292,9 +295,18 @@ func (s *AuditSink) run() {
 }
 
 func (s *AuditSink) commit(batch []AuditRecord) (err error) {
-	head := s.head
+	head := AuditGenesis
 	var rows []CommittedAuditRow
 	tx, err := s.db.Begin()
+	if err == nil {
+		// Acquire the SQLite writer lock before reading the shared chain head.
+		if _, err = tx.Exec("UPDATE " + s.table + " SET hash=hash WHERE 0"); err == nil {
+			err = tx.QueryRow("SELECT COALESCE((SELECT hash FROM "+s.table+" ORDER BY id DESC LIMIT 1), ?) ", AuditGenesis).Scan(&head)
+		}
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}
 	if err == nil {
 		for _, r := range batch {
 			ev := AuditEventJSON(r)
@@ -376,6 +388,14 @@ func AuditEventJSON(r AuditRecord) string {
 	}
 	if r.DurationMs != nil {
 		m["durationMs"] = round3(*r.DurationMs)
+	}
+	if len(r.Feedback) > 0 {
+		d := json.NewDecoder(strings.NewReader(string(r.Feedback)))
+		d.UseNumber()
+		var fb any
+		if d.Decode(&fb) == nil {
+			m["feedback"] = fb
+		}
 	}
 	return canonicalJS(m)
 }

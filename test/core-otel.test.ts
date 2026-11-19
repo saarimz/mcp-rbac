@@ -39,11 +39,11 @@ function innerServer() {
   return s;
 }
 
-async function session(identity: unknown, extra: { approve?: boolean; tel?: CoreTelemetry; telemetry?: boolean } = {}) {
+async function session(identity: unknown, extra: { authorityTelemetry?: boolean; approve?: boolean; tel?: CoreTelemetry; telemetry?: boolean } = {}) {
   const records: DecisionLogRecord[] = [];
   const tel = extra.tel ?? new CoreTelemetry({ tracerProvider, meterProvider, loggerProvider, log: (r) => records.push(r) });
   const { server } = await protectWithCore(innerServer(), {
-    policy: POLICY, shareEngine: false, identity: () => identity, now: () => 1_800_000_000_000,
+    authorityTelemetry: extra.authorityTelemetry, policy: POLICY, shareEngine: false, identity: () => identity, now: () => 1_800_000_000_000,
     approve: extra.approve === undefined ? undefined : () => extra.approve!,
     telemetry: extra.telemetry === false ? undefined : tel,
   });
@@ -76,6 +76,19 @@ const DOOR = { id: "CANARY-ID-u-8842", roles: ["door"], name: "CANARY-TOKEN-eyJh
 
 describe("core guard OpenTelemetry", () => {
   beforeEach(() => { spans.reset(); logExporter.reset(); });
+
+  it("exports matched role, verified client and stable fingerprints only when requested", async () => {
+    const { client } = await session({ id: "local", roles: ["door"], clientId: "venue-agent" }, { authorityTelemetry: true });
+    await call(client, "checkin", { ticketId: "local-ticket" });
+    const attrs = one("mcp_rbac.authorize checkin").attributes;
+    expect(attrs).toMatchObject({
+      "mcp_rbac.role": "door", "mcp_rbac.agent_id": "venue-agent",
+      "mcp_rbac.arguments_hash": expect.stringMatching(/^[a-f0-9]{64}$/),
+      "mcp_rbac.policy_version": expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    expect(logExporter.getFinishedLogRecords()[0]?.attributes["mcp_rbac.arguments_hash"]).toBe(attrs["mcp_rbac.arguments_hash"]);
+    await client.close();
+  });
 
   it("owned SERVER span follows MCP semconv; INTERNAL authorize child; denial = tool_error", async () => {
     const { client } = await session(DOOR);

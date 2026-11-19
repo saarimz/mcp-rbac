@@ -10,6 +10,7 @@ package mcprbac
 
 import (
 	"context"
+	"encoding/json"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -66,7 +67,7 @@ func NewAuditOtelExporter(o AuditOtelOptions) func([]CommittedAuditRow) {
 			var rec otellog.Record
 			rec.SetEventName("mcp_rbac.audit")
 			sev := otellog.SeverityInfo
-			if e.Decision != "allow" {
+			if e.Decision != "allow" && e.Decision != "feedback" {
 				sev = otellog.SeverityWarn
 			}
 			rec.SetSeverity(sev)
@@ -91,6 +92,14 @@ func NewAuditOtelExporter(o AuditOtelOptions) func([]CommittedAuditRow) {
 			}
 			if e.DurationMs != nil {
 				kv = append(kv, attribute.Float64("mcp_rbac.audit.duration_ms", round3(*e.DurationMs)))
+			}
+			if len(e.Feedback) > 0 {
+				var fb struct {
+					ID string `json:"id"`
+				}
+				if json.Unmarshal(e.Feedback, &fb) == nil && fb.ID != "" {
+					kv = append(kv, attribute.String("mcp_rbac.feedback.id", fb.ID))
+				}
 			}
 			rec.AddAttributes(kv...)
 			ctx := batchCtx

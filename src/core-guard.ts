@@ -24,6 +24,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { CoreTelemetry, CoreTelemetryOptions } from "./core-otel.js";
 import type { AuditOtelOptions } from "./audit-otel.js";
 import type { AuditSinkMode, AuditWriter } from "./audit-worker.js";
+import { FEEDBACK_TOOL, FEEDBACK_TOOL_DEFINITION, handleFeedback, resolveFeedback, type FeedbackOptions } from "./feedback-guard.js";
 import { CallToolRequestSchema, CallToolResultSchema, ListToolsRequestSchema, ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 
 /** The WASM engine: JSON text in, canonical JSON text out (see core/mcp-rbac-core/src/engine.rs). */
@@ -162,6 +163,8 @@ export interface CoreGuardOptions {
   /** Called after an allowed call whose decision has a post-call (result-based) spend: the cost read and charged. */
   onCost?: (e: { tool: string; identity: unknown; decision: CoreDecision; cost: CoreCost }) => void;
   /** OpenTelemetry (docs/otel.md): a CoreTelemetry, its options, or true for the global providers. Default off. */
+  /** Include the verified OAuth client id and decision fingerprints in OTel logs and spans. */
+  authorityTelemetry?: boolean;
   telemetry?: CoreTelemetry | CoreTelemetryOptions | boolean;
   /** Upstream request timeout (default 10 minutes). */
   forwardTimeoutMs?: number;
@@ -206,6 +209,14 @@ export interface CoreGuardOptions {
    * cached; cleared when full). A number = max entries; false or 0 = off.
    */
   decisionCache?: number | false | { maxEntries?: number; maxBytes?: number };
+  /**
+   * Opt-in `submit_feedback` tool (docs/feedback.md; CLI `--with-feedback`): agents report problems with the server's
+   * tools, with a proposed fix. Calls are governed by the policy like any tool (grant `submit_feedback` to a role);
+   * reports are sanitized by the core, exported as OTel log records (`mcp_rbac.feedback`), audited and passed to
+   * `onFeedback`. `true` or options = on; `false` = off even if the policy has a `feedback:` block; default: the
+   * policy's `feedback:` block decides (off without one).
+   */
+  feedback?: boolean | FeedbackOptions;
 }
 
 export const DENIAL_META_KEY = "mcp-rbac/denial";
@@ -389,6 +400,51 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
     : new (await import("./core-otel.js")).CoreTelemetry(opts.telemetry === true ? {} : opts.telemetry as CoreTelemetryOptions);
   if (!hasTools) return { server: outer, engine };
   const audit = sink;
+  // ---- opt-in submit_feedback (docs/feedback.md)
+  const policyBlock = (() => {
+    if (opts.policy === undefined) return { has: false, block: undefined as unknown };
+    try {
+      const doc = opts.policy.trimStart().startsWith("{") ? JSON.parse(opts.policy) : (JSON.parse((loadCoreWasm() as unknown as { yamlToJson(s: string): string }).yamlToJson(opts.policy)) as { doc?: unknown }).doc;
+      return doc && typeof doc === "object" && "feedback" in doc ? { has: true, block: (doc as Record<string, unknown>).feedback } : { has: false, block: undefined };
+    } catch { return { has: false, block: undefined }; }
+  })();
+  const fb = resolveFeedback(opts.feedback, policyBlock.block, policyBlock.has);
+  if (fb) {
+    const wasm = loadCoreWasm() as unknown as { feedback?: (req: string) => string };
+    if (typeof wasm.feedback !== "function") throw new Error("mcp-rbac: feedback needs a WASM core with feedback() (run `npm run build:wasm`)");
+    const sanitize = wasm.feedback.bind(wasm);
+    const auditOtel = typeof opts.audit === "object" && !("write" in opts.audit) && !!opts.audit.otel;
+    const wantOtel = fb.options.otel === undefined ? !!tel || auditOtel : !!fb.options.otel;
+    const fo = wantOtel ? await import("./feedback-otel.js") : undefined;
+    const emit = fo?.feedbackOtelExporter(typeof fb.options.otel === "object" ? fb.options.otel : tel ? { logger: tel.logger } : {});
+    const baseList = listInner, baseCall = callInner;
+    listInner = async (params, extra) => {
+      const res = await baseList(params, extra);
+      const tools = res.tools.filter((t) => t.name !== FEEDBACK_TOOL); // the guard's submit_feedback replaces a server's own
+      return { ...res, tools: res.nextCursor ? tools : [...tools, FEEDBACK_TOOL_DEFINITION] };
+    };
+    callInner = async (params, extra) => {
+      if (params.name !== FEEDBACK_TOOL) return baseCall(params, extra);
+      const caller = (params._meta as Record<string, unknown> | undefined)?.[CORE_CALLER_META_KEY] as { identity: unknown; tenant: string | null; rule: string | null } | undefined;
+      const { result, event, body } = handleFeedback(sanitize, fb.config, params.arguments, caller);
+      if (!event) return result;
+      const ids = fo?.activeIds();
+      if (ids) { event.traceId = ids.traceId; event.spanId = ids.spanId; }
+      try { emit?.(event, body!); } catch (e) { process.stderr.write(`mcp-rbac: feedback export failed: ${String(e)}\n`); }
+      if (audit) {
+        const sub = (caller?.identity as { id?: unknown } | undefined)?.id;
+        try {
+          audit.write({
+            at: new Date().toISOString(), tool: FEEDBACK_TOOL, decision: "feedback", reason: `feedback:${event.feedback.severity}`,
+            sub: typeof sub === "string" ? sub : null, tenant: event.tenant, rule: caller?.rule ?? null,
+            feedback: { id: event.id, ...event.feedback, redactions: event.redactions }, ...(ids ? { trace: ids } : {}),
+          });
+        } catch (e) { onAuditError(e); }
+      }
+      if (fb.options.onFeedback) { try { await fb.options.onFeedback(event); } catch (e) { process.stderr.write(`mcp-rbac: onFeedback failed: ${String(e)}\n`); } }
+      return result;
+    };
+  }
   // Tool semantics (spec/tool-semantics.md): only when the policy has a `semantics` block (an invalid request's denial
   // then carries a `semantics` key). The server's tools/list entries (annotations, _meta) feed the engine as `toolMeta`.
   const semanticsOn = (() => { try { return "semantics" in JSON.parse(engine.decide("{}")); } catch { return false; } })();
@@ -443,7 +499,7 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
       let metaFailed = false;
       // class rules need the server's metadata: if it cannot be read, deny (fail closed) rather than decide without it
       try { meta = identity === undefined ? undefined : await metaFor(tool, extra); } catch { meta = undefined; metaFailed = true; }
-      const reqJson = JSON.stringify({ tool, args, ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}), ...(resource ? { resource } : {}), ...(meta !== undefined ? { toolMeta: meta } : {}) });
+      const reqJson = JSON.stringify({ tool, args, ...(tel && opts.authorityTelemetry ? { auditContext: true } : {}), ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}), ...(resource ? { resource } : {}), ...(meta !== undefined ? { toolMeta: meta } : {}) });
       const authSpan = tel?.startAuthorize(tool);
       let e0 = performance.now();
       let raw = identity !== undefined && unresolved ? RESOURCE_UNRESOLVED : identity !== undefined && metaFailed ? TOOL_META_UNAVAILABLE : authorize(reqJson, now());
@@ -453,14 +509,19 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
       let approval: "none" | "granted" | "rejected" | "unavailable" = "none";
       if (d.decision === "needs_approval") {
         if (!approveFn) approval = "unavailable";
-        else if (await approveFn({ tool, args, identity }, d, extra)) {
-          e0 = performance.now();
-          raw = engine.authorizeApproved(reqJson, now());
-          engineMs += performance.now() - e0;
-          d = JSON.parse(raw) as CoreDecision;
-          approved = d.decision === "allow";
-          approval = "granted";
-        } else approval = "rejected";
+        else {
+          let granted = false;
+          try { granted = (await approveFn(structuredClone({ tool, args, identity }), structuredClone(d), extra)) === true; }
+          catch { /* A failed approval must still produce a decision record. */ }
+          if (granted) {
+            e0 = performance.now();
+            raw = engine.authorizeApproved(reqJson, now());
+            engineMs += performance.now() - e0;
+            d = JSON.parse(raw) as CoreDecision;
+            approved = d.decision === "allow";
+            approval = "granted";
+          } else approval = "rejected";
+        }
       }
       if (tel && authSpan && server) tel.endAuthorize(authSpan, server, tool, d, approval, engineMs / 1000);
       // fail-closed audit: an allowed call does not run while the audit sink cannot record it
@@ -480,9 +541,10 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
       }
       // The inner server is trusted and in-process: tell it who is calling (client _meta is never forwarded, so this
       // key cannot be spoofed) so it can scope its own queries to the caller's tenant.
-      const caller = { identity, tenant: d.tenant, rule: d.rule, ...(resource ? { resource } : {}) };
+      const snapshot = JSON.parse(reqJson);
+      const caller = { identity: snapshot.identity, tenant: d.tenant, rule: d.rule, ...(snapshot.resource ? { resource: snapshot.resource } : {}) };
       const progressToken = (req.params._meta as { progressToken?: unknown } | undefined)?.progressToken;
-      const result = await callInner({ name: tool, arguments: args, _meta: { ...(inPlace && progressToken !== undefined ? { progressToken } : {}), [CORE_CALLER_META_KEY]: caller } }, extra);
+      const result = await callInner({ name: tool, arguments: snapshot.args, _meta: { ...(inPlace && progressToken !== undefined ? { progressToken } : {}), [CORE_CALLER_META_KEY]: caller } }, extra);
       if (d.limits.some((l) => (l as { deferred?: boolean }).deferred)) {
         // post-call spend (tool semantics): read the cost from the result and charge the deferred budgets; an
         // unreadable cost charges each budget's max (fail-closed), so the next call is denied until the window ends

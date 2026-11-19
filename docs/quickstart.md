@@ -11,6 +11,8 @@ Pick the path that matches your situation. Every code block on this page is a re
 | a partner's server (Klaviyo, Stripe, GitHub) and you care about *what calls do* | [tool semantics + packs](#3-govern-by-what-tools-do-classes-and-packs) | 5 min |
 | several AI agents acting for one human, each limited differently | [agent grants (ITM example)](#4-several-agents-per-human-itm) | read |
 
+For authenticated HTTP, follow the [JWT setup in the README](../README.md#from-a-signed-access-token-to-a-tool-handler) and run [the signed-token venue example](snippets/ts/jwt.ts). The mutable identities below are local fixtures.
+
 Requirements: Node ≥ 22.13. Python ≥ 3.11 for the Python guard, Go ≥ 1.27 for the Go guard (preview, not
 published in 0.5).
 
@@ -265,7 +267,7 @@ import (
 	"os"
 	"strings"
 
-	mcprbac "github.com/mcp-rbac/mcp-rbac-go"
+	mcprbac "github.com/saarimz/mcp-rbac/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -420,4 +422,3 @@ shared with the human, approvals, expiry and instant revocation. Every grant is 
 - 30 adversarial tests over real HTTP and MCP (`cd examples/itm-agents && npm test`).
 - A live read-only run through mcp-rbac against ITM's **staging** MCP server, on a sandbox brand: 15/15 checks.
   Production was never touched.
-- [`ADOPTION.md`](../examples/itm-agents/ADOPTION.md): how ITM's backend would ship it.

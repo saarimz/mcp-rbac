@@ -82,7 +82,7 @@ export function queueApprover(o: { dir: string; timeoutMs?: number; pollMs?: num
     const { randomBytes } = await import("node:crypto");
     mkdirSync(o.dir, { recursive: true, mode: 0o700 });
     try { chmodSync(o.dir, 0o700); } catch { /* best effort */ }
-    const id = randomBytes(4).toString("hex");
+    const id = randomBytes(16).toString("hex");
     const timeout = o.timeoutMs ?? 110_000;
     const p: PendingApproval = {
       id, ts: new Date().toISOString(), expires: new Date(Date.now() + timeout).toISOString(), agent: req.agent,
@@ -120,7 +120,7 @@ export async function listPending(dir: string): Promise<PendingApproval[]> {
   try { names = readdirSync(dir); } catch { return []; }
   const out: PendingApproval[] = [];
   for (const n of names) {
-    if (!/^[0-9a-f]{8}\.json$/.test(n)) continue;
+    if (!/^(?:[0-9a-f]{8}|[0-9a-f]{32})\.json$/.test(n)) continue;
     try { const p = JSON.parse(readFileSync(join(dir, n), "utf8")) as PendingApproval; if (Date.parse(p.expires) > Date.now()) out.push(p); } catch { /* skip */ }
   }
   return out.sort((a, b) => a.ts.localeCompare(b.ts));
@@ -128,8 +128,9 @@ export async function listPending(dir: string): Promise<PendingApproval[]> {
 export async function decidePending(dir: string, id: string, d: QueueDecision): Promise<boolean> {
   const { existsSync, writeFileSync } = await import("node:fs");
   const { join } = await import("node:path");
-  if (!/^[0-9a-f]{8}$/.test(id) || !existsSync(join(dir, `${id}.json`))) return false;
-  writeFileSync(join(dir, `${id}.decision.json`), JSON.stringify(d), { mode: 0o600 });
+  if (!/^(?:[0-9a-f]{8}|[0-9a-f]{32})$/.test(id) || !existsSync(join(dir, `${id}.json`))) return false;
+  try { writeFileSync(join(dir, `${id}.decision.json`), JSON.stringify(d), { mode: 0o600, flag: "wx" }); }
+  catch (e) { if ((e as NodeJS.ErrnoException).code === "EEXIST") return false; throw e; }
   return true;
 }
 

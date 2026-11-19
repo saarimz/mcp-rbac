@@ -86,7 +86,8 @@ export function createPartnerServer(db: PartnerDb) {
 export function identityFromClaims({ claims, authInfo }: IdentityRequest): PartnerIdentity | undefined {
   const sub = claims?.sub, brand = claims?.brand;
   if (typeof sub !== "string" || typeof brand !== "string" || !sub || !brand) return undefined;
-  const role: Roles = claims?.role === "support" ? "support" : "admin";
+  const role = claims?.role;
+  if (role !== "support" && role !== "admin") return undefined;
   return { id: sub, name: typeof claims?.name === "string" ? claims.name : sub, roles: [role], scope: { brand }, oauthClient: authInfo?.clientId ?? "unknown-client" };
 }
 

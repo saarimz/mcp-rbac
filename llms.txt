@@ -6,7 +6,7 @@ Key facts for agents:
 - Try it: `npx mcp-rbac demo` (in-memory server; prints each decision and verifies the audit chain).
 - TypeScript (SDK v1 `McpServer` or SDK v2 `@modelcontextprotocol/server`): `import { protectWithCore } from "mcp-rbac/core"`; `protectWithCore(server, { policy, identity, audit: "audit.db" })`. Guards in place; register every tool before protecting.
 - Python: `from mcp_rbac.core_guard import protect_with_core`; `protect_with_core(server, policy, identity=...)`.
-- Go (preview, not published in 0.5): module `github.com/mcp-rbac/mcp-rbac-go`; `rt.NewEngine(ctx, policy)`, then `engine.Protect(server, mcprbac.GuardOptions{Identity: ...})`.
+- Go (preview, not published in 0.5): module `github.com/saarimz/mcp-rbac/go`; `rt.NewEngine(ctx, policy)`, then `engine.Protect(server, mcprbac.GuardOptions{Identity: ...})`.
 - Proxy: `mcp-rbac proxy --preset read-only -- <server command>`.
 - Policy CLI: `mcp-rbac check policy.yaml`, `mcp-rbac test policy.yaml tests.yaml`, `mcp-rbac diff old.yaml new.yaml --fail-on-widen`, `mcp-rbac decide policy.yaml`. `testPolicy` / `assertPolicy` from `mcp-rbac/testing` (Python: `mcp_rbac.testing`).
 - Denials are tool results: `Denied: <reason>` or `Approval required for <tool>`.

@@ -33,6 +33,7 @@ pub struct DecisionLog {
     pub decision: String,
     pub reason: String,
     pub rule: Option<String>,
+    pub audit_context: std::collections::BTreeMap<String, String>,
     pub approval: &'static str,
     pub duration_ms: f64,
     pub trace_id: String,
@@ -40,7 +41,26 @@ pub struct DecisionLog {
 }
 
 type Emit = dyn Fn(&DecisionLog, &SpanContext) + Send + Sync;
+#[cfg(feature = "audit")]
+type EmitAudit = dyn Fn(&crate::audit::CommittedRow, &SpanContext, crate::audit::ExportBody) + Send + Sync;
+type EmitFeedback = dyn Fn(&crate::FeedbackEvent, &SpanContext) + Send + Sync;
 type Callback = dyn Fn(&DecisionLog) + Send + Sync;
+
+/// Attributes of a `mcp_rbac.feedback` log record (docs/feedback.md). Never the caller's identity.
+pub fn feedback_attributes(e: &crate::FeedbackEvent) -> Vec<(&'static str, AnyValue)> {
+    let s = |v: &Value| AnyValue::from(v.as_str().unwrap_or("").to_string());
+    let n = |k: &str| AnyValue::from(e.redactions[k].as_i64().unwrap_or(0));
+    let mut a = vec![("gen_ai.tool.name", AnyValue::from(crate::feedback::TOOL)), ("mcp_rbac.feedback.id", AnyValue::from(e.id.clone())),
+                     ("mcp_rbac.feedback.severity", s(&e.feedback["severity"])), ("mcp_rbac.feedback.summary", s(&e.feedback["summary"])),
+                     ("mcp_rbac.feedback.chars", AnyValue::from(e.chars as i64)),
+                     ("mcp_rbac.feedback.redactions.email", n("email")), ("mcp_rbac.feedback.redactions.phone", n("phone")),
+                     ("mcp_rbac.feedback.redactions.secret", n("secret"))];
+    for (k, attr) in [("tool_name", "mcp_rbac.feedback.target_tool"), ("session_id", "mcp_rbac.feedback.session_id"), ("trace_id", "mcp_rbac.feedback.reported_trace_id")] {
+        if e.feedback.get(k).is_some() { a.push((attr, s(&e.feedback[k]))) }
+    }
+    if let Some(t) = &e.tenant { a.push(("mcp_rbac.tenant", AnyValue::from(t.clone()))) }
+    a
+}
 
 /// Low-cardinality class of a reason: its first `:` segment.
 pub fn reason_class(reason: &str) -> &str { reason.split(':').next().unwrap_or(reason) }
@@ -71,6 +91,9 @@ pub struct Telemetry {
     utilization: Histogram<f64>,
     operation_duration: Histogram<f64>,
     emit: Option<Arc<Emit>>,
+    #[cfg(feature = "audit")]
+    emit_audit: Option<Arc<EmitAudit>>,
+    emit_feedback: Option<Arc<EmitFeedback>>,
     callback: Option<Arc<Callback>>,
     tools: Mutex<HashSet<String>>,
     max_tools: usize,
@@ -84,6 +107,9 @@ pub struct TelemetryBuilder {
     tracer: Option<BoxedTracer>,
     meter: Option<Meter>,
     emit: Option<Arc<Emit>>,
+    #[cfg(feature = "audit")]
+    emit_audit: Option<Arc<EmitAudit>>,
+    emit_feedback: Option<Arc<EmitFeedback>>,
     callback: Option<Arc<Callback>>,
     max_tools: Option<usize>,
     transport: Option<&'static str>,
@@ -121,7 +147,39 @@ impl TelemetryBuilder {
             r.add_attribute("mcp_rbac.reason", d.reason.clone());
             r.add_attribute("mcp_rbac.approval", d.approval);
             if let Some(rule) = &d.rule { r.add_attribute("mcp_rbac.rule", rule.clone()) }
+            for (k,v) in &d.audit_context { r.add_attribute(format!("mcp_rbac.{k}"), v.clone()); }
             r.set_trace_context(sc.trace_id(), sc.span_id(), Some(sc.trace_flags()));
+            logger.emit(r);
+        }));
+        let logger = p.logger_with_scope(scope());
+        #[cfg(feature = "audit")]
+        {
+            let logger = p.logger_with_scope(scope());
+            self.emit_audit = Some(Arc::new(move |row, sc, body| {
+                let mut log = logger.create_log_record();
+                log.set_event_name("mcp_rbac.audit");
+                if matches!(body, crate::audit::ExportBody::FullEvent) { log.set_body(AnyValue::from(row.event.clone())); }
+                log.add_attribute("mcp_rbac.audit.id", row.id);
+                log.add_attribute("mcp_rbac.audit.table", "audit");
+                log.add_attribute("mcp_rbac.audit.prev", row.prev.clone());
+                log.add_attribute("mcp_rbac.audit.hash", row.hash.clone());
+                if sc.is_valid() { log.set_trace_context(sc.trace_id(), sc.span_id(), Some(sc.trace_flags())); }
+                logger.emit(log);
+            }));
+        }
+        self.emit_feedback = Some(Arc::new(move |e: &crate::FeedbackEvent, sc: &SpanContext| {
+            let mut r = logger.create_log_record();
+            r.set_event_name("mcp_rbac.feedback");
+            let (sev, txt) = match e.feedback["severity"].as_str() {
+                Some("high") => (Severity::Warn, "WARN"),
+                Some("critical") => (Severity::Error, "ERROR"),
+                _ => (Severity::Info, "INFO"),
+            };
+            r.set_severity_number(sev);
+            r.set_severity_text(txt);
+            r.set_body(AnyValue::from(e.canonical.clone()));
+            for (k, v) in feedback_attributes(e) { r.add_attribute(k, v) }
+            if sc.is_valid() { r.set_trace_context(sc.trace_id(), sc.span_id(), Some(sc.trace_flags())) }
             logger.emit(r);
         }));
         self
@@ -155,7 +213,9 @@ impl TelemetryBuilder {
             operation_duration: meter.f64_histogram("mcp.server.operation.duration").with_unit("s")
                 .with_description("MCP request duration as observed by the server (semconv; recorded when the guard owns the span).")
                 .with_boundaries(OPERATION_BUCKETS.to_vec()).build(),
-            emit: self.emit,
+            #[cfg(feature = "audit")]
+            emit_audit: self.emit_audit,
+            emit: self.emit, emit_feedback: self.emit_feedback,
             callback: self.callback,
             tools: Mutex::new(HashSet::new()),
             max_tools: self.max_tools.unwrap_or(256),
@@ -233,6 +293,26 @@ impl Telemetry {
         server.cx.with_span(span)
     }
 
+    #[cfg(feature = "audit")]
+    pub(crate) fn audit(&self, server: &ServerSpan, row: &crate::audit::CommittedRow, body: crate::audit::ExportBody) {
+        if let Some(emit) = &self.emit_audit { emit(row, server.cx.span().span_context(), body); }
+    }
+
+    /// Export an accepted feedback report in the request's trace: `mcp_rbac.feedback` log record (with a logger
+    /// provider), `tracing` event on target `mcp_rbac.feedback`, and `mcp_rbac.feedback.id` on the server span.
+    pub fn feedback(&self, server: &ServerSpan, e: &mut crate::FeedbackEvent) {
+        let span = server.cx.span();
+        let sc = span.span_context().clone();
+        if sc.is_valid() {
+            e.trace_id = Some(sc.trace_id().to_string());
+            e.span_id = Some(sc.span_id().to_string());
+            span.set_attribute(KeyValue::new("mcp_rbac.feedback.id", e.id.clone()));
+        }
+        if let Some(emit) = &self.emit_feedback { emit(e, &sc) }
+        tracing::event!(target: "mcp_rbac.feedback", tracing::Level::INFO, event = "mcp_rbac.feedback", id = %e.id,
+                        severity = e.feedback["severity"].as_str().unwrap_or(""), trace_id = e.trace_id.as_deref().unwrap_or(""));
+    }
+
     /// Record attributes, metrics and the correlated decision log; ends the authorize span.
     pub fn end_authorize(&self, auth: Context, server: &ServerSpan, tool: &str, d: &Value, approval: &'static str, engine: Duration) {
         let decision = d["decision"].as_str().unwrap_or("deny").to_string();
@@ -241,6 +321,9 @@ impl Telemetry {
         let mut attrs = vec![KeyValue::new("mcp_rbac.decision", decision.clone()), KeyValue::new("mcp_rbac.reason", reason.clone()),
                              KeyValue::new("mcp_rbac.approval", approval)];
         if let Some(r) = &rule { attrs.push(KeyValue::new("mcp_rbac.rule", r.clone())) }
+        let audit_context: std::collections::BTreeMap<_,_> = d["auditContext"].as_object().into_iter().flatten()
+            .filter_map(|(k,v)| v.as_str().map(|s|(k.clone(),s.to_owned()))).collect();
+        for (k,v) in &audit_context { attrs.push(KeyValue::new(format!("mcp_rbac.{k}"), v.clone())); }
         let span = auth.span();
         span.set_attributes(attrs.clone());
         server.cx.span().set_attributes(attrs);
@@ -262,7 +345,7 @@ impl Telemetry {
         }
         let sc = span.span_context().clone();
         let rec = DecisionLog {
-            tool: tool.to_string(), decision, reason, rule, approval, duration_ms: engine.as_secs_f64() * 1000.0,
+            tool: tool.to_string(), decision, reason, rule, audit_context, approval, duration_ms: engine.as_secs_f64() * 1000.0,
             trace_id: sc.trace_id().to_string(), span_id: sc.span_id().to_string(),
         };
         if let Some(emit) = &self.emit { emit(&rec, &sc) }

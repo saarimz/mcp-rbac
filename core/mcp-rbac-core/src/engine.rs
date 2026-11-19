@@ -7,22 +7,24 @@ use crate::json::canonical;
 use crate::policy::Policy;
 use crate::redact::apply_to_result;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 /// A loaded policy plus an in-memory fixed-window counter store (single process). Thread-safe (`Sync`).
 pub struct Engine {
     pub policy: Policy,
+    policy_version: String,
     store: MemoryStore,
 }
 
 impl Engine {
     /// Load YAML or JSON policy text (JSON when the first non-whitespace character is `{`).
     pub fn new(src: &str) -> Result<Engine, String> {
-        Ok(Engine { policy: Policy::from_yaml_str(src)?, store: MemoryStore::default() })
+        Ok(Engine { policy: Policy::from_yaml_str(src)?, policy_version: format!("{:x}", Sha256::digest(src.as_bytes())), store: MemoryStore::default() })
     }
 
     /// Load JSON policy text only (no YAML fallback).
     pub fn new_json(src: &str) -> Result<Engine, String> {
-        Ok(Engine { policy: Policy::from_json_str(src)?, store: MemoryStore::default() })
+        Ok(Engine { policy: Policy::from_json_str(src)?, policy_version: format!("{:x}", Sha256::digest(src.as_bytes())), store: MemoryStore::default() })
     }
 
     /// Load warnings as a JSON array of strings.
@@ -58,7 +60,18 @@ impl Engine {
             d.outcome = Outcome::Deny;
             d.reason = "invalid_clock".into();
         }
-        d.to_json()
+        if v["auditContext"] != true { return d.to_json() }
+        let mut out = d.to_value();
+        {
+            let role = d.rule.as_deref().and_then(|s| s.split_once("@{")).map(|(role, _)| role);
+            let agent = crate::decide::parse_identity(&self.policy, &v["identity"]).and_then(|id| id.client_id);
+            let args = v.get("args").cloned().unwrap_or_else(|| serde_json::json!({}));
+            out["auditContext"] = serde_json::json!({
+                "role": role, "agent_id": agent, "policy_version": self.policy_version,
+                "arguments_hash": format!("{:x}", Sha256::digest(canonical(&args).as_bytes()))
+            });
+        }
+        canonical(&out)
     }
 
     /// Apply a decision's redaction plan and labels (`decision_json` = output of decide/authorize) to an MCP

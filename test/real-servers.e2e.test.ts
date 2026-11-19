@@ -112,7 +112,7 @@ describe.skipIf(!have)("server-filesystem (Node) behind the proxy", () => {
     const c = await proxied(["--preset", "approve-writes", "--db", ":memory:", "--approval-timeout", "6"], ["node", FS, d], { env: { MCP_RBAC_HOME: home } });
     const pending = call(c, "write_file", { path: join(d, "docs/q.md"), content: "queued" });
     let id = "";
-    for (let i = 0; i < 50 && !id; i++) { await new Promise((r) => setTimeout(r, 100)); id = /^([0-9a-f]{8}) /m.exec(cli("pending"))?.[1] ?? ""; }
+    for (let i = 0; i < 50 && !id; i++) { await new Promise((r) => setTimeout(r, 100)); id = /^([0-9a-f]{32}) /m.exec(cli("pending"))?.[1] ?? ""; }
     expect(id).not.toBe("");
     expect(cli("pending")).toContain(join(d, "docs/q.md"));
     expect(cli("approve", id, "--reason", "asked for it")).toContain("approved");

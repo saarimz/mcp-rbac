@@ -79,6 +79,7 @@ def summarize(p: CompiledPolicy, extra_tools: list[str] | None = None) -> dict[s
     out: dict[str, Any] = o0 if isinstance(o0, dict) else {}
     sc: dict[str, Any] = s0 if isinstance(s0, dict) else {}
     sections = {
+        "semantics": canonical(s.get("semantics")),
         "delegation": canonical(s.get("delegation")),
         "tenants": canonical(s.get("tenants")),
         "toolsets": canonical(s.get("toolsets")),

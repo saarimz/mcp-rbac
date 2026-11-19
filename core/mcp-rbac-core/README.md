@@ -1,6 +1,6 @@
 # mcp-rbac-core
 
-The deterministic, side-effect-free decision core behind [mcp-rbac](https://github.com/mcp-rbac/mcp-rbac): role-based
+The deterministic, side-effect-free decision core behind [mcp-rbac](https://github.com/saarimz/mcp-rbac): role-based
 access control for MCP (Model Context Protocol) tool calls, driven by one portable `mcp-rbac.yaml` policy file.
 
 The same crate is compiled to WebAssembly for the TypeScript and Go guards and to a PyO3 extension for the Python

@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
-	mcprbac "github.com/mcp-rbac/mcp-rbac-go"
+	mcprbac "github.com/saarimz/mcp-rbac/go"
 )
 
 func sinkDB(t *testing.T) (*sql.DB, string) {
@@ -130,6 +131,21 @@ func TestAuditSinkTamperAndCrossLanguage(t *testing.T) {
 	}
 	s.Close()
 	root, _ := filepath.Abs("../../..")
+	// The cross-language half needs python/.venv and node_modules (the Python CI job and tools/bootstrap.sh have both;
+	// the Go-only CI job does not): without them, check the Go-written chain and tamper detection only.
+	_, errPy := os.Stat(filepath.Join(root, "python/.venv/bin/python"))
+	_, errTsx := os.Stat(filepath.Join(root, "node_modules/.bin/tsx"))
+	if errPy != nil || errTsx != nil {
+		t.Log("python/.venv or node_modules/.bin/tsx missing: cross-language verification skipped (Go chain + tamper only)")
+		if n := verifyChain(t, db); n != 40 {
+			t.Fatalf("go verify: %d", n)
+		}
+		_, _ = db.Exec(`UPDATE audit SET event = replace(event, '"deny"', '"allow"') WHERE id = 4`)
+		if ok, _, id, why, _ := mcprbac.VerifyAuditTable(db, "audit"); ok || id != 4 || why != "hash_mismatch" {
+			t.Fatalf("tamper not detected: %v %d %s", ok, id, why)
+		}
+		return
+	}
 	// The Python verifier accepts the Go-written table, then the TS sink appends and verifies the whole chain.
 	py := exec.Command(filepath.Join(root, "python/.venv/bin/python"), "-c",
 		"import json,sys; sys.path.insert(0, sys.argv[2]); from mcp_rbac import verify_audit_table; print(json.dumps(verify_audit_table(sys.argv[1])))", p, filepath.Join(root, "python/src"))
@@ -160,5 +176,40 @@ console.log(JSON.stringify(verifyAuditTable(%q)));`, filepath.Join(root, "src/au
 	_, _ = db.Exec(`UPDATE audit SET event = replace(event, '"deny"', '"allow"') WHERE id = 4`)
 	if ok, _, id, why, _ := mcprbac.VerifyAuditTable(db, "audit"); ok || id != 4 || why != "hash_mismatch" {
 		t.Fatalf("tamper not detected: %v %d %s", ok, id, why)
+	}
+}
+
+// A submit_feedback row (docs/feedback.md) is hashed with its report and verifies in Go and, when the TypeScript
+// toolchain is present, with `mcp-rbac audit-verify` (the same chain in every language).
+func TestAuditSinkFeedbackRowCrossLanguage(t *testing.T) {
+	db, path := sinkDB(t)
+	s, err := mcprbac.NewAuditSink(db, mcprbac.AuditSinkOptions{Mode: "sync"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Write(rec(1))
+	ev := mcprbac.FeedbackEvent{ID: strings.Repeat("ab", 32), Feedback: map[string]string{"summary": "ünï 😀 \u2028 x", "what_happened": "b", "severity": "high"}, Tenant: "acme"}
+	ev.Redactions.Secret = 1
+	if err := s.Write(ev.AuditRecord("u1")); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	if n := verifyChain(t, db); n != 2 {
+		t.Fatalf("count %d", n)
+	}
+	var stored string
+	_ = db.QueryRow("SELECT event FROM audit WHERE decision = 'feedback'").Scan(&stored)
+	var m map[string]any
+	if json.Unmarshal([]byte(stored), &m) != nil || m["feedback"].(map[string]any)["id"] != ev.ID || m["reason"] != "feedback:high" {
+		t.Fatalf("stored: %s", stored)
+	}
+	tsx := filepath.Join("..", "..", "..", "node_modules", ".bin", "tsx")
+	if _, err := os.Stat(tsx); err != nil {
+		t.Log("TypeScript toolchain missing: cross-language verify skipped")
+		return
+	}
+	out, err := exec.Command(tsx, filepath.Join("..", "..", "..", "src", "cli.ts"), "audit-verify", "--db", path, "--table", "audit").CombinedOutput()
+	if err != nil || !strings.Contains(string(out), ": 2 events") {
+		t.Fatalf("ts audit-verify: %v %s", err, out)
 	}
 }

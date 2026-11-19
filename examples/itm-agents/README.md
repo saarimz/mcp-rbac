@@ -13,9 +13,6 @@ Several AI agents act for one ITM human, each limited to different actions. Ever
   - revocation, expiry, pause and demotion mid-session
   - DPoP isolation, prompt injection, code replay and audit tampering
 - `scripts/demo.ts`: a narrated demo. Output goes to `out/demo-output.txt`, consent screens to `out/consent*.png`.
-- `staging/` (local only, not in the repository): an OAuth client and live read-only proxy test against ITM staging; tokens in `.secrets/` (gitignored). The `staging:*` scripts need it.
-- `ADOPTION.md`: how ITM's real backend could ship this (Prisma diff, API, UI, non-admin agents). Spend is in its Phase 2 section.
-- `SPEND-RESEARCH.md`: cited prior art (Stripe Issuing, Ramp/Brex, ACP, Visa/Mastercard, AP2, AWS/OpenAI, Shopify/Klaviyo) and the recommended Phase 2 spend-approval model.
 
 ```bash
 npm test                 # 33 tests (node:test via tsx; uses ../../node_modules)

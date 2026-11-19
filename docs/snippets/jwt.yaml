@@ -1,0 +1,10 @@
+version: 1
+roles:
+  staff: {tools: [lookup]}
+  owner: {includes: [staff], tools: [refund]}
+tools:
+  refund:
+    scopes: [refunds:write]
+    limits: {amount: {min: 0, max: 500}}
+approvals:
+  - {tool: refund, when: {amount: {min: 100}}}

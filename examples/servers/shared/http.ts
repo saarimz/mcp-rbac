@@ -40,7 +40,8 @@ function deny(res: ServerResponse, status: number, error: string, desc: string) 
 async function readBody(req: IncomingMessage, max: number): Promise<unknown | "too_large" | "bad_json"> {
   const chunks: Buffer[] = [];
   let n = 0;
-  for await (const c of req) {
+  // Returning at the limit must leave the socket open long enough to deliver HTTP 413.
+  for await (const c of req.iterator({ destroyOnReturn: false })) {
     n += (c as Buffer).length;
     if (n > max) return "too_large";
     chunks.push(c as Buffer);

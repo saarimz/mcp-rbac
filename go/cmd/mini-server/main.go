@@ -11,7 +11,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	mcprbac "github.com/mcp-rbac/mcp-rbac-go"
+	mcprbac "github.com/saarimz/mcp-rbac/go"
 )
 
 type none struct{}

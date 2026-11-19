@@ -17,6 +17,7 @@ pub mod budget;
 pub mod constraints;
 pub mod decide;
 pub mod engine;
+pub mod feedback;
 pub mod json;
 pub mod pattern;
 pub mod policy;

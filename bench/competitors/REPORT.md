@@ -206,7 +206,7 @@ glue built in.
 
 | Product | Status | Numbers |
 |---|---|---|
-| **Permit Cloud PDP** | Real account test (Development env), private research notes (PERMIT-HOSTED-BENCH.md, not in the repository); summary copied to `results/external/permit-opa.json` | 15/15 decisions correct on the 15-case marketing role × tool matrix; `POST /allowed` p50 **234 ms** / p99 **423 ms** at c=1 (3.5 req/s), **including Internet RTT**; propagation 0.20 s (unassign) / 0.36 s (reassign) / 0.22 s (remove permission) / **10.9 s** (restore permission, worst) / **7.0 s** first policy visible |
+| **Permit Cloud PDP** | Real account test (Development env), private research notes (PERMIT-HOSTED-BENCH.md, not in the repository); the summary JSON is also kept out of the repository (`summarize.py` regenerates it when `PERMIT_RESEARCH` points at the notes) | 15/15 decisions correct on the 15-case marketing role × tool matrix; `POST /allowed` p50 **234 ms** / p99 **423 ms** at c=1 (3.5 req/s), **including Internet RTT**; propagation 0.20 s (unassign) / 0.36 s (reassign) / 0.22 s (remove permission) / **10.9 s** (restore permission, worst) / **7.0 s** first policy visible |
 | Permit Edge PDP (`permitio/pdp-v2`) | **not tested**: no Docker on this box | — |
 | **Permit MCP Gateway** | **not tested**: no MCP Gateway API in the public v2 API, the `app.agent.security` gateway/consent flow was not set up, and `api.agent.security/health` returned 502 | pending real gateway test |
 | Local OPA (OPAL's engine) | private research notes (opal-opa-bench.json), loopback, OPAL docker stack not started (no Docker) | 15/15; p50 **0.29 ms** / p99 **0.70 ms** |

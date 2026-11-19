@@ -4,6 +4,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "python/src"))
+from mcp_rbac.feedback import feedback_json  # noqa: E402
 from mcp_rbac.portable import PolicyError, canonical, load_yaml, decide_json, load_policy_json, load_policy_yaml, visible_json, cost_json  # noqa: E402
 
 path = sys.argv[1] if len(sys.argv) > 1 else str(pathlib.Path(__file__).resolve().parent / "corpus.jsonl")
@@ -22,6 +23,9 @@ with open(path, encoding="utf-8") as f:
             continue
         if "costJson" in v:
             out.append(cost_json(v["costJson"]))
+            continue
+        if "feedbackJson" in v:
+            out.append(feedback_json(v["feedbackJson"]))
             continue
         key = ("y" + v["policyYaml"]) if "policyYaml" in v else ("j" + v["policyJson"])
         if key not in cache:

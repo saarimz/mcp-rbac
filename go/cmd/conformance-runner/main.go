@@ -9,16 +9,17 @@ import (
 	"log"
 	"os"
 
-	mcprbac "github.com/mcp-rbac/mcp-rbac-go"
+	mcprbac "github.com/saarimz/mcp-rbac/go"
 )
 
 type vector struct {
-	PolicyYAML  *string `json:"policyYaml"`
-	PolicyJSON  *string `json:"policyJson"`
-	YAMLDoc     *string `json:"yamlDoc"`
-	RequestJSON *string `json:"requestJson"`
-	VisibleJSON *string `json:"visibleJson"`
-	CostJSON    *string `json:"costJson"`
+	PolicyYAML   *string `json:"policyYaml"`
+	PolicyJSON   *string `json:"policyJson"`
+	YAMLDoc      *string `json:"yamlDoc"`
+	RequestJSON  *string `json:"requestJson"`
+	VisibleJSON  *string `json:"visibleJson"`
+	CostJSON     *string `json:"costJson"`
+	FeedbackJSON *string `json:"feedbackJson"`
 }
 
 func main() {
@@ -63,6 +64,8 @@ func main() {
 			out = must(rt.YAMLToJSON(ctx, *v.YAMLDoc))
 		} else if v.CostJSON != nil {
 			out = must(rt.Cost(ctx, *v.CostJSON))
+		} else if v.FeedbackJSON != nil {
+			out = must(rt.Feedback(ctx, *v.FeedbackJSON))
 		} else {
 			key := ""
 			if v.PolicyYAML != nil {

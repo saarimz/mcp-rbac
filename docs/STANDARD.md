@@ -82,7 +82,7 @@ The standard needs one real deployment people can point at.
 - `examples/itm-agents` already models ITM's real roles (OWNER, ADMIN, AGENT check-in staff). Several agents act for
   one human, each ≤ that human, with per-agent and per-human budgets. 30 adversarial tests pass. A live read-only run
   through mcp-rbac against **ITM staging** passed 15/15.
-- Next: ship the `ADOPTION.md` plan in ITM's backend (agent connection grants, consent screen, audit), then write the
+- Next: ship the adoption plan in ITM's backend (agent connection grants, consent screen, audit), then write the
   case study: real agents, real budgets, real approvals.
 - Needs Saarim and the ITM team; nothing here touches ITM production without them.
 

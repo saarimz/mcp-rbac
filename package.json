@@ -6,11 +6,11 @@
   "author": "Saarim Zaman",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mcp-rbac/mcp-rbac.git"
+    "url": "git+https://github.com/saarimz/mcp-rbac.git"
   },
-  "homepage": "https://github.com/mcp-rbac/mcp-rbac#readme",
+  "homepage": "https://github.com/saarimz/mcp-rbac#readme",
   "bugs": {
-    "url": "https://github.com/mcp-rbac/mcp-rbac/issues"
+    "url": "https://github.com/saarimz/mcp-rbac/issues"
   },
   "keywords": [
     "mcp",

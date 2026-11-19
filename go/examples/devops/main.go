@@ -27,9 +27,9 @@ import (
 	"syscall"
 	"time"
 
-	mcprbac "github.com/mcp-rbac/mcp-rbac-go"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	mcprbac "github.com/saarimz/mcp-rbac/go"
 )
 
 const audience = "devops-mcp"

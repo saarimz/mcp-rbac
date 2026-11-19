@@ -885,7 +885,7 @@ def compile_policy(doc: Any) -> CompiledPolicy:
         _fail("policy: invalid Unicode (lone surrogate)")
     _digit_keys(doc, "policy")
     top = _obj(doc, "policy")
-    _keys_ok(top, ["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation", "semantics"], "policy")
+    _keys_ok(top, ["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation", "semantics", "feedback"], "policy")
     if _finite(top.get("version")) != 1.0:
         _fail("version: unsupported policy version (expected 1)")
     for k in ("name", "description", "$schema"):
@@ -895,6 +895,13 @@ def compile_policy(doc: Any) -> CompiledPolicy:
     if "tenantKey" in top:
         tk = top["tenantKey"]
         tenant_key = tk if isinstance(tk, str) and _IDENT.fullmatch(tk) else _fail("tenantKey: must be an identifier")
+    if "feedback" in top:
+        from .feedback import FeedbackConfigError, parse_feedback_config
+
+        try:
+            parse_feedback_config(top["feedback"], "feedback")
+        except FeedbackConfigError as fb_err:
+            _fail(str(fb_err))
 
     if "roles" not in top:
         _fail("roles: required")

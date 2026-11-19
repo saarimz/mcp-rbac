@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { loadCoreWasm, type CoreEngine } from "../src/core-guard.js";
 
-const m = loadCoreWasm() as ReturnType<typeof loadCoreWasm> & { yamlToJson(s: string): string; cost(s: string): string; Engine: { fromJson(s: string): CoreEngine & { warnings(): string } } };
+const m = loadCoreWasm() as ReturnType<typeof loadCoreWasm> & { yamlToJson(s: string): string; cost(s: string): string; feedback(s: string): string; Engine: { fromJson(s: string): CoreEngine & { warnings(): string } } };
 const file = process.argv[2] ?? new URL("./corpus.jsonl", import.meta.url).pathname;
 const out: string[] = [];
 const cache = new Map<string, (CoreEngine & { warnings(): string }) | null>();
@@ -11,6 +11,7 @@ for (const line of readFileSync(file, "utf8").split("\n")) {
   const v = JSON.parse(line) as Record<string, string>;
   if (v.yamlDoc !== undefined) { out.push(m.yamlToJson(v.yamlDoc)); continue; }
   if (v.costJson !== undefined) { out.push(m.cost(v.costJson)); continue; }
+  if (v.feedbackJson !== undefined) { out.push(m.feedback(v.feedbackJson)); continue; }
   const key = (v.policyYaml !== undefined ? "y" : "j") + (v.policyYaml ?? v.policyJson);
   let e = cache.get(key);
   if (e === undefined) {

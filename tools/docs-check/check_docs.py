@@ -59,7 +59,7 @@ def packs() -> int:
                         cwd=ROOT, capture_output=True, text=True, check=True).stdout
     gosrc = tmp / "gopacks"
     gosrc.mkdir(exist_ok=True)
-    (gosrc / "main.go").write_text('package main\nimport ("context";"fmt";"os";m "github.com/mcp-rbac/mcp-rbac-go")\nfunc main(){ctx:=context.Background();rt,_:=m.NewRuntime(ctx);s,err:=rt.LoadPolicyWithPacks(ctx,os.Args[1],m.PackOptions{});if err!=nil{panic(err)};fmt.Print(s)}\n')
+    (gosrc / "main.go").write_text('package main\nimport ("context";"fmt";"os";m "github.com/saarimz/mcp-rbac/go")\nfunc main(){ctx:=context.Background();rt,_:=m.NewRuntime(ctx);s,err:=rt.LoadPolicyWithPacks(ctx,os.Args[1],m.PackOptions{});if err!=nil{panic(err)};fmt.Print(s)}\n')
     go = subprocess.run(["go", "run", str(gosrc / "main.go"), str(tmp / "p.yaml")], cwd=ROOT / "go", capture_output=True, text=True, check=True).stdout
     a, b, c = (json.loads(x, object_pairs_hook=lambda kv: kv) for x in (ts, py, go))
     ok = a == b == c

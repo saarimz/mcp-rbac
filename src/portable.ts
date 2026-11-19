@@ -4,6 +4,7 @@
  * Same algorithm, same canonical output as the Rust core (core/mcp-rbac-core) and the Python evaluator;
  * the shared conformance corpus (conformance/) checks all of them byte for byte.
  */
+import { parseFeedbackConfig } from "./feedback.js";
 import { parseDocument, parseAllDocuments, isMap, isSeq, isScalar, isAlias, type Node as YNode } from "yaml";
 import { isValidToolName, normalizePattern, matchesValidName } from "./patterns.js";
 import { portableRegex } from "./portable-regex.js";
@@ -15,8 +16,8 @@ export type Kind = "tool" | "resource" | "prompt";
 
 export class PolicyError extends Error {}
 const fail = (m: string): never => { throw new PolicyError(m); };
-const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
-const isObj = (v: unknown): v is Obj => v !== null && typeof v === "object" && !Array.isArray(v);
+export const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+export const isObj = (v: unknown): v is Obj => v !== null && typeof v === "object" && !Array.isArray(v);
 const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 
 // ------------------------------------------------------------------ JSON helpers
@@ -364,10 +365,11 @@ export function compilePolicy(input: unknown): CompiledPolicy {
   if (!wellFormed(input)) fail("policy: invalid Unicode (lone surrogate)");
   digitKeys(input as Json, "policy");
   const top = obj(input, "policy");
-  keysOk(top, ["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation", "semantics"], "policy");
+  keysOk(top, ["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation", "semantics", "feedback"], "policy");
   if (top.version !== 1) fail("version: unsupported policy version (expected 1)");
   for (const k of ["name", "description", "$schema"]) if (has(top, k) && typeof top[k] !== "string") fail(`${k}: must be a string`);
   const tenantKey = has(top, "tenantKey") ? (typeof top.tenantKey === "string" && isIdent(top.tenantKey) ? top.tenantKey : fail("tenantKey: must be an identifier")) : "tenant";
+  if (has(top, "feedback")) { try { parseFeedbackConfig(top.feedback, "feedback"); } catch (e) { fail((e as Error).message); } }
 
   if (!has(top, "roles")) fail("roles: required");
   const rolesV = obj(top.roles, "roles");

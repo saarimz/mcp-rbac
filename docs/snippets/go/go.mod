@@ -3,7 +3,7 @@ module example.com/mcp-rbac-snippet
 go 1.27.3
 
 require (
-	github.com/mcp-rbac/mcp-rbac-go v0.0.0
+	github.com/saarimz/mcp-rbac/go v0.0.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 )
 
@@ -27,4 +27,4 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 )
 
-replace github.com/mcp-rbac/mcp-rbac-go => ../../../go
+replace github.com/saarimz/mcp-rbac/go => ../../../go

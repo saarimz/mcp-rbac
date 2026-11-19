@@ -99,7 +99,7 @@ def _portable_cmd(a: Any) -> int:
     if a.cmd == "diff":
         d = diff_policies(load_policy_yaml(read(a.old)), load_policy_yaml(read(a.new)), [t for t in a.tools.split(",") if t])
         sys.stdout.write(canonical(d) + "\n" if a.json else format_diff(d))
-        return 2 if a.fail_on_widen and d["summary"]["widens"] > 0 else 0
+        return 2 if a.fail_on_widen and (d["summary"]["widens"] > 0 or d["summary"]["changed"] > 0) else 0
     if a.cmd == "test":
         from .testing import format_policy_test_report, test_policy
         report = test_policy(read(a.policy), read(a.tests))

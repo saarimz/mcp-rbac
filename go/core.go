@@ -6,9 +6,11 @@ package mcprbac
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 
 	"github.com/tetratelabs/wazero"
@@ -31,6 +33,7 @@ const (
 	opVersion           = 9
 	opAccount           = 10
 	opCost              = 11
+	opFeedback          = 13
 )
 
 // Runtime owns the compiled core module. Create one per process and share it; it is safe for concurrent use.
@@ -172,6 +175,12 @@ func (r *Runtime) Cost(ctx context.Context, req string) (string, error) {
 	return r.util.do(ctx, 0, opCost, req, "", 0)
 }
 
+// Feedback validates and sanitizes a submit_feedback report (docs/feedback.md): {"args":…,"config"?:…} →
+// {"chars","feedback","redactions"} or {"error":…}.
+func (r *Runtime) Feedback(ctx context.Context, req string) (string, error) {
+	return r.util.do(ctx, 0, opFeedback, req, "", 0)
+}
+
 // Version of the embedded core.
 func (r *Runtime) Version(ctx context.Context) (string, error) {
 	return r.util.do(ctx, 0, opVersion, "", "", 0)
@@ -182,6 +191,9 @@ type Engine struct {
 	in *instance
 	h  uint32
 	rt *Runtime
+	// the policy's `feedback:` block (docs/feedback.md), read at load
+	feedbackBlock json.RawMessage
+	hasFeedback   bool
 }
 
 // ErrPolicy is returned (wrapped) when a policy does not load.
@@ -210,7 +222,9 @@ func (r *Runtime) newEngine(ctx context.Context, policy string, jsonOnly uint64)
 		if res, err = in.engNew.Call(ctx, uint64(p), uint64(n), jsonOnly); err == nil {
 			_, _ = in.free.Call(ctx, uint64(p), uint64(n))
 			if h := uint32(res[0]); h != 0 {
-				return &Engine{in: in, h: h, rt: r}, nil
+				eng := &Engine{in: in, h: h, rt: r}
+				eng.readFeedbackBlock(ctx, policy)
+				return eng, nil
 			}
 			var msg string
 			if res, err = in.lastErr.Call(ctx); err == nil {
@@ -269,4 +283,29 @@ func (e *Engine) Warnings(ctx context.Context) (string, error) {
 // Redact applies a decision's redaction to a tool result on this engine's instance.
 func (e *Engine) Redact(ctx context.Context, resultJSON, decisionJSON string) (string, error) {
 	return e.in.do(ctx, 0, opRedact, resultJSON, decisionJSON, 0)
+}
+
+// readFeedbackBlock remembers the policy's `feedback:` block (already validated by the core at load).
+func (e *Engine) readFeedbackBlock(ctx context.Context, policy string) {
+	var doc map[string]json.RawMessage
+	if strings.HasPrefix(strings.TrimSpace(policy), "{") {
+		if json.Unmarshal([]byte(policy), &doc) != nil {
+			return
+		}
+	} else {
+		out, err := e.rt.YAMLToJSON(ctx, policy)
+		if err != nil {
+			return
+		}
+		var w struct {
+			Doc map[string]json.RawMessage `json:"doc"`
+		}
+		if json.Unmarshal([]byte(out), &w) != nil {
+			return
+		}
+		doc = w.Doc
+	}
+	if b, ok := doc["feedback"]; ok {
+		e.feedbackBlock, e.hasFeedback = b, true
+	}
 }

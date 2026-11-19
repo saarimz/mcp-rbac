@@ -21,13 +21,14 @@ const DenialMetaKey = "mcp-rbac/denial"
 
 // Decision is the canonical decision object returned by the core.
 type Decision struct {
-	Decision string            `json:"decision"`
-	Reason   string            `json:"reason"`
-	Redact   []json.RawMessage `json:"redact"` // redaction rules ({fields, replacement}); applied by the core
-	Labels   []json.RawMessage `json:"labels"`
-	Rule     string            `json:"rule"`   // empty when no rule matched (JSON null)
-	Tenant   string            `json:"tenant"` // empty when the call has no tenant (JSON null)
-	Limits   []LimitUse        `json:"limits"`
+	AuditContext map[string]*string `json:"auditContext,omitempty"`
+	Decision     string             `json:"decision"`
+	Reason       string             `json:"reason"`
+	Redact       []json.RawMessage  `json:"redact"` // redaction rules ({fields, replacement}); applied by the core
+	Labels       []json.RawMessage  `json:"labels"`
+	Rule         string             `json:"rule"`   // empty when no rule matched (JSON null)
+	Tenant       string             `json:"tenant"` // empty when the call has no tenant (JSON null)
+	Limits       []LimitUse         `json:"limits"`
 	// Semantics is the effective tool semantics (spec/tool-semantics.md); nil unless the policy has `semantics`.
 	Semantics json.RawMessage `json:"semantics,omitempty"`
 }
@@ -71,6 +72,8 @@ type DecisionEvent struct {
 
 // GuardOptions configures Middleware. Identity is required; returning nil means unauthenticated.
 type GuardOptions struct {
+	// AuthorityTelemetry adds verified client id and policy/argument fingerprints to decision logs and spans.
+	AuthorityTelemetry bool
 	// Identity returns the caller identity ({"id":..,"roles":[..],...}) or nil.
 	Identity func(ctx context.Context, req mcp.Request) any
 	// Toolsets optionally restricts the session to named toolsets (nil = no restriction).
@@ -95,8 +98,12 @@ type GuardOptions struct {
 	// Denials: "" or "reason" (default) answers "Denied: <reason>"; "uniform" answers "Denied" and omits the reason
 	// from the result's _meta (OnDecision still gets it).
 	Denials string
+	// Feedback configures the opt-in submit_feedback tool (docs/feedback.md). Nil = the policy's `feedback:` block
+	// decides (off without one).
+	Feedback *FeedbackOptions
 
 	sem *semState
+	fb  *feedbackState
 }
 
 type semState struct {
@@ -158,6 +165,7 @@ func unguarded(method string) bool {
 // for every caller; other protocol methods (initialize, ping, notifications...) pass through.
 func (e *Engine) Middleware(opts GuardOptions) mcp.Middleware {
 	opts.sem = &semState{meta: map[string]map[string]any{}}
+	opts.fb = e.feedbackSetup(context.Background(), &opts)
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			if unguarded(method) {
@@ -210,6 +218,19 @@ func (e *Engine) guardList(ctx context.Context, method string, req mcp.Request, 
 	lr, ok := res.(*mcp.ListToolsResult)
 	if !ok {
 		return nil, fmt.Errorf("mcp-rbac: unexpected tools/list result %T", res)
+	}
+	if o.fb != nil { // the guard's submit_feedback replaces a server's own; listed on the last page
+		withFb := *lr
+		withFb.Tools = make([]*mcp.Tool, 0, len(lr.Tools)+1)
+		for _, t := range lr.Tools {
+			if t.Name != FeedbackTool {
+				withFb.Tools = append(withFb.Tools, t)
+			}
+		}
+		if lr.NextCursor == "" {
+			withFb.Tools = append(withFb.Tools, feedbackToolDef)
+		}
+		lr = &withFb
 	}
 	base := o.base(ctx, req)
 	filtered := *lr
@@ -320,6 +341,9 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	body := o.base(ctx, req)
 	body["tool"] = tool
 	body["args"] = args
+	if o.Telemetry != nil && o.AuthorityTelemetry {
+		body["auditContext"] = true
+	}
 	metaFailed := false
 	if _, ok := body["identity"]; ok && e.semanticsOn(ctx, o) {
 		o.sem.mu.RLock()
@@ -385,11 +409,28 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	}
 	approved := false
 	approval := "none"
-	if d.Decision == "needs_approval" {
-		switch {
-		case o.Approve == nil:
-			approval = "unavailable"
-		case o.Approve(ctx, tool, args, body["identity"], d):
+	if d.Decision == "needs_approval" && o.Approve == nil {
+		approval = "unavailable"
+	} else if d.Decision == "needs_approval" {
+		// Decode the authorized snapshot. A host approver receives a disposable copy;
+		// changes to it must never alter the arguments or caller passed downstream.
+		var snapshot struct {
+			Identity any             `json:"identity"`
+			Args     json.RawMessage `json:"args"`
+		}
+		// Hosts can type-assert their Identity result in Approve. Preserve the
+		// concrete Go type while making a new copy of its authorized JSON data.
+		identityCopy := reflect.New(reflect.TypeOf(body["identity"]))
+		snapshot.Identity = identityCopy.Interface()
+		if err := json.Unmarshal(in, &snapshot); err != nil {
+			return nil, err
+		}
+		originalParams := *cr.Params
+		originalParams.Arguments = append(json.RawMessage(nil), snapshot.Args...)
+		originalCall := *cr
+		originalCall.Params = &originalParams
+		req = &originalCall
+		if o.Approve(ctx, tool, snapshot.Args, identityCopy.Elem().Interface(), d) {
 			approval = "granted"
 			e0 = time.Now()
 			raw, err = e.AuthorizeApproved(ctx, string(in), o.now())
@@ -404,7 +445,7 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 				return nil, err
 			}
 			approved = d.Decision == "allow"
-		default:
+		} else {
 			approval = "rejected"
 		}
 	}
@@ -420,6 +461,9 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	caller := Caller{Identity: body["identity"], Tenant: d.Tenant, Rule: d.Rule}
 	if r, ok := body["resource"].(map[string]string); ok {
 		caller.Resource = r
+	}
+	if o.fb != nil && tool == FeedbackTool {
+		return e.handleFeedback(ctx, o.fb, args, caller)
 	}
 	ctx = context.WithValue(ctx, callerKey{}, caller)
 	res, err := next(ctx, method, req)

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { main } from "../src/cli.js";
 import { detectPolicyEngine, runProxy } from "../src/run-proxy.js";
 import { classifyTool } from "../src/classify.js";
 import { verifyAuditTable } from "../src/audit-sink.js";
@@ -48,6 +49,15 @@ async function proxied(policy: string, ext: string, extra: Record<string, unknow
 const text = (r: any) => String(r.content?.[0]?.text ?? "");
 
 describe("proxy --policy with a portable policy runs on the Rust core", () => {
+  it("rejects incompatible preset restrictions and requires explicit authority telemetry", async () => {
+    await expect(main(["proxy", "--policy", "--", "unused"])).rejects.toThrow("--policy requires a value");
+    await expect(main(["proxy", "--role", "staff"])).rejects.toThrow("require --policy");
+    await expect(runProxy({ command: [], policyFile: "policy.yaml", preset: "read-only" })).rejects.toThrow("preset options");
+    await expect(runProxy({ command: [], policyFile: "policy.yaml", deny: ["refund"] })).rejects.toThrow("preset options");
+    await expect(runProxy({ command: [], authorityTelemetry: true })).rejects.toThrow("requires --otel");
+    await expect(runProxy({ command: [], agentId: "worker" })).rejects.toThrow("needs --policy");
+  });
+
   it("detects the engine from the file", () => {
     expect(detectPolicyEngine(YAML)).toBe("core");
     expect(detectPolicyEngine(JSON.stringify({ version: 1, roles: { operator: { tools: ["*"] } }, approve: [], limits: [] }))).toBe("legacy");
@@ -74,6 +84,29 @@ describe("proxy --policy with a portable policy runs on the Rust core", () => {
     expect(text(await c.callTool({ name: "wipe", arguments: {} }))).toBe("Denied: user:no_matching_permission");
     await expect(proxied(YAML, "yaml", { role: "nope" })).rejects.toThrow(/Role "nope" not in/);
     await expect(proxied("version: 1\nroles: {operator: {tools: [x]}}\nbogus: 1\n", "yaml")).rejects.toThrow();
+  });
+});
+
+describe("proxy --with-feedback", () => {
+  const FBY = YAML.replace("[list_events, checkin, refund]", "[list_events, checkin, refund, submit_feedback]");
+  it("is off by default; on with withFeedback (core engine), audited in core_audit, logged without the summary's secrets", async () => {
+    const off = await proxied(FBY, "yaml");
+    expect((await off.c.listTools()).tools.map((t) => t.name)).not.toContain("submit_feedback");
+    const { c, logs, ran, db } = await proxied(FBY, "yaml", { withFeedback: true });
+    expect((await c.listTools()).tools.map((t) => t.name)).toContain("submit_feedback");
+    const r = await c.callTool({ name: "submit_feedback", arguments: { summary: "refund needs a reason field, token=hunter2xyz", what_happened: "refund(amount=50) ok but no reason stored" } });
+    expect(text(r)).toMatch(/^Feedback recorded/);
+    expect(ran).toEqual([]); // never forwarded upstream
+    const line = logs.find((l) => l.startsWith("feedback "))!;
+    expect(line).toContain("[medium]");
+    expect(line).toContain("[REDACTED:secret]");
+    expect(line).not.toContain("hunter2xyz");
+    await c.close();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(verifyAuditTable(db, "core_audit")).toMatchObject({ ok: true, count: 2 });
+  });
+  it("needs a portable policy", async () => {
+    await expect(runProxy({ command: [], upstream: InMemoryTransport.createLinkedPair()[0], preset: "read-only", withFeedback: true, db: ":memory:", log: () => {} } as any)).rejects.toThrow(/--with-feedback needs --policy/);
   });
 });
 

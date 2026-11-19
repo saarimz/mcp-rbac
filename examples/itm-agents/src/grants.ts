@@ -65,7 +65,7 @@ export class GrantStore {
   /**
    * @param opts.momentPinning  OFF by default (Saarim 2026-11-15: AGENT staff stay brand-wide, matching today's
    *   BrandMemberGuard). When ON, an AGENT member with AdminUserBrand.momentUid set is limited to that moment, and so
-   *   are the agents they create (optional/future knob, see ADOPTION.md).
+   *   are the agents they create (optional/future knob).
    * @param opts.spendBudgets  OFF by default (Saarim 2026-11-15: v1 is about ACTIONS - tools, argument limits,
    *   approvals; spend needs per-partner cost extraction, so it is Phase 2). When OFF: the Phase-2 scope
    *   itm:bookings:spend can't be granted, grants can't carry spend budgets (budgets with `sum`), and spend limits

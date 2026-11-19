@@ -11,9 +11,7 @@ so no long-lived registry token is stored in GitHub.
 | PyPI | `mcp-rbac` (pure Python wheel + sdist; depends on `mcp-rbac-core==<same version>`) | `pypi-publish` | same |
 | crates.io | `mcp-rbac-core` | `crates-publish` (environment `crates`) | crates.io trusted publishing via `rust-lang/crates-io-auth-action` |
 
-Not published in 0.5: the Go module (`go/` embeds `mcp_rbac_abi.wasm`, which is built, not committed, so a
-`go get` consumer could not build it; it needs a repository that commits the built module) and the Rust MCP SDK
-decorator `mcp-rbac-rmcp` (`publish = false`).
+The Go preview uses the submodule `github.com/saarimz/mcp-rbac/go` with the compiled core included. A future tagged Go release uses `go/vX.Y.Z`. The Rust MCP SDK decorator is available from source (`publish = false`).
 
 ## Before every release
 
@@ -32,22 +30,22 @@ decorator `mcp-rbac-rmcp` (`publish = false`).
 
 These steps cannot be done from CI and are listed in the order they must happen.
 
-1. **GitHub**: create the `mcp-rbac/mcp-rbac` repository (the URL in every manifest). Create three environments,
+1. **GitHub**: in `saarimz/mcp-rbac`, create three environments,
    `npm`, `pypi`, `crates`, each with a required reviewer so a tag alone cannot publish. Enable private vulnerability
    reporting (SECURITY.md points to it).
 2. **npm**: trusted publishing can only be configured on a package that already exists, so the first version is
    published by hand from a maintainer machine with 2FA:
    `npm publish --access public --provenance=false` (provenance needs a CI OIDC token; `publishConfig.provenance`
    is `true` for CI). Then on npmjs.com: package settings, Trusted publisher, GitHub Actions, organization
-   `mcp-rbac`, repository `mcp-rbac`, workflow `release.yml`, environment `npm`. Afterwards set "require two-factor
+   `saarimz`, repository `mcp-rbac`, workflow `release.yml`, environment `npm`. Afterwards set "require two-factor
    authentication and disallow tokens".
 3. **PyPI**: for each of `mcp-rbac-core` and `mcp-rbac`, add a *pending* trusted publisher (pypi.org, Account,
-   Publishing): owner `mcp-rbac`, repository `mcp-rbac`, workflow `release.yml`, environment `pypi`. A pending
+   Publishing): owner `saarimz`, repository `mcp-rbac`, workflow `release.yml`, environment `pypi`. A pending
    publisher creates the project on its first upload, so no manual first upload is needed. Both projects are
    uploaded in the same job; `mcp-rbac` pins `mcp-rbac-core==<version>`, which resolves once that job finishes.
 4. **crates.io**: like npm, trusted publishing is configured on an existing crate, so publish `mcp-rbac-core` once
    by hand (`cargo login`, then `cargo publish -p mcp-rbac-core` from `core/`), then add the trusted publisher
-   (crate settings: repository `mcp-rbac/mcp-rbac`, workflow `release.yml`, environment `crates`).
+   (crate settings: repository `saarimz/mcp-rbac`, workflow `release.yml`, environment `crates`).
 
 ## Name status
 

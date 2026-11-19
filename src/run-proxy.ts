@@ -49,6 +49,16 @@ export interface ProxyOptions {
   maxDestructivePerDay?: number;
   explain?: boolean;
   printPlan?: boolean;
+  /**
+   * `--with-feedback`: expose the opt-in `submit_feedback` tool (docs/feedback.md). Needs `--policy` (core engine);
+   * the policy decides which roles may call it. Reports go to the core audit table and, with `otel`, to OpenTelemetry.
+   */
+  withFeedback?: boolean;
+  /** `--otel`: decision telemetry + audit/feedback export through the process's global OTel providers (docs/otel.md). */
+  otel?: boolean;
+  /** Add decision fingerprints to spans/logs; agentId is configured by the operator. */
+  authorityTelemetry?: boolean;
+  agentId?: string;
   user?: string;
   env?: Record<string, string>;
   cwd?: string;
@@ -95,7 +105,15 @@ export function detectPolicyEngine(text: string): "core" | "legacy" {
 export async function runProxy(o: ProxyOptions) {
   const log = o.log ?? ((s: string) => process.stderr.write(`[mcp-rbac] ${s}\n`));
   const [cmd, ...args] = o.command;
+  if (!o.policyFile && (o.role !== undefined || o.engine !== undefined)) throw new Error("--role and --engine require --policy");
+  if (o.policyFile && (o.preset !== undefined || o.paths?.length || o.repos?.length || o.allow?.length || o.deny?.length || o.maxDestructivePerDay !== undefined)) {
+    throw new Error("--preset, --paths, --repos, --allow, --deny and --max-destructive are preset options. Put restrictions in the policy when using --policy.");
+  }
   if (o.url && cmd) throw new Error("Use either --url or a server command, not both");
+  if (o.authorityTelemetry && !o.otel) throw new Error("--otel-authority requires --otel");
+  if (o.agentId !== undefined && !o.agentId.trim()) throw new Error("--agent-id requires a nonempty identifier");
+  const needsCore = (): never => { throw new Error(`${o.withFeedback ? "--with-feedback" : o.agentId !== undefined ? "--agent-id" : "--otel"} needs --policy with a portable mcp-rbac.yaml (core engine)`); };
+  if ((o.withFeedback || o.otel || o.agentId !== undefined) && !o.policyFile) needsCore();
   if (!o.upstream && !o.url && !cmd) throw new Error("Usage: mcp-rbac proxy [options] -- <server command> [args...]   or   mcp-rbac proxy --url https://host/mcp");
   let remote: RemoteUpstream | undefined;
   let client: Client;
@@ -120,6 +138,7 @@ export async function runProxy(o: ProxyOptions) {
     const text = readFileSync(o.policyFile, "utf8");
     if ((o.engine ?? detectPolicyEngine(text)) === "core") return runCoreProxy(o, { client, remote, text, userId, dbFile, log, tools });
   }
+  if (o.withFeedback || o.otel || o.agentId !== undefined) needsCore();
   const presetFor = (list: ToolDef[]) => buildPreset(list, { mode: o.preset ?? "approve-destructive", paths: o.paths, repos: o.repos, allow: o.allow, deny: o.deny, maxDestructivePerDay: o.maxDestructivePerDay, protect }, userId);
 
   let roles: Record<string, any>, user: User, approve: string[], limits: RateLimit[], scopeFrom: any;
@@ -140,7 +159,7 @@ export async function runProxy(o: ProxyOptions) {
   let store: GuardStore;
   const dbPath = o.db ?? defaultDbPath();
   if (dbPath === ":memory:") store = new MemoryStore();
-  else { mkdirSync(dirname(dbPath), { recursive: true }); store = new SqliteStore(dbPath); }
+  else { mkdirSync(dirname(dbPath), { recursive: true }); store = new SqliteStore(dbPath, { chainAudit: true }); }
 
   let outerRef: { getClientVersion(): { name: string } | undefined; getClientCapabilities(): { elicitation?: unknown } | undefined } | undefined;
   const elicit = elicitationApprover({ timeoutMs: o.approvalTimeoutMs ?? 110_000 });
@@ -222,16 +241,19 @@ async function runCoreProxy(o: ProxyOptions, c: { client: Client; remote?: Remot
   const roles = Object.keys((parse(c.text) as { roles?: Record<string, unknown> } | null)?.roles ?? {});
   if (!roles.includes(roleName)) throw new Error(`Role "${roleName}" not in ${o.policyFile} (have: ${roles.join(", ")})`);
   for (const w of (JSON.parse(loadCoreWasm().check(c.text)) as { warnings?: string[] }).warnings ?? []) c.log(`policy warning: ${w}`);
-  const identity = { id: c.userId, roles: [roleName] };
+  const identity = { id: c.userId, roles: [roleName], ...(o.agentId ? { clientId: o.agentId } : {}) };
   const mode = o.approval ?? "auto";
   if (c.dbFile !== ":memory:") mkdirSync(dirname(c.dbFile), { recursive: true });
   const { server } = await protectWithCore(c.client, {
-    engine, identity: () => identity, shareEngine: false,
+    engine, identity: () => identity, shareEngine: false, authorityTelemetry: o.authorityTelemetry,
     approve: mode === "allow" ? () => true : mode === "deny" ? () => false : mode,
     approvalQueueDir: o.queueDir ?? defaultQueueDir(), approvalTimeoutMs: o.approvalTimeoutMs ?? 110_000,
     // the core audit chain lives next to the legacy tables, in its own table
-    ...(c.dbFile !== ":memory:" ? { audit: { path: c.dbFile, table: "core_audit", mode: "batched" as const } } : {}),
+    ...(c.dbFile !== ":memory:" ? { audit: { path: c.dbFile, table: "core_audit", mode: "batched" as const, ...(o.otel ? { otel: true } : {}) } } : {}),
     denials: o.explain ? "reason" : "uniform",
+    policy: c.text, // read for its `feedback:` block (the engine above decides)
+    ...(o.otel ? { telemetry: { networkTransport: o.url ? "tcp" as const : "pipe" as const } } : {}),
+    ...(o.withFeedback ? { feedback: { otel: !!o.otel, onFeedback: (e: { id: string; feedback: { severity: string; summary: string } }) => c.log(`feedback ${e.id.slice(0, 16)} [${e.feedback.severity}] ${JSON.stringify(e.feedback.summary.slice(0, 120))}`) } } : {}),
     ...(o.timeoutMs ? { forwardTimeoutMs: o.timeoutMs } : {}),
   });
   const outer = server as unknown as { connect(t: Transport): Promise<void>; close(): Promise<void>; onclose?: () => void };

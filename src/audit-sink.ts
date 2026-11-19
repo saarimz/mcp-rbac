@@ -38,6 +38,8 @@ export interface AuditRecord {
   rule?: string | null;
   approved?: boolean;
   durationMs?: number;
+  /** Opt-in submit_feedback (docs/feedback.md): the sanitized report with its id and redaction counts (hashed). */
+  feedback?: Record<string, unknown>;
   /**
    * Trace context of the request that made the decision (set by the OTel audit export, docs/otel.md). Correlation
    * metadata only: NOT part of the hashed event and not stored, so the chain and audit-verify are unchanged.
@@ -155,10 +157,11 @@ export class SqliteAuditSink {
   }
 
   private commit(batch: AuditRecord[]): boolean {
-    let head = this.head;
     const rows: CommittedAuditRow[] | undefined = this.onCommit ? [] : undefined;
     try {
       this.db.exec("BEGIN IMMEDIATE");
+      const last = this.db.prepare(`SELECT hash FROM ${this.table} ORDER BY id DESC LIMIT 1`).get();
+      let head = last ? String(last.hash) : GENESIS;
       for (const r of batch) {
         const ev = auditEventOf(r);
         const hash = chainHash(head, ev);

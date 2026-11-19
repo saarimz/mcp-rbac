@@ -213,7 +213,7 @@ describe("OpenTelemetry is lazy-loaded", () => {
 describe("examples/audit-otel", () => {
   it("the documented example runs and re-verifies the chain from the exported logs", () => {
     const r = spawnSync(process.execPath, ["--import", "tsx", "examples/audit-otel/audit-otel.ts"], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env: { ...process.env, AUDIT_OTEL_QUIET: "1" } });
-    expect(r.stderr).toBe("");
+    expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/AUDIT-OTEL OK: 3 audit log records, chain re-verified from the logs/);
     expect(r.stdout).toMatch(/#3 deny refund trace=[0-9a-f]{32}/);
   });

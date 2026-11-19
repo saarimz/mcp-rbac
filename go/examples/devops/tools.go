@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	mcprbac "github.com/mcp-rbac/mcp-rbac-go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	mcprbac "github.com/saarimz/mcp-rbac/go"
 )
 
 // M is a JSON object result (becomes structuredContent, which the guard can redact).

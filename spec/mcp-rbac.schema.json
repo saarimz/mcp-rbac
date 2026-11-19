@@ -26,6 +26,32 @@
       "type": "string",
       "pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,63}$"
     },
+    "feedback": {
+      "description": "Opt-in submit_feedback tool (docs/feedback.md). Present = on unless enabled: false; grant submit_feedback to roles.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "maxFieldChars": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20000
+        },
+        "maxTotalChars": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "pii": {
+          "enum": [
+            "strip",
+            "keep"
+          ]
+        }
+      }
+    },
     "roles": {
       "type": "object",
       "propertyNames": {

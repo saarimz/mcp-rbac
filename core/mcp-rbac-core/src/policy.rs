@@ -80,6 +80,8 @@ pub struct Policy {
     pub warnings: Vec<String>,
     /// Tool semantics (spec/tool-semantics.md); None when the policy has no `semantics` block.
     pub semantics: Option<crate::semantics::Semantics>,
+    /// `feedback` block (opt-in `submit_feedback`, docs/feedback.md); None when absent.
+    pub feedback: Option<crate::feedback::Config>,
 }
 
 pub type R<T> = Result<T, String>;
@@ -221,7 +223,7 @@ impl Policy {
         }
         digit_keys(v, "policy")?;
         let top = obj(v, "policy")?;
-        keys_ok(top, &["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation", "semantics"], "policy")?;
+        keys_ok(top, &["version", "name", "description", "$schema", "tenantKey", "roles", "roleSets", "permissionSets", "customRoles", "tools", "scopes", "tenants", "approvals", "limits", "output", "toolsets", "delegation", "semantics", "feedback"], "policy")?;
         match top.get("version").and_then(crate::json::finite) {
             Some(1.0) => {}
             _ => return Err("version: unsupported policy version (expected 1)".into()),
@@ -230,6 +232,7 @@ impl Policy {
             if let Some(x) = top.get(k) { if !x.is_string() { return Err(format!("{k}: must be a string")) } }
         }
         let tenant_key = match top.get("tenantKey") { None => "tenant".to_string(), Some(t) => t.as_str().filter(|s| is_ident(s)).ok_or("tenantKey: must be an identifier")?.to_string() };
+        let feedback = match top.get("feedback") { None => None, Some(f) => Some(crate::feedback::parse_config(f, "feedback")?) };
 
         // ---- roles (own permissions + includes), custom roles
         let roles_v = obj(top.get("roles").ok_or("roles: required")?, "roles")?;
@@ -600,7 +603,7 @@ impl Policy {
         Ok(Policy {
             name: top.get("name").and_then(Value::as_str).map(String::from),
             tenant_key, roles, required, implies, write_implies_read, accounts, groups, approvals, limits, labels, label_rules, redact,
-            unstructured_keep, toolsets, delegation, tool_base, tool_names, warnings, semantics,
+            unstructured_keep, toolsets, delegation, tool_base, tool_names, warnings, semantics, feedback,
         })
     }
 }

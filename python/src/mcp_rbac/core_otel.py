@@ -149,6 +149,8 @@ class CoreTelemetry:
 
     def end_authorize(self, span: Span, server: Span, tool: str, d: Mapping[str, Any], approval: str, engine_seconds: float) -> None:
         attrs: dict[str, Any] = {"mcp_rbac.decision": d["decision"], "mcp_rbac.reason": d["reason"], "mcp_rbac.approval": approval}
+        context_attrs = {f"mcp_rbac.{k}": v for k, v in d.get("auditContext", {}).items() if isinstance(v, str)}
+        attrs.update(context_attrs)
         if d.get("rule"):
             attrs["mcp_rbac.rule"] = d["rule"]
         span.set_attributes(attrs)
@@ -173,6 +175,7 @@ class CoreTelemetry:
                                      "mcp_rbac.approval": approval, "trace_id": rec["trace_id"], "span_id": rec["span_id"]}
             if d.get("rule"):
                 extra["mcp_rbac.rule"] = d["rule"]
+            extra.update(context_attrs)
             self.logger.log(logging.INFO if d["decision"] == "allow" else logging.WARNING,
                             "mcp_rbac.decision %s %s", d["decision"], tool, extra=extra)
         finally:

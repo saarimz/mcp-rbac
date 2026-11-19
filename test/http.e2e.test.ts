@@ -1,4 +1,4 @@
-import { createServer } from "node:http";
+import { createServer, request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
@@ -53,6 +53,16 @@ beforeAll(async () => {
 afterAll(async () => { await srv?.close(); jwksSrv?.close(); });
 
 describe("Streamable HTTP + OAuth bearer (JWT via remote JWKS)", () => {
+  it("requires an issuer and audience at startup even when values come from runtime configuration", async () => {
+    const valid = { jwksUrl, issuer: ISS, audience: AUD };
+    for (const key of ["issuer", "audience"] as const) {
+      for (const value of [undefined, "", [], ["  "], [ISS, ""]]) {
+        await expect(jwtVerifier({ ...valid, [key]: value })).rejects.toThrow(`nonempty ${key}`);
+      }
+    }
+    await expect(jwtVerifier({ ...valid, issuer: [ISS], audience: [AUD] })).resolves.toBeTypeOf("function");
+  });
+
   it("a valid JWT authenticates as its subject; tools are filtered and enforced per identity", async () => {
     const { c } = await connect(await mint("maya"));
     expect((await c.listTools()).tools.map((t) => t.name).sort()).toEqual(["checkin", "guestlist.read", "refund", "tickets.create", "tickets.list"]);
@@ -60,6 +70,32 @@ describe("Streamable HTTP + OAuth bearer (JWT via remote JWKS)", () => {
     expect((await callText(c, "refund", { ticketId: "t6", amount: 5 })).ok).toBe(false);
     expect(guard.auditLog.at(-1)).toMatchObject({ user: "maya", agent: "claude-desktop" });
     await c.close();
+  });
+
+  it("returns 413 before a chunked upload finishes", async () => {
+    const token = await mint("maya");
+    const small = await serveGuardedHttp({
+      createServer: () => guard.wrap(createItmServer(store)),
+      verify: await jwtVerifier({ jwks: { keys: [jwk] }, issuer: ISS, audience: AUD }),
+      maxBodyBytes: 16,
+    });
+    try {
+      const response = await new Promise<{ status?: number; connection?: string }>((resolve, reject) => {
+        const req = request(small.url, { method: "POST", headers: { authorization: `Bearer ${token}` } }, res => {
+          res.resume();
+          res.once("end", () => {
+            req.end();
+            resolve({ status: res.statusCode, connection: res.headers.connection });
+          });
+        });
+        req.on("error", reject);
+        req.setTimeout(3000, () => req.destroy(new Error("timed out waiting for the size-limit response")));
+        req.write(JSON.stringify({ message: "hello" }));
+      });
+      expect(response).toEqual({ status: 413, connection: "close" });
+    } finally {
+      await small.close();
+    }
   });
 
   it("concurrent sessions keep separate identities", async () => {

@@ -1,5 +1,6 @@
 // TS pure runner: corpus.jsonl -> one result line per vector (same contract as `mcp-rbac-core vectors`).
 import { readFileSync } from "node:fs";
+import { feedbackPortableJson } from "../src/feedback.js";
 import { costPortableJson, loadYaml, loadPortablePolicy, loadPortablePolicyJson, decidePortableJson, visiblePortableJson, canonical, type CompiledPolicy } from "../src/portable.js";
 
 const file = process.argv[2] ?? new URL("./corpus.jsonl", import.meta.url).pathname;
@@ -13,6 +14,7 @@ for (const line of readFileSync(file, "utf8").split("\n")) {
     out.push(r); continue;
   }
   if (v.costJson !== undefined) { out.push(costPortableJson(v.costJson)); continue; }
+  if (v.feedbackJson !== undefined) { out.push(feedbackPortableJson(v.feedbackJson)); continue; }
   const key = (v.policyYaml !== undefined ? "y" : "j") + (v.policyYaml ?? v.policyJson);
   let p = cache.get(key);
   if (p === undefined) {

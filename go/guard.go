@@ -409,13 +409,19 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	}
 	approved := false
 	approval := "none"
-	if d.Decision == "needs_approval" {
+	if d.Decision == "needs_approval" && o.Approve == nil {
+		approval = "unavailable"
+	} else if d.Decision == "needs_approval" {
 		// Decode the authorized snapshot. A host approver receives a disposable copy;
 		// changes to it must never alter the arguments or caller passed downstream.
 		var snapshot struct {
 			Identity any             `json:"identity"`
 			Args     json.RawMessage `json:"args"`
 		}
+		// Hosts can type-assert their Identity result in Approve. Preserve the
+		// concrete Go type while making a new copy of its authorized JSON data.
+		identityCopy := reflect.New(reflect.TypeOf(body["identity"]))
+		snapshot.Identity = identityCopy.Interface()
 		if err := json.Unmarshal(in, &snapshot); err != nil {
 			return nil, err
 		}
@@ -424,10 +430,7 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 		originalCall := *cr
 		originalCall.Params = &originalParams
 		req = &originalCall
-		switch {
-		case o.Approve == nil:
-			approval = "unavailable"
-		case o.Approve(ctx, tool, snapshot.Args, snapshot.Identity, d):
+		if o.Approve(ctx, tool, snapshot.Args, identityCopy.Elem().Interface(), d) {
 			approval = "granted"
 			e0 = time.Now()
 			raw, err = e.AuthorizeApproved(ctx, string(in), o.now())
@@ -442,7 +445,7 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 				return nil, err
 			}
 			approved = d.Decision == "allow"
-		default:
+		} else {
 			approval = "rejected"
 		}
 	}

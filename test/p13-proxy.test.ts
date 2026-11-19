@@ -49,6 +49,7 @@ const text = (r: any) => String(r.content?.[0]?.text ?? "");
 
 describe("proxy --policy with a portable policy runs on the Rust core", () => {
   it("rejects incompatible preset restrictions and requires explicit authority telemetry", async () => {
+    await expect(runProxy({ command: [], policyFile: "policy.yaml", preset: "read-only" })).rejects.toThrow("preset options");
     await expect(runProxy({ command: [], policyFile: "policy.yaml", deny: ["refund"] })).rejects.toThrow("preset options");
     await expect(runProxy({ command: [], authorityTelemetry: true })).rejects.toThrow("requires --otel");
     await expect(runProxy({ command: [], agentId: "worker" })).rejects.toThrow("needs --policy");

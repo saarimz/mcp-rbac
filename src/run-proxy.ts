@@ -105,8 +105,8 @@ export function detectPolicyEngine(text: string): "core" | "legacy" {
 export async function runProxy(o: ProxyOptions) {
   const log = o.log ?? ((s: string) => process.stderr.write(`[mcp-rbac] ${s}\n`));
   const [cmd, ...args] = o.command;
-  if (o.policyFile && (o.paths?.length || o.repos?.length || o.allow?.length || o.deny?.length || o.maxDestructivePerDay !== undefined)) {
-    throw new Error("--paths, --repos, --allow, --deny and --max-destructive are preset options. Put restrictions in the policy when using --policy.");
+  if (o.policyFile && (o.preset !== undefined || o.paths?.length || o.repos?.length || o.allow?.length || o.deny?.length || o.maxDestructivePerDay !== undefined)) {
+    throw new Error("--preset, --paths, --repos, --allow, --deny and --max-destructive are preset options. Put restrictions in the policy when using --policy.");
   }
   if (o.url && cmd) throw new Error("Use either --url or a server command, not both");
   if (o.authorityTelemetry && !o.otel) throw new Error("--otel-authority requires --otel");

@@ -168,3 +168,24 @@ func TestP13RedactTopLevelArray(t *testing.T) {
 		t.Fatalf("got %s", out)
 	}
 }
+
+func TestApprovalPreservesHostIdentityType(t *testing.T) {
+	type principal struct {
+		ID    string   `json:"id"`
+		Roles []string `json:"roles"`
+	}
+	user := &principal{"sam", []string{"staff"}}
+	approve := func(_ context.Context, _ string, _ json.RawMessage, identity any, _ Decision) bool {
+		copy, ok := identity.(*principal)
+		if !ok || copy.ID != user.ID || len(copy.Roles) != 1 {
+			return false
+		}
+		copy.Roles[0] = "changed"
+		return true
+	}
+	cs := p13Session(t, "version: 1\nroles: {staff: {tools: [list_events]}}\napprovals: [{tool: list_events}]\n", user, GuardOptions{Approve: approve})
+	_, result := p13Call(t, cs, "list_events")
+	if result.IsError || user.Roles[0] != "staff" {
+		t.Fatalf("approval must receive an independent typed identity, got result=%v roles=%v", result, user.Roles)
+	}
+}

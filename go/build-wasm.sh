@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the raw C-ABI core module and place it where core.go embeds it (gitignored build artifact).
+# Build the raw C-ABI core module and place it where core.go embeds it (checked-in consumer artifact).
 set -euo pipefail
 cd "$(dirname "$0")"
 if [[ -f ~/.cargo/env ]]; then source ~/.cargo/env; fi

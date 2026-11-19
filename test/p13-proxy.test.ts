@@ -9,6 +9,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { main } from "../src/cli.js";
 import { detectPolicyEngine, runProxy } from "../src/run-proxy.js";
 import { classifyTool } from "../src/classify.js";
 import { verifyAuditTable } from "../src/audit-sink.js";
@@ -49,6 +50,8 @@ const text = (r: any) => String(r.content?.[0]?.text ?? "");
 
 describe("proxy --policy with a portable policy runs on the Rust core", () => {
   it("rejects incompatible preset restrictions and requires explicit authority telemetry", async () => {
+    await expect(main(["proxy", "--policy", "--", "unused"])).rejects.toThrow("--policy requires a value");
+    await expect(main(["proxy", "--role", "staff"])).rejects.toThrow("require --policy");
     await expect(runProxy({ command: [], policyFile: "policy.yaml", preset: "read-only" })).rejects.toThrow("preset options");
     await expect(runProxy({ command: [], policyFile: "policy.yaml", deny: ["refund"] })).rejects.toThrow("preset options");
     await expect(runProxy({ command: [], authorityTelemetry: true })).rejects.toThrow("requires --otel");

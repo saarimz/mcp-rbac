@@ -185,12 +185,15 @@ export async function main(argv = process.argv.slice(2)) {
       return;
     }
     case "proxy": {
+      for (const key of ["policy", "role", "preset", "engine", "paths", "repos", "allow", "deny", "approval", "db", "agent-id", "user", "max-destructive"]) {
+        const value = flags[key];
+        if (value !== undefined && (value === true || !value.trim())) throw new Error(`--${key} requires a value`);
+      }
       const preset = str(flags.preset) as PresetMode | undefined;
       if (preset && !PRESET_MODES.includes(preset)) throw new Error(`Unknown preset "${preset}". Use: ${PRESET_MODES.join(", ")}`);
       const approval = str(flags.approval) as "auto" | "elicit" | "queue" | "deny" | "allow" | undefined;
       if (approval && !["auto", "elicit", "queue", "deny", "allow"].includes(approval)) throw new Error("--approval must be auto, elicit, queue, deny or allow");
       if (flags.engine !== undefined && !["core", "legacy"].includes(String(flags.engine))) throw new Error("--engine must be core or legacy");
-      if (flags["agent-id"] === true || flags.user === true) throw new Error("--agent-id and --user require a value");
       await runProxy({
         command: rest, preset, policyFile: str(flags.policy), engine: str(flags.engine) as "core" | "legacy" | undefined, role: str(flags.role), paths: list(flags.paths), repos: list(flags.repos),
         allow: list(flags.allow), deny: list(flags.deny), approval, db: str(flags.db),

@@ -9,8 +9,8 @@ import (
 	"sort"
 	"time"
 
-	mcprbac "github.com/saarimz/mcp-rbac/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	mcprbac "github.com/saarimz/mcp-rbac/go"
 )
 
 func main() {

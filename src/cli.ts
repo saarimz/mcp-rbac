@@ -43,6 +43,9 @@ Usage:
       --otel                 OpenTelemetry: decision spans/metrics/logs, audit + feedback export through the global
                              providers (load an SDK first, e.g. NODE_OPTIONS="--import ./otel-register.mjs";
                              see examples/feedback/)
+      --otel-authority      with --otel, include matched role, argument hash, policy version and configured agent ID
+      --agent-id <id>      trusted OAuth client or agent identifier for this portable-policy proxy instance
+      --user <id>          local proxy subject (defaults to the OS username)
       --timeout <s>          upstream request timeout (default 600, reset by progress)
     remote only:
       --url <url>            Streamable HTTP endpoint (legacy SSE is tried if it is rejected)
@@ -187,10 +190,12 @@ export async function main(argv = process.argv.slice(2)) {
       const approval = str(flags.approval) as "auto" | "elicit" | "queue" | "deny" | "allow" | undefined;
       if (approval && !["auto", "elicit", "queue", "deny", "allow"].includes(approval)) throw new Error("--approval must be auto, elicit, queue, deny or allow");
       if (flags.engine !== undefined && !["core", "legacy"].includes(String(flags.engine))) throw new Error("--engine must be core or legacy");
+      if (flags["agent-id"] === true || flags.user === true) throw new Error("--agent-id and --user require a value");
       await runProxy({
         command: rest, preset, policyFile: str(flags.policy), engine: str(flags.engine) as "core" | "legacy" | undefined, role: str(flags.role), paths: list(flags.paths), repos: list(flags.repos),
         allow: list(flags.allow), deny: list(flags.deny), approval, db: str(flags.db),
         maxDestructivePerDay: flags["max-destructive"] !== undefined ? Number(flags["max-destructive"]) : undefined,
+        user: str(flags.user), agentId: str(flags["agent-id"]), authorityTelemetry: !!flags["otel-authority"],
         explain: !!flags.explain, printPlan: !!flags["print-plan"], withFeedback: !!flags["with-feedback"], otel: !!flags.otel,
         approvalTimeoutMs: flags["approval-timeout"] !== undefined ? Number(flags["approval-timeout"]) * 1000 : undefined,
         timeoutMs: num("timeout") !== undefined ? num("timeout")! * 1000 : undefined,

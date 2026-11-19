@@ -160,6 +160,8 @@ Enable `authorityTelemetry: true` on the TypeScript core guard, `authority_telem
 | `mcp_rbac.arguments_hash` | SHA-256 of the core's canonical JSON argument object. |
 | `mcp_rbac.policy_version` | SHA-256 of the exact UTF-8 policy text loaded into the engine. |
 
+For a portable-policy proxy, pass `--otel --otel-authority --agent-id venue-agent`. The operator supplies this identity for the lifetime of that proxy.
+
 These fields are excluded from metric dimensions. Restrict access to traces and logs because a hash of a predictable argument can be guessed. The mode is off by default.
 
 ## Default privacy settings

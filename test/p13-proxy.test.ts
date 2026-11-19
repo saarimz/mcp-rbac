@@ -48,6 +48,12 @@ async function proxied(policy: string, ext: string, extra: Record<string, unknow
 const text = (r: any) => String(r.content?.[0]?.text ?? "");
 
 describe("proxy --policy with a portable policy runs on the Rust core", () => {
+  it("rejects incompatible preset restrictions and requires explicit authority telemetry", async () => {
+    await expect(runProxy({ command: [], policyFile: "policy.yaml", deny: ["refund"] })).rejects.toThrow("preset options");
+    await expect(runProxy({ command: [], authorityTelemetry: true })).rejects.toThrow("requires --otel");
+    await expect(runProxy({ command: [], agentId: "worker" })).rejects.toThrow("needs --policy");
+  });
+
   it("detects the engine from the file", () => {
     expect(detectPolicyEngine(YAML)).toBe("core");
     expect(detectPolicyEngine(JSON.stringify({ version: 1, roles: { operator: { tools: ["*"] } }, approve: [], limits: [] }))).toBe("legacy");

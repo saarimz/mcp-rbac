@@ -11,9 +11,7 @@ so no long-lived registry token is stored in GitHub.
 | PyPI | `mcp-rbac` (pure Python wheel + sdist; depends on `mcp-rbac-core==<same version>`) | `pypi-publish` | same |
 | crates.io | `mcp-rbac-core` | `crates-publish` (environment `crates`) | crates.io trusted publishing via `rust-lang/crates-io-auth-action` |
 
-Not published in 0.5: the Go module (`go/` embeds `mcp_rbac_abi.wasm`, which is built, not committed, so a
-`go get` consumer could not build it; it needs a repository that commits the built module) and the Rust MCP SDK
-decorator `mcp-rbac-rmcp` (`publish = false`).
+The Go preview uses the submodule `github.com/saarimz/mcp-rbac/go` with the compiled core included. A future tagged Go release uses `go/vX.Y.Z`. The Rust MCP SDK decorator is available from source (`publish = false`).
 
 ## Before every release
 

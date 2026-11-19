@@ -264,6 +264,11 @@ func (t *Telemetry) endAuthorize(a authzSpan, server trace.Span, tool string, d 
 	if rule != "" {
 		attrs = append(attrs, attribute.String("mcp_rbac.rule", rule))
 	}
+	for k, v := range d.AuditContext {
+		if v != nil {
+			attrs = append(attrs, attribute.String("mcp_rbac."+k, *v))
+		}
+	}
 	a.span.SetAttributes(attrs...)
 	server.SetAttributes(attrs...)
 	toolA := t.ToolAttr(tool)
@@ -299,6 +304,11 @@ func (t *Telemetry) endAuthorize(a authzSpan, server trace.Span, tool string, d 
 		attribute.String("mcp_rbac.reason", d.Reason), attribute.String("mcp_rbac.approval", approval)}
 	if rule != "" {
 		la = append(la, attribute.String("mcp_rbac.rule", rule))
+	}
+	for k, v := range d.AuditContext {
+		if v != nil {
+			la = append(la, attribute.String("mcp_rbac."+k, *v))
+		}
 	}
 	rec.AddAttributes(la...)
 	t.otelLogger.Emit(ctx, rec)

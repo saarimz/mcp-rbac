@@ -5,9 +5,7 @@ Decisions come from the same Rust core as every other mcp-rbac binding, compiled
 [wazero](https://wazero.io) (pure Go, no cgo). Policies, decisions, rate limits and redaction are byte-identical to
 the TypeScript, Python and Rust bindings (checked by `conformance/run.sh`, runner `go-wazero`).
 
-> **Not published yet.** The module path `github.com/mcp-rbac/mcp-rbac-go` is reserved for a dedicated repository
-> that does not exist yet, so `go get` does not work today. Build from this repository (see below). The plan is in
-> "Publishing" at the end of this file.
+> **Preview.** The module lives in the `go/` subdirectory of this repository. Until a Go release is tagged, build from the checkout using the commands below.
 
 ## Use
 
@@ -42,21 +40,11 @@ cd go
 go test ./...
 ```
 
-`mcp_rbac_abi.wasm` is embedded with `go:embed` and is **not committed** (gitignored): run `build-wasm.sh` before
-`go build`/`go test`, and again after any core change (the conformance runner `go-wazero` rebuilds it). A published
-module must ship the built file, so the release job has to build it and commit it to the module's tag (see below).
+`mcp_rbac_abi.wasm` is included in the Go module through `go:embed`. Consumers need only the Go toolchain. After a Rust core change, run `go/build-wasm.sh` and include the rebuilt module in the same PR. CI compares the checked-in module with the golden conformance corpus before rebuilding it.
 
 ## Publishing (plan, not done)
 
-Go resolves a module path to a repository, so one of these is needed before `go get` can work:
-
-1. **Dedicated repository** `github.com/mcp-rbac/mcp-rbac-go` (current module path): mirror `go/` there on each
-   release and tag `vX.Y.Z` in that repository. Keeps the import path short; needs a sync job.
-2. **Subdirectory module** in the main repository: change the module path to `github.com/<org>/mcp-rbac/go` and tag
-   releases `go/vX.Y.Z`. No mirror; the import path names the main repository.
-
-Either way the module version tracks the core version (the conformance golden is shared), and the tagged tree must
-contain the built `mcp_rbac_abi.wasm` (`go get` does not run build scripts).
+Use subdirectory release tags `go/vX.Y.Z`. Each tagged source tree must include the matching built WASM artifact because Go module installation does not run build scripts. Verify from a clean consumer with `go get github.com/saarimz/mcp-rbac/go@vX.Y.Z` before announcing a release.
 
 ## License
 

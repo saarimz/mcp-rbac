@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	mcprbac "github.com/mcp-rbac/mcp-rbac-go"
+	mcprbac "github.com/saarimz/mcp-rbac/go"
 )
 
 func sinkDB(t *testing.T) (*sql.DB, string) {

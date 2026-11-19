@@ -1,9 +1,9 @@
-module github.com/mcp-rbac/mcp-rbac-go/examples/devops
+module github.com/saarimz/mcp-rbac/go/examples/devops
 
 go 1.27.3
 
 require (
-	github.com/mcp-rbac/mcp-rbac-go v0.0.0
+	github.com/saarimz/mcp-rbac/go v0.0.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
@@ -38,4 +38,4 @@ require (
 	modernc.org/memory v1.12.1 // indirect
 )
 
-replace github.com/mcp-rbac/mcp-rbac-go => ../..
+replace github.com/saarimz/mcp-rbac/go => ../..

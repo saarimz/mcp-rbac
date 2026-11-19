@@ -49,11 +49,14 @@ limits:
 
 ```ts
 import { readFileSync } from "node:fs";
-import { protectWithCore } from "mcp-rbac/core";
+import { authInfoOf, protectWithCore } from "mcp-rbac/core";
+import { jwtIdentity } from "mcp-rbac/jwt";
+
+const readIdentity = jwtIdentity({ roles: ["staff", "owner"], rolesClaim: "https://venue.example/roles" });
 
 const { server: guarded } = await protectWithCore(server, {
   policy: readFileSync("mcp-rbac.yaml", "utf8"),
-  identity: (extra) => userFrom(extra),  // your OAuth/JWT layer: { id, roles }
+  identity: ctx => readIdentity(authInfoOf(ctx)),
   audit: "audit.db",                     // hash-chained SQLite log, written off the main thread
   approve: "auto",                       // who approves the refund of 250: the MCP client if it can ask its user
                                          // (elicitation), else a queue you answer with `mcp-rbac approve <id>`
@@ -85,11 +88,49 @@ allow / deny / approval cases are also a fixture you can run with `mcp-rbac test
 `mcp-rbac init --stdio "<cmd>"` or `--module server.ts` writes a starter policy with viewer, operator and admin
 roles. Copy a full example from [`examples/policies/`](examples/policies/) (venue, marketing, devops).
 
-mcp-rbac does not issue tokens. Your auth server signs a JWT; `jwtVerifier({ jwksUrl, issuer, audience })` from
-`mcp-rbac/jwt` verifies the signature, issuer, audience and expiry; your `identity` function (the `userFrom` in
-the snippet above) maps those claims to `{ id, roles }`. If the token carries scopes, they are checked against
-the tool's `scopes:` in the YAML. A missing or invalid token makes `identity` return nothing, and every call is
-denied.
+### From a signed access token to a tool handler
+
+1. Save the YAML above as `mcp-rbac.yaml`. The file defines what each role may do. Assign Dana **staff** or **owner** in your authorization server or membership database. A user can hold several roles. A matching grant from any assigned or included role suffices. Put a hard ceiling such as the refund maximum in `tools.refund.limits` so it applies to every grant.
+2. Configure the issuer to put those assignments in an access token for your MCP API. For example, Dana's signed payload can contain `{"sub":"dana","aud":"https://venue.example/mcp","https://venue.example/roles":["staff"],"venue":"brooklyn","scope":"refunds:write","client_id":"venue-agent"}`. Only administrators or your membership service should control the role and venue claims. Auth0 supports a namespaced access-token claim populated from the user's assigned roles. [Auth0 assignment example](https://support.auth0.com/center/s/article/add-roles-and-permissions-to-the-id-token-using-actions)
+3. Verify each bearer token at the HTTP boundary. Install `jose` alongside the SDK. Set the issuer, JWKS URL and audience from your authorization server configuration. The helper reads the exact configured claim from verified auth info, checks every role against the typed allowlist, and carries token scopes into the decision.
+
+```ts
+import { readFileSync } from "node:fs";
+import { jwtIdentity, jwtVerifier } from "mcp-rbac/jwt";
+import { authInfoOf, protectWithCore } from "mcp-rbac/core";
+import { serveGuardedHttp } from "mcp-rbac/http";
+
+const verify = await jwtVerifier({
+  issuer: process.env.OIDC_ISSUER!, jwksUrl: process.env.OIDC_JWKS_URL!,
+  audience: process.env.MCP_AUDIENCE!,
+});
+const readIdentity = jwtIdentity({
+  roles: ["staff", "owner"] as const,
+  rolesClaim: "https://venue.example/roles",
+  scopeClaims: { venue: "venue" },
+});
+const policy = readFileSync("mcp-rbac.yaml", "utf8");
+await serveGuardedHttp({
+  verify, acceptGrantTokens: false, authorizationServers: [process.env.OIDC_ISSUER!],
+  async createServer() {
+    const server = makeVenueServer(); // your SDK server with its tools registered
+    return (await protectWithCore(server, {
+      policy, identity: ctx => readIdentity(authInfoOf(ctx)),
+      resource: async ({ tool, args }) => {
+        if (tool !== "refund" && tool !== "checkin") return undefined;
+        const ticket = await tickets.findById(args.ticketId); // your authoritative data
+        if (!ticket) throw new Error("unknown ticket");
+        return { venue: ticket.venue };
+      },
+    })).server;
+  },
+});
+```
+
+4. Inside a guarded TypeScript handler, `callerOf(ctx)` from `mcp-rbac/core` returns the verified identity, matched rule and resolved resource. Scope reads and writes in your database by the verified venue, including list queries. For a mutable record, check ownership in the write transaction. The handler runs with the server's database credentials. The stable guard applies the authority you map from the token. For separate limits on an agent acting for its user, issue a restricted client-specific token or intersect their grants in your identity resolver. The stdio proxy uses its configured user and role across calls.
+5. To require both the role and an OAuth permission, add `scopes: [refunds:write]` under `tools.refund`. The helper supplies an empty scope list for a token without scopes. Missing or unknown roles and missing configured venue claims deny access. If assignments live in your database, load them by verified issuer and subject in the identity callback. Changes to roles embedded in tokens take effect when the token is replaced or expires unless your verifier also checks revocation.
+
+Run `npx tsx docs/snippets/ts/jwt.ts` from the built repository for a complete HTTP example with locally signed tokens. It checks staff discovery and direct denial, owner inheritance, an allowed refund, approval at 100, the hard limit, another venue, missing scopes, malformed roles and a wrong audience. [Runnable server and client](docs/snippets/ts/jwt.ts) · [JWT example policy](docs/snippets/jwt.yaml)
 
 Check the policy in CI:
 
@@ -100,7 +141,7 @@ mcp-rbac diff old.yaml mcp-rbac.yaml --fail-on-widen
 ```
 
 `check` validates the file, `test` asserts each role's allow / deny / approval (and `tools/list`) against a
-fixture, and `diff --fail-on-widen` fails the build if a role gained access. The same cases run inside Vitest or
+fixture, and `diff --fail-on-widen` fails the build on a widening or a change requiring manual review. The diff summarizes declared tool names and the first matching grant. Include the deployed tool inventory with `--tools` and write decision fixtures for overlapping grants and scoped assignments. The same cases run inside Vitest or
 pytest via `testPolicy` from `mcp-rbac/testing` (Python: `mcp_rbac.testing`).
 
 ```yaml
@@ -117,6 +158,17 @@ tests:
   - as: {roles: [staff]}
     visible: [list_events, checkin]
 ```
+
+### What an operator can rely on
+
+| Deployment question | Behavior |
+|---|---|
+| Does hiding a tool stop direct calls? | Every guarded call authorizes again. Listing ignores record ownership and argument bounds until a particular call supplies them. Expose only the guarded endpoint. |
+| What happens to an unclassified tool? | A portable class-only policy maps it to `unknown`; leave that class ungranted. A name or wildcard grant can still authorize it. Proxy presets treat an unclassified startup tool as a write. The default `approve-destructive` permits ordinary writes. |
+| Who approves? | The built-in TypeScript `auto` path trusts the downstream MCP client's elicitation response, or whoever controls the local CLI queue directory. For a distinct reviewer, use a host callback backed by your reviewer permissions. |
+| What happens to a pending refund? | No handler runs until approval succeeds for that call. A rejected or timed-out prompt stops it. A retry creates a new request. Use a business idempotency key for real writes. |
+| Do limits survive restarts? | Portable guards consume counters atomically in the engine instance. TypeScript and Python share defaults within one process. Replicas and restarts need a shared application quota if the cap is fleet-wide. SQLite audit persistence does not persist those counters. |
+| What does an audit row prove? | A pre-dispatch decision. For a durable decision before a write, use a synchronous fail-closed sink. Record the business operation ID and outcome in your application transaction. Export chain heads to independently controlled storage. |
 
 What 0.5 covers: roles with inheritance, deny-by-default, `tools/list` filtered per caller, argument limits, rate
 limits, approvals bound to exact arguments, OAuth scope checks, resource scoping, redaction by role, the hash-chained

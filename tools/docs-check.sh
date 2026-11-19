@@ -18,6 +18,7 @@ step "snippet blocks match files" $PY tools/docs-check/check_docs.py sync ${1:-}
 step "llms.txt links" $PY tools/docs-check/check_docs.py llms
 step "snippet ts/quickstart" run_snippet ts-quickstart docs/snippets/ts/quickstart.expected bash -c "cd docs/snippets && npx tsx ts/quickstart.ts"
 step "snippet ts/quickstart-v2 (SDK v2)" run_snippet ts-quickstart-v2 docs/snippets/ts/quickstart-v2.expected bash -c "cd docs/snippets && npx tsx ts/quickstart-v2.ts"
+step "signed JWT roles over HTTP" npx tsx docs/snippets/ts/jwt.ts
 step "snippet ts/semantics" run_snippet ts-semantics docs/snippets/ts/semantics.expected npx tsx docs/snippets/ts/semantics.ts
 step "snippet ts/proxy-check" run_snippet ts-proxy docs/snippets/ts/proxy-check.expected npx tsx docs/snippets/ts/proxy-check.ts
 step "snippet py/quickstart" run_snippet py-quickstart docs/snippets/py/quickstart.expected bash -c "cd docs/snippets && $PY py/quickstart.py"

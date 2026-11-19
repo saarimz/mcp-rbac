@@ -102,7 +102,7 @@ backend holds a verifiable copy of the audit.
 | TypeScript | `protectWithCore(inner, { ..., audit: { path: "audit.db", otel: true \| { loggerProvider, tracerProvider, spans, includeEvent } } })`; or `onCommit: auditOtelExporter(...)` on `openAuditSink` / `SqliteAuditSink` (`mcp-rbac/audit-otel`) |
 | Python | `CoreGuard(..., audit={"path": "audit.db", "otel": True \| {"logger_provider": ..., "tracer_provider": ..., "spans": ..., "include_event": ...}})`; or `SqliteAuditSink(..., on_commit=audit_otel_exporter(...))` |
 | Go | `NewAuditSink(db, AuditSinkOptions{OnCommit: NewAuditOtelExporter(AuditOtelOptions{...})})`, and `rec.Trace = AuditTraceFromContext(ev.Context)` when you write the record from `OnDecision` (the Go guard has no built-in audit; you write records from `OnDecision`) |
-| Rust (rmcp) | not yet (no built-in audit sink in the rmcp decorator) |
+| Rust (rmcp) | Enable Cargo features `otel` and `audit`, set `GuardOptions.audit`, `audit_export = Some(ExportBody::LinksOnly)` or `Some(ExportBody::FullEvent)`, and configure a logger provider. Each synchronous commit emits its row ID, hash and predecessor. |
 
 **One log record per committed row** (event name `mcp_rbac.audit`, severity INFO for allow, WARN otherwise):
 
@@ -149,7 +149,20 @@ Severity is `INFO` for low and medium, `WARN` for high and `ERROR` for critical.
 `mcp_rbac.feedback.id`. The audit row (decision `feedback`) is exported like any other row when audit export is on,
 with `mcp_rbac.feedback.id` added. The caller's identity is never exported.
 
-## What is never recorded
+## Authority on decision spans and logs
+
+Enable `authorityTelemetry: true` on the TypeScript core guard, `authority_telemetry=True` in Python, `GuardOptions.AuthorityTelemetry` in Go, or `GuardOptions::authority_telemetry` in Rust, together with telemetry. Engine-evaluated calls include these string attributes on the authorization span, server span and decision log:
+
+| Attribute | Value |
+|---|---|
+| `mcp_rbac.role` | The assigned role whose grant matched, when a rule matched. |
+| `mcp_rbac.agent_id` | The validated identity's OAuth client ID, when supplied by the host. Multiple agent instances using one client share this identifier. |
+| `mcp_rbac.arguments_hash` | SHA-256 of the core's canonical JSON argument object. |
+| `mcp_rbac.policy_version` | SHA-256 of the exact UTF-8 policy text loaded into the engine. |
+
+These fields are excluded from metric dimensions. Restrict access to traces and logs because a hash of a predictable argument can be guessed. The mode is off by default.
+
+## Default privacy settings
 
 Tool **arguments**, tool **results**, the **identity** (id, name, clientId, roles, scopes, actors, tenant), tokens,
 limit **keys**, `_meta` other than `traceparent`/`tracestate`, and baggage. (Exception, opt-in: the audit export

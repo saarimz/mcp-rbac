@@ -20,7 +20,10 @@ tracing = { version = "0.1", optional = true }
 opentelemetry_sdk = { version = "=0.33.1", default-features = false, features = ["trace", "metrics", "logs", "rt-tokio"], optional = true }
 opentelemetry-otlp = { version = "0.33", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "metrics", "logs"], optional = true }
 
+rusqlite = { version = "0.37", features = ["bundled"], optional = true }
+
 [features]
+audit = ["dep:rusqlite"]
 default = []
 otel = ["dep:opentelemetry", "dep:tracing"]
 # OTLP/HTTP export for the bundled mini-server (examples/tests only; the library itself never picks an exporter).

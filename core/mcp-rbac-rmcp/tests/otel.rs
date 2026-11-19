@@ -84,6 +84,10 @@ struct Rig {
 type Approve = Option<Arc<dyn Fn(&str, &Value, &Value, &Value) -> bool + Send + Sync>>;
 
 async fn rig(identity: Value, approve: Approve, max_tools: Option<usize>) -> Rig {
+    configured_rig(identity, approve, max_tools, |_| {}).await
+}
+
+async fn configured_rig(identity: Value, approve: Approve, max_tools: Option<usize>, configure: impl FnOnce(&mut GuardOptions)) -> Rig {
     let spans = InMemorySpanExporter::default();
     let metrics = InMemoryMetricExporter::default();
     let logs = InMemoryLogExporter::default();
@@ -96,6 +100,7 @@ async fn rig(identity: Value, approve: Approve, max_tools: Option<usize>) -> Rig
         .on_log(move |d| r2.lock().unwrap().push(d.clone()));
     if let Some(n) = max_tools { b = b.max_tool_names(n) }
     let mut opts = GuardOptions::with_identity(move |_| Some(identity.clone()));
+    configure(&mut opts);
     opts.approve = approve;
     opts.telemetry = Some(Arc::new(b.build()));
     let policy = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/core-servers/mini.yaml")).unwrap();
@@ -301,5 +306,26 @@ async fn tool_name_cardinality_is_bounded() {
     assert_eq!(other, 3.0);
     // span names keep the real name (spans are not aggregated)
     assert!(r.spans().iter().any(|s| s.name == "tools/call x3"));
+    r.client.cancel().await.ok();
+}
+
+#[cfg(feature = "audit")]
+#[tokio::test]
+async fn committed_decision_is_exported_with_its_chain_and_authority() {
+    let r = configured_rig(json!({"id":"local","roles":["door"],"clientId":"fixture-agent"}), None, None, |opts| {
+        opts.audit = Some(Arc::new(mcp_rbac_rmcp::audit::AuditSink::open(":memory:").unwrap()));
+        opts.audit_export = Some(mcp_rbac_rmcp::audit::ExportBody::LinksOnly);
+        opts.authority_telemetry = true;
+    }).await;
+    r.call("checkin", json!({"ticketId":"local-ticket"}), Some(TP)).await;
+    let span = r.span("mcp_rbac.authorize checkin");
+    assert_eq!(attr(&span.attributes, "mcp_rbac.agent_id").as_deref(), Some("fixture-agent"));
+    assert_eq!(attr(&span.attributes, "mcp_rbac.role").as_deref(), Some("door"));
+    r.lp.force_flush().unwrap();
+    let logs = r.logs.get_emitted_logs().unwrap();
+    let row = logs.iter().find(|log| log.record.event_name() == Some("mcp_rbac.audit")).unwrap();
+    assert!(row.record.attributes_iter().any(|(k,_)| k.as_str() == "mcp_rbac.audit.hash"));
+    assert!(row.record.body().is_none());
+    assert!(row.record.trace_context().is_some());
     r.client.cancel().await.ok();
 }

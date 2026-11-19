@@ -157,10 +157,11 @@ export class SqliteAuditSink {
   }
 
   private commit(batch: AuditRecord[]): boolean {
-    let head = this.head;
     const rows: CommittedAuditRow[] | undefined = this.onCommit ? [] : undefined;
     try {
       this.db.exec("BEGIN IMMEDIATE");
+      const last = this.db.prepare(`SELECT hash FROM ${this.table} ORDER BY id DESC LIMIT 1`).get();
+      let head = last ? String(last.hash) : GENESIS;
       for (const r of batch) {
         const ev = auditEventOf(r);
         const hash = chainHash(head, ev);

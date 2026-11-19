@@ -45,18 +45,18 @@ afterAll(async () => { await Promise.all(clients.map((c) => c.close().catch(() =
 
 describe("partner MCP: identity = admin + brand + OAuth client, from the verified token only", () => {
   it("get_brand / get_connection answer for the token's brand and OAuth client; no brand argument exists to abuse", async () => {
-    const acme = await as({ brand: "acme" });
+    const acme = await as({ role: "admin", brand: "acme" });
     expect((await call(acme, "get_brand")).data).toMatchObject({ id: "acme", name: "Acme Coffee" });
     expect((await call(acme, "get_brand", { brand: "globex" })).data).toMatchObject({ id: "acme" }); // extra args are ignored
     expect((await call(acme, "get_connection")).data).toMatchObject({ brand: "acme", client: "claude-desktop", status: "active" });
-    const globex = await as({ brand: "globex" });
+    const globex = await as({ role: "admin", brand: "globex" });
     expect((await call(globex, "get_brand")).data).toMatchObject({ id: "globex" });
-    const other = await as({ brand: "acme", client_id: "some-other-app" });
+    const other = await as({ role: "admin", brand: "acme", client_id: "some-other-app" });
     expect((await call(other, "get_connection")).data).toEqual({ status: "not_connected" });
   });
 
   it("refund: brand comes from the ORDER; another brand's order is denied with a clear dev message", async () => {
-    const acme = await as({ brand: "acme" });
+    const acme = await as({ role: "admin", brand: "acme" });
     const r = await call(acme, "refund", { orderId: "ord_2001", amount: 10, brand: "globex" });
     expect(r.ok).toBe(false);
     expect(r.text).toContain("as admin: your scope is {brand:acme}, but this call targets {brand:globex} (from scope.lookup)");
@@ -64,7 +64,7 @@ describe("partner MCP: identity = admin + brand + OAuth client, from the verifie
   });
 
   it("refund: per-role cap, approval over $100 with a concrete effect, support can't refund", async () => {
-    const acme = await as({ brand: "acme" }, "admin-sam");
+    const acme = await as({ role: "admin", brand: "acme" }, "admin-sam");
     expect((await call(acme, "refund", { orderId: "ord_1001", amount: 20 })).data).toEqual({ orderId: "ord_1001", refunded: 20 });
     expect(approvals).toHaveLength(0);
     expect((await call(acme, "refund", { orderId: "ord_1002", amount: 150 })).ok).toBe(true);
@@ -77,7 +77,9 @@ describe("partner MCP: identity = admin + brand + OAuth client, from the verifie
   });
 
   it("tokens without a brand claim are rejected; no token is a 401", async () => {
-    const nobrand = await as({});
+    const missingRole = await as({ brand: "acme" });
+    expect((await missingRole.listTools()).tools).toHaveLength(0);
+    const nobrand = await as({ role: "admin" });
     expect((await call(nobrand, "get_brand")).text).toContain("identity() returned nothing");
     const res = await fetch(srv.url, { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }) });
     expect(res.status).toBe(401);

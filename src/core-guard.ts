@@ -163,6 +163,8 @@ export interface CoreGuardOptions {
   /** Called after an allowed call whose decision has a post-call (result-based) spend: the cost read and charged. */
   onCost?: (e: { tool: string; identity: unknown; decision: CoreDecision; cost: CoreCost }) => void;
   /** OpenTelemetry (docs/otel.md): a CoreTelemetry, its options, or true for the global providers. Default off. */
+  /** Include the verified OAuth client id and decision fingerprints in OTel logs and spans. */
+  authorityTelemetry?: boolean;
   telemetry?: CoreTelemetry | CoreTelemetryOptions | boolean;
   /** Upstream request timeout (default 10 minutes). */
   forwardTimeoutMs?: number;
@@ -497,7 +499,7 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
       let metaFailed = false;
       // class rules need the server's metadata: if it cannot be read, deny (fail closed) rather than decide without it
       try { meta = identity === undefined ? undefined : await metaFor(tool, extra); } catch { meta = undefined; metaFailed = true; }
-      const reqJson = JSON.stringify({ tool, args, ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}), ...(resource ? { resource } : {}), ...(meta !== undefined ? { toolMeta: meta } : {}) });
+      const reqJson = JSON.stringify({ tool, args, ...(tel && opts.authorityTelemetry ? { auditContext: true } : {}), ...(identity === undefined ? {} : { identity }), ...(toolsets ? { toolsets } : {}), ...(resource ? { resource } : {}), ...(meta !== undefined ? { toolMeta: meta } : {}) });
       const authSpan = tel?.startAuthorize(tool);
       let e0 = performance.now();
       let raw = identity !== undefined && unresolved ? RESOURCE_UNRESOLVED : identity !== undefined && metaFailed ? TOOL_META_UNAVAILABLE : authorize(reqJson, now());
@@ -507,14 +509,19 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
       let approval: "none" | "granted" | "rejected" | "unavailable" = "none";
       if (d.decision === "needs_approval") {
         if (!approveFn) approval = "unavailable";
-        else if (await approveFn({ tool, args, identity }, d, extra)) {
-          e0 = performance.now();
-          raw = engine.authorizeApproved(reqJson, now());
-          engineMs += performance.now() - e0;
-          d = JSON.parse(raw) as CoreDecision;
-          approved = d.decision === "allow";
-          approval = "granted";
-        } else approval = "rejected";
+        else {
+          let granted = false;
+          try { granted = (await approveFn(structuredClone({ tool, args, identity }), structuredClone(d), extra)) === true; }
+          catch { /* A failed approval must still produce a decision record. */ }
+          if (granted) {
+            e0 = performance.now();
+            raw = engine.authorizeApproved(reqJson, now());
+            engineMs += performance.now() - e0;
+            d = JSON.parse(raw) as CoreDecision;
+            approved = d.decision === "allow";
+            approval = "granted";
+          } else approval = "rejected";
+        }
       }
       if (tel && authSpan && server) tel.endAuthorize(authSpan, server, tool, d, approval, engineMs / 1000);
       // fail-closed audit: an allowed call does not run while the audit sink cannot record it
@@ -534,9 +541,10 @@ export async function protectWithCore(inner: McpServer | Server | Client | SdkV2
       }
       // The inner server is trusted and in-process: tell it who is calling (client _meta is never forwarded, so this
       // key cannot be spoofed) so it can scope its own queries to the caller's tenant.
-      const caller = { identity, tenant: d.tenant, rule: d.rule, ...(resource ? { resource } : {}) };
+      const snapshot = JSON.parse(reqJson);
+      const caller = { identity: snapshot.identity, tenant: d.tenant, rule: d.rule, ...(snapshot.resource ? { resource: snapshot.resource } : {}) };
       const progressToken = (req.params._meta as { progressToken?: unknown } | undefined)?.progressToken;
-      const result = await callInner({ name: tool, arguments: args, _meta: { ...(inPlace && progressToken !== undefined ? { progressToken } : {}), [CORE_CALLER_META_KEY]: caller } }, extra);
+      const result = await callInner({ name: tool, arguments: snapshot.args, _meta: { ...(inPlace && progressToken !== undefined ? { progressToken } : {}), [CORE_CALLER_META_KEY]: caller } }, extra);
       if (d.limits.some((l) => (l as { deferred?: boolean }).deferred)) {
         // post-call spend (tool semantics): read the cost from the result and charge the deferred budgets; an
         // unreadable cost charges each budget's max (fail-closed), so the next call is denied until the window ends

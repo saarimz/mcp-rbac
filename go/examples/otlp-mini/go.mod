@@ -1,9 +1,9 @@
-module github.com/mcp-rbac/mcp-rbac-go/examples/otlp-mini
+module github.com/saarimz/mcp-rbac/go/examples/otlp-mini
 
 go 1.27.3
 
 require (
-	github.com/mcp-rbac/mcp-rbac-go v0.0.0
+	github.com/saarimz/mcp-rbac/go v0.0.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.23.0
@@ -44,4 +44,4 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 )
 
-replace github.com/mcp-rbac/mcp-rbac-go => ../..
+replace github.com/saarimz/mcp-rbac/go => ../..

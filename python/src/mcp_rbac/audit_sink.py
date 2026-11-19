@@ -238,18 +238,19 @@ class SqliteAuditSink:
                 m.set()
 
     def _commit(self, batch: list[dict[str, Any]]) -> bool:
-        head = self._head
         rows = []
-        for r in batch:
-            ev = audit_event_of(r)  # only the known fields: a record's "trace" is correlation metadata, never hashed
-            h = chain_hash(head, ev)
-            ap = r.get("approved")
-            rows.append((r["at"], r.get("sub"), r["tool"], r["decision"], r["reason"], r.get("tenant"), r.get("rule"),
-                         None if ap is None else int(bool(ap)), ev.get("durationMs"), canonical_json(ev), head, h))
-            head = h
         last_id = 0
         try:
             self._db.execute("BEGIN IMMEDIATE")
+            last = self._db.execute(f"SELECT hash FROM {self.table} ORDER BY id DESC LIMIT 1").fetchone()
+            head = last[0] if last else GENESIS
+            for r in batch:
+                ev = audit_event_of(r)  # only the known fields: a record's "trace" is correlation metadata, never hashed
+                h = chain_hash(head, ev)
+                ap = r.get("approved")
+                rows.append((r["at"], r.get("sub"), r["tool"], r["decision"], r["reason"], r.get("tenant"), r.get("rule"),
+                             None if ap is None else int(bool(ap)), ev.get("durationMs"), canonical_json(ev), head, h))
+                head = h
             self._db.executemany(self._sql, rows)
             if self._on_commit is not None:  # ids are contiguous: one writer holds the lock for the whole batch
                 last_id = int(self._db.execute("SELECT last_insert_rowid()").fetchone()[0])

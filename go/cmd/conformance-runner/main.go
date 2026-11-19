@@ -9,7 +9,7 @@ import (
 	"log"
 	"os"
 
-	mcprbac "github.com/mcp-rbac/mcp-rbac-go"
+	mcprbac "github.com/saarimz/mcp-rbac/go"
 )
 
 type vector struct {

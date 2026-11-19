@@ -95,6 +95,7 @@ class CoreGuard:
         on_cost: Callable[[dict[str, Any]], None] | None = None,
         audit: str | dict[str, Any] | Any | None = None,
         audit_fail_closed: bool = False,
+        authority_telemetry: bool = False,
         on_audit_error: Callable[[BaseException], None] | None = None,
         denials: str = "reason",
         share_engine: bool = True,
@@ -130,6 +131,7 @@ class CoreGuard:
             raise ValueError('denials must be "reason" or "uniform"')
         self.engine = shared_engine(policy) if share_engine else load_core().Engine(policy)
         self._denials = denials
+        self._authority_telemetry = authority_telemetry
         self._audit_fail_closed = audit_fail_closed
         self._on_audit_error = on_audit_error or (lambda e: print(f"mcp-rbac: audit write failed: {e}", file=sys.stderr))
         self.audit: Any = None
@@ -292,6 +294,8 @@ class CoreGuard:
                     meta_failed = True
             if meta is not None:
                 rq["toolMeta"] = meta
+        if self.telemetry is not None and self._authority_telemetry:
+            rq["auditContext"] = True
         req = json.dumps(rq)
         tel = self.telemetry
         auth_span = tel.start_authorize(str(tool)) if tel is not None else None
@@ -305,10 +309,14 @@ class CoreGuard:
             if self._approve is None:
                 approval = "unavailable"
             else:
-                verdict = self._approve({"tool": tool, "args": args, "identity": base.get("identity")}, d)
-                if not isinstance(verdict, bool):
-                    verdict = await verdict
-                if verdict:
+                import copy
+                try:
+                    verdict = self._approve(copy.deepcopy({"tool": tool, "args": args, "identity": base.get("identity")}), copy.deepcopy(d))
+                    if not isinstance(verdict, bool):
+                        verdict = await verdict
+                except Exception:
+                    verdict = False
+                if verdict is True:
                     e0 = time.perf_counter()
                     raw = self.engine.authorize_approved(req, self._now())
                     engine_s += time.perf_counter() - e0

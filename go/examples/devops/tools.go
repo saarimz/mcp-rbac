@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	mcprbac "github.com/mcp-rbac/mcp-rbac-go"
+	mcprbac "github.com/saarimz/mcp-rbac/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

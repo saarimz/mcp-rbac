@@ -21,13 +21,14 @@ const DenialMetaKey = "mcp-rbac/denial"
 
 // Decision is the canonical decision object returned by the core.
 type Decision struct {
-	Decision string            `json:"decision"`
-	Reason   string            `json:"reason"`
-	Redact   []json.RawMessage `json:"redact"` // redaction rules ({fields, replacement}); applied by the core
-	Labels   []json.RawMessage `json:"labels"`
-	Rule     string            `json:"rule"`   // empty when no rule matched (JSON null)
-	Tenant   string            `json:"tenant"` // empty when the call has no tenant (JSON null)
-	Limits   []LimitUse        `json:"limits"`
+	AuditContext map[string]*string `json:"auditContext,omitempty"`
+	Decision     string             `json:"decision"`
+	Reason       string             `json:"reason"`
+	Redact       []json.RawMessage  `json:"redact"` // redaction rules ({fields, replacement}); applied by the core
+	Labels       []json.RawMessage  `json:"labels"`
+	Rule         string             `json:"rule"`   // empty when no rule matched (JSON null)
+	Tenant       string             `json:"tenant"` // empty when the call has no tenant (JSON null)
+	Limits       []LimitUse         `json:"limits"`
 	// Semantics is the effective tool semantics (spec/tool-semantics.md); nil unless the policy has `semantics`.
 	Semantics json.RawMessage `json:"semantics,omitempty"`
 }
@@ -71,6 +72,8 @@ type DecisionEvent struct {
 
 // GuardOptions configures Middleware. Identity is required; returning nil means unauthenticated.
 type GuardOptions struct {
+	// AuthorityTelemetry adds verified client id and policy/argument fingerprints to decision logs and spans.
+	AuthorityTelemetry bool
 	// Identity returns the caller identity ({"id":..,"roles":[..],...}) or nil.
 	Identity func(ctx context.Context, req mcp.Request) any
 	// Toolsets optionally restricts the session to named toolsets (nil = no restriction).
@@ -338,6 +341,9 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	body := o.base(ctx, req)
 	body["tool"] = tool
 	body["args"] = args
+	if o.Telemetry != nil && o.AuthorityTelemetry {
+		body["auditContext"] = true
+	}
 	metaFailed := false
 	if _, ok := body["identity"]; ok && e.semanticsOn(ctx, o) {
 		o.sem.mu.RLock()
@@ -404,10 +410,24 @@ func (e *Engine) guardCall(ctx context.Context, method string, req mcp.Request, 
 	approved := false
 	approval := "none"
 	if d.Decision == "needs_approval" {
+		// Decode the authorized snapshot. A host approver receives a disposable copy;
+		// changes to it must never alter the arguments or caller passed downstream.
+		var snapshot struct {
+			Identity any             `json:"identity"`
+			Args     json.RawMessage `json:"args"`
+		}
+		if err := json.Unmarshal(in, &snapshot); err != nil {
+			return nil, err
+		}
+		originalParams := *cr.Params
+		originalParams.Arguments = append(json.RawMessage(nil), snapshot.Args...)
+		originalCall := *cr
+		originalCall.Params = &originalParams
+		req = &originalCall
 		switch {
 		case o.Approve == nil:
 			approval = "unavailable"
-		case o.Approve(ctx, tool, args, body["identity"], d):
+		case o.Approve(ctx, tool, snapshot.Args, snapshot.Identity, d):
 			approval = "granted"
 			e0 = time.Now()
 			raw, err = e.AuthorizeApproved(ctx, string(in), o.now())

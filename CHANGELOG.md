@@ -124,7 +124,7 @@ One Rust policy core, every language. Real servers, red-teamed. OpenTelemetry th
 
 - **Rust core** (`core/mcp-rbac-core`, `#![forbid(unsafe_code)]`): the portable policy engine, budgets, approvals and redaction.
   Bindings: TS/Node via WASM (`mcp-rbac/core`, `protectWithCore`), Python via PyO3 (`mcp_rbac.core_guard.CoreGuard`),
-  Go via wazero with no cgo (`github.com/mcp-rbac/mcp-rbac-go`), and Rust via an rmcp service wrapper (`mcp-rbac-rmcp`).
+  Go via wazero with no cgo (`github.com/saarimz/mcp-rbac/go`), and Rust via an rmcp service wrapper (`mcp-rbac-rmcp`).
   Conformance: 3620 vectors x 6 runners, byte-identical. See docs/polyglot.md.
 - **Host-resolved resources** (`resource` option in all four guards): authorize against the tenant/venue/org that owns the
   record, not the caller's arguments. A resolver failure fails closed (`resource_unresolved`). The trusted caller context

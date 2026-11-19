@@ -210,6 +210,9 @@ describe("CLI: check / diff / decide / export", () => {
     writeFileSync(join(dir, "new.yaml"), VENUE_SRC.replace("cancel_event: { allow: [owner]", "cancel_event: { allow: [owner, door_staff]"));
     const r = cli(["diff", "examples/policies/venue.yaml", join(dir, "new.yaml"), "--fail-on-widen"]);
     expect(r.status).toBe(2);
+    const base = "docs/snippets/mcp-rbac.yaml";
+    writeFileSync(join(dir, "higher.yaml"), readFileSync(base, "utf8").replace("max: 500", "max: 600"));
+    expect(cli(["diff", base, join(dir, "higher.yaml"), "--fail-on-widen"]).status).toBe(2);
     expect(r.stdout).toMatch(/\+ \[widens\] granted .*door_staff × cancel_event/);
     const d = cli(["decide", "examples/policies/venue.yaml"], '{"tool":"check_in","identity":{"id":"u","roles":["door_staff"]}}\n{bad\n');
     const lines = d.stdout.trim().split("\n");

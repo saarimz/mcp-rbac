@@ -66,7 +66,7 @@ Usage:
   mcp-rbac test <policy.yaml> <tests.yaml> [--json]
                                                 run allow/deny/approval and tools/list fixtures (exit 1 if any fail)
   mcp-rbac diff <old.yaml> <new.yaml> [--json] [--tools a,b] [--fail-on-widen]
-                                                effective-access changes per role x tool (exit 2 on widening with --fail-on-widen)
+                                                effective-access changes per role x tool (exit 2 on widening or unclassified changes with --fail-on-widen)
   mcp-rbac decide <policy.yaml> [--visible]     JSON requests on stdin (one per line) -> canonical decisions on stdout
   mcp-rbac export --module <file.js> [--export name] [--out mcp-rbac.yaml]
                                                 emit portable yaml from a module exporting the declarative API pieces
@@ -140,7 +140,7 @@ export async function main(argv = process.argv.slice(2)) {
       if (!a || !b) throw new Error("diff needs <old.yaml> <new.yaml>");
       const d = diffPolicies(loadPortablePolicy(readFileSync(a, "utf8")), loadPortablePolicy(readFileSync(b, "utf8")), str(flags.tools)?.split(",").filter(Boolean) ?? []);
       process.stdout.write(flags.json ? JSON.stringify(d, null, 2) + "\n" : formatDiff(d));
-      if (flags["fail-on-widen"] && d.summary.widens > 0) process.exitCode = 2;
+      if (flags["fail-on-widen"] && (d.summary.widens > 0 || d.summary.changed > 0)) process.exitCode = 2;
       return;
     }
     case "test": {

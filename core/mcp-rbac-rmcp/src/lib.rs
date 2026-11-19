@@ -8,6 +8,8 @@
 //! the TypeScript (WASM), Python (PyO3) and Go (wazero) bindings.
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "audit")]
+pub mod audit;
 use mcp_rbac_core::engine::{redact_json, Engine};
 use rmcp::model::{CallToolResult, ClientRequest, ContentBlock, ErrorCode, ListToolsRequest, MetaObject, PaginatedRequestParams, ServerResult, Tool};
 use rmcp::service::{NotificationContext, RequestContext, RoleServer, Service, ServiceRole};
@@ -85,11 +87,18 @@ pub struct GuardOptions {
     pub approve: Option<Arc<ApproveFn>>,
     /// Unix milliseconds (default: wall clock).
     pub now: Option<Arc<NowFn>>,
+    #[cfg(feature = "audit")]
+    pub audit: Option<Arc<audit::AuditSink>>,
+    /// Opt in to exporting committed rows through the telemetry logger provider.
+    #[cfg(all(feature = "audit", feature = "otel"))]
+    pub audit_export: Option<audit::ExportBody>,
     pub on_decision: Option<Arc<OnDecisionFn>>,
     /// The resource a call touches, resolved from the host's own data (never the caller's say-so).
     pub resource: Option<Arc<ResourceFn>>,
     /// `true`: denials answer `Denied` and omit the reason from the result's `_meta` (`on_decision` still gets it).
     pub uniform_denials: bool,
+    /// Include verified client id and decision fingerprints in OTel logs and spans.
+    pub authority_telemetry: bool,
     /// OpenTelemetry (docs/otel.md); feature `otel`. None = off.
     #[cfg(feature = "otel")]
     pub telemetry: Option<Arc<otel::Telemetry>>,
@@ -100,9 +109,13 @@ pub struct GuardOptions {
 impl GuardOptions {
     pub fn with_identity(f: impl Fn(&RequestContext<RoleServer>) -> Option<Value> + Send + Sync + 'static) -> Self {
         GuardOptions {
-            identity: Arc::new(f), toolsets: None, approve: None, now: None, on_decision: None, resource: None, uniform_denials: false, feedback: None,
+            identity: Arc::new(f), toolsets: None, approve: None, now: None, on_decision: None, resource: None, uniform_denials: false, authority_telemetry: false, feedback: None,
             #[cfg(feature = "otel")]
             telemetry: None,
+            #[cfg(feature = "audit")]
+            audit: None,
+            #[cfg(all(feature = "audit", feature = "otel"))]
+            audit_export: None,
         }
     }
     fn now_ms(&self) -> f64 {
@@ -333,6 +346,8 @@ impl<S: Service<RoleServer>> Guarded<S> {
                 body.insert("toolMeta".into(), m);
             }
         }
+        #[cfg(feature = "otel")]
+        if self.opts.authority_telemetry && self.opts.telemetry.is_some() { body.insert("auditContext".into(), Value::Bool(true)); }
         let body_identity = body.get("identity").cloned();
         let body_resource = body.get("resource").and_then(Value::as_object).cloned();
         let req = Value::Object(body).to_string();
@@ -363,10 +378,28 @@ impl<S: Service<RoleServer>> Guarded<S> {
                 Some(_) => approval = "rejected",
             }
         }
-        obs.end_authorize(&tool, &d, approval, engine);
-        if let Some(f) = &self.opts.on_decision {
-            f(&DecisionEvent { tool: tool.clone(), identity: body_identity.clone(), decision: d.clone(), duration: t0.elapsed(), approved });
+        #[allow(unused_mut)]
+        let mut event = DecisionEvent { tool: tool.clone(), identity: body_identity.clone(), decision: d.clone(), duration: t0.elapsed(), approved };
+        #[cfg(feature = "audit")]
+        if let Some(sink) = &self.opts.audit {
+            match sink.write(&event) {
+                Ok(_row) => {
+                    #[cfg(feature = "otel")]
+                    if let (Some((t,s)), Some(body)) = (&obs.t, self.opts.audit_export) { t.audit(s, &_row, body); }
+                }
+                Err(err) => {
+                    eprintln!("mcp-rbac audit write failed: {err}");
+                    if d["decision"] == "allow" {
+                        d["decision"] = json!("deny");
+                        d["reason"] = json!("audit_unavailable");
+                        event.decision = d.clone();
+                        event.approved = false;
+                    }
+                }
+            }
         }
+        obs.end_authorize(&tool, &d, approval, engine);
+        if let Some(f) = &self.opts.on_decision { f(&event); }
         if d["decision"] != "allow" {
             // Same per-peer shaping rmcp's ServerHandler applies (we answer without reaching it):
             // 2026-07-28+ peers get resultType + cache hints, older peers get the legacy shape.
@@ -387,6 +420,15 @@ impl<S: Service<RoleServer>> Guarded<S> {
             let out = match feedback::process(&args, &fs.config, ident, tenant) {
                 Err(reason) => CallToolResult::error(vec![ContentBlock::text(format!("Feedback rejected: {reason}"))]),
                 Ok(mut ev) => {
+                    #[cfg(feature = "audit")]
+                    if let Some(sink) = &self.opts.audit {
+                        let _row = sink.write_feedback(&ev).map_err(|err| {
+                            eprintln!("mcp-rbac feedback audit write failed: {err}");
+                            internal("audit_unavailable".to_string())
+                        })?;
+                        #[cfg(feature = "otel")]
+                        if let (Some((t,s)), Some(body)) = (&obs.t, self.opts.audit_export) { t.audit(s, &_row, body); }
+                    }
                     obs.feedback(&mut ev);
                     if let Some(f) = &fs.on_feedback { f(&ev) }
                     CallToolResult::success(vec![ContentBlock::text(feedback::result_text(&ev))])

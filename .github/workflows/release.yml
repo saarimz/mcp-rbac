@@ -74,11 +74,12 @@ jobs:
       - run: cargo install --locked wasm-pack
       - run: npm ci --no-audit --no-fund
       - run: npm run build:wasm
+      - name: Verify the private security reporting inbox before publication
+        if: env.DRY_RUN != 'true'
+        run: |
+          curl --fail --silent --show-error https://api.github.com/repos/saarimz/mcp-rbac/private-vulnerability-reporting | jq -e '.enabled == true'
       - name: Build, check and install every artifact (uploads nothing)
         run: tools/release-dry-run.sh
-        env:
-          # release placeholders (e.g. the SECURITY.md contact) are tolerated in a dry run only, never in a real publish
-          ALLOW_PLACEHOLDERS: ${{ env.DRY_RUN == 'true' && '1' || '' }}
 
   npm-build:
     needs: dry-run

@@ -13,6 +13,14 @@ const rec = (i: number): AuditRecord => ({ at: `2026-11-15T00:00:${String(i % 60
 const count = (p: string) => (new DatabaseSync(p, { readOnly: true }).prepare("SELECT count(*) AS n FROM audit").get() as { n: number }).n;
 
 describe("SqliteAuditSink", () => {
+  it("serializes the head across independent SQLite writers", () => {
+    const path = join(tmp(), "shared.db");
+    const writers = [0, 1].map(() => new SqliteAuditSink(path, { mode: "sync" }));
+    try { writers.forEach((writer, i) => writer.write(rec(i))); }
+    finally { writers.forEach(writer => writer.close()); }
+    expect(verifyAuditTable(path)).toMatchObject({ ok: true, count: 2 });
+  });
+
   for (const mode of ["sync", "batched"] as const) {
     it(`${mode}: writes, chains and verifies; restart continues the chain`, () => {
       const p = join(tmp(), "a.db");

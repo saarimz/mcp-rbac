@@ -27,10 +27,10 @@ classifiers = [
 dependencies = ["mcp>=2.3,<3", "mcp-rbac-core==0.5.0", "httpx>=0.27", "pyyaml>=6"]
 
 [project.urls]
-Homepage = "https://github.com/mcp-rbac/mcp-rbac"
-Documentation = "https://github.com/mcp-rbac/mcp-rbac/blob/main/docs/python.md"
-Issues = "https://github.com/mcp-rbac/mcp-rbac/issues"
-Changelog = "https://github.com/mcp-rbac/mcp-rbac/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/saarimz/mcp-rbac"
+Documentation = "https://github.com/saarimz/mcp-rbac/blob/HEAD/docs/python.md"
+Issues = "https://github.com/saarimz/mcp-rbac/issues"
+Changelog = "https://github.com/saarimz/mcp-rbac/blob/HEAD/CHANGELOG.md"
 
 [project.optional-dependencies]
 jwt = ["pyjwt[crypto]>=2.8"]

@@ -219,6 +219,26 @@ semantics:
 });
 
 describe("built-in approvers", () => {
+  it("records a throwing approver and dispatches only the authorized snapshot", async () => {
+    let shouldThrow = true;
+    const rows: string[] = [];
+    const c = await connect((await protectWithCore(build(), {
+      policy: POLICY, identity: () => ({ id: "sam", roles: ["owner"] }),
+      approve: ({ args }) => {
+        if (shouldThrow) throw new Error("approver offline");
+        args.amount = 499;
+        return true;
+      },
+      onDecision: e => rows.push(e.decision.decision),
+    })).server);
+    const params = { name: "refund", arguments: { ticketId: "t1", amount: 250 } };
+    expect((await c.callTool(params)).isError).toBe(true);
+    shouldThrow = false;
+    expect(text(await c.callTool(params))).toBe("refunded 250 on t1");
+    expect(rows).toEqual(["needs_approval", "allow"]);
+    await c.close();
+  });
+
   it('approve: "queue" holds the call until `mcp-rbac approve <id>` (decidePending) and runs exactly those arguments', async () => {
     const dir = tmp("queue");
     const c = await connect((await protectWithCore(build(), { policy: POLICY, identity: () => ({ id: "o", roles: ["owner"] }), approve: "queue", approvalQueueDir: dir, approvalTimeoutMs: 10_000 })).server);

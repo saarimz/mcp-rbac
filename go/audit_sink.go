@@ -295,9 +295,18 @@ func (s *AuditSink) run() {
 }
 
 func (s *AuditSink) commit(batch []AuditRecord) (err error) {
-	head := s.head
+	head := AuditGenesis
 	var rows []CommittedAuditRow
 	tx, err := s.db.Begin()
+	if err == nil {
+		// Acquire the SQLite writer lock before reading the shared chain head.
+		if _, err = tx.Exec("UPDATE " + s.table + " SET hash=hash WHERE 0"); err == nil {
+			err = tx.QueryRow("SELECT COALESCE((SELECT hash FROM "+s.table+" ORDER BY id DESC LIMIT 1), ?) ", AuditGenesis).Scan(&head)
+		}
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}
 	if err == nil {
 		for _, r := range batch {
 			ev := AuditEventJSON(r)

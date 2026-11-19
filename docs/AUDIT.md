@@ -1,14 +1,14 @@
 # Decision audit: sync vs batched, crash safety
 
 Every guarded `tools/call` decision (allow, deny, needs_approval) can be written to a hash-chained SQLite table by
-`SqliteAuditSink`. The same sink exists in three languages with the same table, event and hash format:
+`SqliteAuditSink`. Compatible sinks exist in four languages with the same table, event and hash format:
 
 | Language | API | Writer |
 |---|---|---|
 | TypeScript | `import { SqliteAuditSink, auditRecordFromDecision, verifyAuditTable } from "mcp-rbac/audit"` | timer on the event loop (`node:sqlite`) |
 | Python | `from mcp_rbac import SqliteAuditSink, audit_record_from_decision, verify_audit_table` | background thread (`sqlite3`) |
 | Go | `mcprbac.NewAuditSink(db, mcprbac.AuditSinkOptions{...})`, `mcprbac.VerifyAuditTable` | goroutine (`database/sql`, any SQLite driver) |
-| Rust (`mcp-rbac-rmcp`) | not provided yet: use `GuardOptions::on_decision` with your own writer | — |
+| Rust (`mcp-rbac-rmcp`) | `opts.audit = Some(Arc::new(mcp_rbac_rmcp::audit::AuditSink::open(path)?))` with Cargo feature `audit` | synchronous SQLite commit before dispatch. Write errors block allowed calls. Add feature `otel`, set `opts.audit_export = Some(ExportBody::LinksOnly)` and configure `Telemetry::builder().logger_provider(&provider)` to export each committed row as an `mcp_rbac.audit` log | |
 
 A table written by any of the three verifies in the other two. Tests in `go/examples/devops/audit_sink_test.go`
 and `python/tests/test_audit_sink.py` write with one language, append with another, and verify with a third.

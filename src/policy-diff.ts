@@ -100,6 +100,7 @@ export function summarize(p: CompiledPolicy, extraTools: string[] = []): AccessS
   const sec = (k: string, v: unknown) => canonical(v === undefined ? null : (v as Json));
   const out = (s.output ?? {}) as Record<string, unknown>;
   const sections: Record<string, string> = {
+    semantics: sec("semantics", s.semantics),
     delegation: sec("delegation", s.delegation),
     tenants: sec("tenants", s.tenants),
     toolsets: sec("toolsets", s.toolsets),

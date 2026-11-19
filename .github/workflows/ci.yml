@@ -4,7 +4,7 @@ name: ci
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, feature/submit-feedback]
   pull_request:
   workflow_dispatch:
   workflow_call: # the release workflow runs the full CI first
@@ -161,6 +161,11 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
+      - name: Verify the core shipped to Go consumers
+        working-directory: go
+        run: |
+          go run ./cmd/conformance-runner ../conformance/corpus.jsonl > "$RUNNER_TEMP/go-shipped.jsonl"
+          cmp ../conformance/expected.jsonl "$RUNNER_TEMP/go-shipped.jsonl"
       - name: Build the embedded core and test
         working-directory: go
         run: |

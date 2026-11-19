@@ -1,4 +1,4 @@
-module github.com/mcp-rbac/mcp-rbac-go
+module github.com/saarimz/mcp-rbac/go
 
 go 1.27.3
 

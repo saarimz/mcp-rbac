@@ -62,7 +62,7 @@ export interface CoreTelemetryOptions {
   networkTransport?: "pipe" | "tcp";
 }
 
-interface MinimalDecision { decision: string; reason: string; rule: string | null; limits?: { name: string; max: number; used?: number }[] }
+interface MinimalDecision { auditContext?: Record<string, string | null>; decision: string; reason: string; rule: string | null; limits?: { name: string; max: number; used?: number }[] }
 
 /** Low-cardinality class of a reason: its first segment (`user`, `rate_limited`, `unauthenticated`, `actor_unknown`...). */
 export function reasonClass(reason: string): string {
@@ -166,6 +166,9 @@ export class CoreTelemetry {
   endAuthorize(span: Span, server: Span, tool: string, d: MinimalDecision, approval: DecisionLogRecord["approval"], engineSeconds: number): void {
     const attrs: Attributes = { "mcp_rbac.decision": d.decision, "mcp_rbac.reason": d.reason, "mcp_rbac.approval": approval };
     if (d.rule) attrs["mcp_rbac.rule"] = d.rule;
+    for (const [key, value] of Object.entries(d.auditContext ?? {})) {
+      if (value !== null) attrs[`mcp_rbac.${key}`] = value;
+    }
     span.setAttributes(attrs);
     server.setAttributes(attrs);
     const sc = span.spanContext();
@@ -189,7 +192,7 @@ export class CoreTelemetry {
       eventName: "mcp_rbac.decision",
       attributes: {
         "gen_ai.tool.name": tool, "mcp_rbac.decision": d.decision, "mcp_rbac.reason": d.reason,
-        "mcp_rbac.approval": approval, ...(d.rule ? { "mcp_rbac.rule": d.rule } : {}),
+        ...attrs,
       },
       context: trace.setSpan(otelContext.active(), span),
     });

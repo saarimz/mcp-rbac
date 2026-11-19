@@ -9,7 +9,7 @@ asks the core, and applies the answer.
 |---|---|---|---|---|
 | TypeScript (Node ≥ 22.13), SDK v1 ≥ 1.32 or v2 ≥ 2.4 | `mcp-rbac/core` | WASM (wasm-bindgen) | `protectWithCore(server, opts)` | `callerOf(extra)` (`_meta["mcp-rbac/caller"]`) |
 | Python ≥ 3.11 | `mcp_rbac.core_guard` (+ `mcp-rbac-core` wheel) | PyO3 native extension (abi3) | `CoreGuard(policy, identity=...)` as MCPServer middleware | `current_caller()` |
-| Go (preview, **not published** in 0.5; planned module path) | `github.com/mcp-rbac/mcp-rbac-go` | WASM in wazero (pure Go, **no cgo**) | `engine.Protect(server, GuardOptions{...})` | `mcprbac.CallerFrom(ctx)` |
+| Go (preview, **not published** in 0.5; subdirectory module) | `github.com/saarimz/mcp-rbac/go` | WASM in wazero (pure Go, **no cgo**) | `engine.Protect(server, GuardOptions{...})` | `mcprbac.CallerFrom(ctx)` |
 | Rust (`publish = false`: use from the repository) | `mcp-rbac-rmcp` | native | `protect(handler, &policy, GuardOptions::with_identity(...))` | `Extension<Caller>` |
 
 All four guards take the same options: `identity` (who is calling; the shape is in docs/policy-format.md), `resource`

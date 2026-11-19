@@ -18,6 +18,13 @@ export interface JwtVerifierOptions {
  * Returns AuthInfo with extra.mcpGuardSubject = sub, which Guard uses as the credential.
  */
 export async function jwtVerifier(o: JwtVerifierOptions): Promise<(token: string) => Promise<AuthInfo | null>> {
+  const constraints = { issuer: o.issuer, audience: o.audience };
+  for (const [name, configured] of Object.entries(constraints)) {
+    const values = Array.isArray(configured) ? configured : [configured];
+    if (!values.length || !values.every(value => typeof value === "string" && value.trim().length > 0)) {
+      throw new Error(`jwtVerifier requires a nonempty ${name}`);
+    }
+  }
   let jose: typeof import("jose");
   try { jose = await import("jose"); } catch { throw new Error("jwtVerifier needs the `jose` package: npm i jose"); }
   if (!o.jwks && !o.jwksUrl) throw new Error("jwtVerifier needs jwks or jwksUrl");
@@ -26,7 +33,7 @@ export async function jwtVerifier(o: JwtVerifierOptions): Promise<(token: string
   return async (token: string) => {
     try {
       const { payload } = await jose.jwtVerify(token, keys, {
-        issuer: o.issuer, audience: o.audience, algorithms, clockTolerance: o.clockToleranceSec ?? 5, requiredClaims: ["sub", "exp"],
+        ...constraints, algorithms, clockTolerance: o.clockToleranceSec ?? 5, requiredClaims: ["sub", "exp"],
       });
       if (typeof payload.sub !== "string" || payload.sub.length === 0) return null;
       const raw = (payload as any).scope ?? (payload as any).scp ?? "";

@@ -9,7 +9,11 @@ fail=0; pass=0
 step() { local name=$1; shift; if "$@"; then echo "ok   $name"; pass=$((pass+1)); else echo "FAIL $name"; fail=$((fail+1)); fi; }
 run_snippet() { # name expected-file command...
   local name=$1 exp=$2; shift 2
-  local out; out=$("$@" 2>/tmp/docs-check-$name.err)
+  local out
+  if ! out=$("$@" 2>"/tmp/docs-check-$name.err"); then
+    tail -n 20 "/tmp/docs-check-$name.err"
+    return 1
+  fi
   if [[ "$out" == "$(cat "$exp")" ]]; then return 0; fi
   echo "--- $name: expected ($exp) vs actual"; diff <(cat "$exp") <(echo "$out"); tail -n 20 /tmp/docs-check-$name.err; return 1
 }
@@ -25,7 +29,7 @@ step "snippet py/quickstart" run_snippet py-quickstart docs/snippets/py/quicksta
 step "snippet go/main.go" run_snippet go-quickstart docs/snippets/go/quickstart.expected bash -c 'cd docs/snippets/go && go build -o /tmp/docs-check-go-qs . && cd .. && /tmp/docs-check-go-qs'
 step "mcp-rbac check docs/snippets/mcp-rbac.yaml" bash -c 'node dist/cli.js check docs/snippets/mcp-rbac.yaml >/dev/null'
 step "mcp-rbac test docs/snippets/mcp-rbac.yaml docs/snippets/mcp-rbac.test.yaml" bash -c 'node dist/cli.js test docs/snippets/mcp-rbac.yaml docs/snippets/mcp-rbac.test.yaml >/dev/null'
-step "mcp-rbac demo" bash -c 'node dist/cli.js demo | grep -q "hash chain verified"'
+step "mcp-rbac demo" bash -o pipefail -c 'node dist/cli.js demo | grep "hash chain verified" >/dev/null'
 step "pack resolution TS == Python == Go" $PY tools/docs-check/check_docs.py packs
 step "docs site build (links + anchors)" node tools/docs-site/build.mjs
 echo "docs-check: $pass passed, $fail failed"

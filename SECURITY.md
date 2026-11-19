@@ -10,7 +10,7 @@ Features exported from `mcp-rbac/experimental` (and `mcp_rbac.experimental`) are
 API may change in a minor release (see docs/experimental/README.md).
 
 ## Reporting a vulnerability
-Send a confidential report to the maintainers using [GitHub private vulnerability reporting](https://github.com/saarimz/mcp-rbac/security/advisories/new). The repository owner must enable the private inbox before publication. Keep customer data and credentials out of reports.
+Select **Report a vulnerability** to send a confidential report directly to the maintainers. Keep customer data and credentials out of reports. [Open the private reporting form](https://github.com/saarimz/mcp-rbac/security/advisories/new)
 
 Include the version, a minimal reproduction, and the impact. We aim to acknowledge reports within 3
 business days, ship a fix or mitigation for high/critical issues within 30 days, and credit reporters who want it.

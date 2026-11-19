@@ -1,19 +1,24 @@
 # mcp-rbac
 
-**Decide which agent may call which MCP tool, with which arguments, and keep a tamper-evident record of every
-decision. One YAML file; the same decisions in TypeScript, Python, Go and Rust.**
+Authorize MCP tool calls with one YAML policy across TypeScript, Python, Go and Rust. In an embedded server, the guard enforces the user and roles your authentication layer supplies. The stdio proxy enforces its configured identity. An allowed handler runs with the server’s database or upstream credentials. Enable the audit sink to record decisions.
 
-> Status: 0.5.0, release candidate. **Not on npm/PyPI yet**: until it is, run from this repository
-> (`npm ci && npm run build:wasm && npm run build`, then `node dist/cli.js demo`). The `npx` / `npm i` / `pip install`
-> commands below are how it will be installed once published.
+[Set up roles and JWT authentication](#from-a-signed-access-token-to-a-tool-handler) · [Run the local refund demo](#run-the-local-refund-demo) · [Guard an existing server with the proxy](#guard-any-mcp-server-no-code)
+
+## Run the local refund demo
+
+Version 0.5.0 is a release candidate. Run the examples from a checkout. Building the TypeScript package requires Node 22.13 or newer, Rust with the WebAssembly target, and `wasm-pack` on your path. The registry installation examples below apply once the packages are published.
+
+```bash
+rustup target add wasm32-unknown-unknown
+npm ci
+npm run build:wasm
+npm run build
+node dist/cli.js demo
+```
 
 ![mcp-rbac demo: staff denied a refund, rate limit, owner refund needs approval, audit chain verified](docs/demo.gif)
 
-```bash
-npx mcp-rbac demo   # once published; today: node dist/cli.js demo
-```
-
-That one command starts an ordinary MCP server in memory (official TypeScript SDK), guards it with the policy below,
+The demo starts an ordinary MCP server in memory (official TypeScript SDK), guards it with the policy below,
 drives it as an agent, and verifies the audit chain.
 
 ## Guard any MCP server, no code
@@ -45,7 +50,7 @@ limits:
   - {tool: checkin, max: 3, per: minute}
 ```
 
-**TypeScript** (`npm i mcp-rbac`; official SDK v1 `McpServer` or v2 `@modelcontextprotocol/server`):
+**TypeScript** (install `mcp-rbac`, `jose`, and the MCP SDK in your application once published; official SDK v1 `McpServer` or v2 `@modelcontextprotocol/server`):
 
 ```ts
 import { readFileSync } from "node:fs";
@@ -90,35 +95,75 @@ roles. Copy a full example from [`examples/policies/`](examples/policies/) (venu
 
 ### From a signed access token to a tool handler
 
-1. Save the YAML above as `mcp-rbac.yaml`. The file defines what each role may do. Assign Dana **staff** or **owner** in your authorization server or membership database. A user can hold several roles. A matching grant from any assigned or included role suffices. Put a hard ceiling such as the refund maximum in `tools.refund.limits` so it applies to every grant.
-2. Configure the issuer to put those assignments in an access token for your MCP API. For example, Dana's signed payload can contain `{"sub":"dana","aud":"https://venue.example/mcp","https://venue.example/roles":["staff"],"venue":"brooklyn","scope":"refunds:write","client_id":"venue-agent"}`. Only administrators or your membership service should control the role and venue claims. Auth0 supports a namespaced access-token claim populated from the user's assigned roles. [Auth0 assignment example](https://support.auth0.com/center/s/article/add-roles-and-permissions-to-the-id-token-using-actions)
-3. Verify each bearer token at the HTTP boundary. Install `jose` alongside the SDK. Set the issuer, JWKS URL and audience from your authorization server configuration. The helper reads the exact configured claim from verified auth info, checks every role against the typed allowlist, and carries token scopes into the decision.
+**Try it locally.** From the built checkout, run `npx tsx docs/snippets/ts/jwt.ts`. The example starts an HTTP server on loopback, signs short-lived access tokens with a local key, and calls the guarded tools. It needs no identity-provider account. [Runnable server and client](docs/snippets/ts/jwt.ts)
+
+**1. Define the roles in your server's policy file.** Copy the JWT example policy to your application's working directory as `mcp-rbac.yaml`. Load it when the server starts. Here `staff` can look up a ticket, `owner` inherits that permission, and a refund also requires the OAuth scope `refunds:write`. The 500 maximum applies across all grants.
+
+<!-- snippet: docs/snippets/jwt.yaml -->
+```yaml
+version: 1
+roles:
+  staff: {tools: [lookup]}
+  owner: {includes: [staff], tools: [refund]}
+tools:
+  refund:
+    scopes: [refunds:write]
+    limits: {amount: {min: 0, max: 500}}
+approvals:
+  - {tool: refund, when: {amount: {min: 100}}}
+```
+
+**2. Assign a role to the person.** In your identity provider, create the corresponding roles and assign Dana `staff` and Sam `owner`. Give each person an administrator-managed venue membership. Configure the provider to issue an **access token for your MCP API**. For example, an Auth0 Post Login Action can copy the assigned roles and venue into namespaced claims. Deploy the Action and add it to the Login flow. Use your own namespace in the Action and in the server configuration below. [Auth0 role claims](https://support.auth0.com/center/s/article/add-roles-and-permissions-to-the-id-token-using-actions)
+
+```js
+exports.onExecutePostLogin = async (event, api) => {
+  if (event.resource_server?.identifier !== "https://venue.example/mcp") return;
+  api.accessToken.setCustomClaim("https://venue.example/roles", event.authorization?.roles ?? []);
+  const venue = event.user.app_metadata?.venue;
+  if (typeof venue === "string") api.accessToken.setCustomClaim("https://venue.example/venue", venue);
+};
+```
+
+In Auth0, select your MCP API under **Applications → APIs → Settings**, turn on **Enable RBAC**, and save. Define the API permission `refunds:write`, grant it to the owner role, and have the client request it for the MCP audience. With RBAC enabled the access token carries the requested scopes the user has been granted. [Auth0 API RBAC setup](https://auth0.com/docs/get-started/apis/enable-role-based-access-control-for-apis)
+
+The MCP client sends the resulting token as `Authorization: Bearer <access_token>`. If your application owns role assignments, load the current membership from your database by verified issuer and subject in the guard's identity callback. Existing tokens carry their signed assignments until expiry. To enforce immediate removal, have the host consult current membership or a revocation store on each request. The JWT verifier validates tokens locally.
+
+**3. Verify the token and map its claims.** Set `OIDC_ISSUER` to the exact issuer, `OIDC_JWKS_URL` to that issuer's trusted signing-keys URL, and `MCP_AUDIENCE` to your API identifier. The verifier checks the signature, issuer, audience and expiry. The mapper accepts only the names in `roleNames`; TypeScript infers the role union `"staff" | "owner"`. A missing venue or an unrecognized role denies access. An absent OAuth scope claim grants zero token scopes.
 
 ```ts
 import { readFileSync } from "node:fs";
-import { jwtIdentity, jwtVerifier } from "mcp-rbac/jwt";
 import { authInfoOf, protectWithCore } from "mcp-rbac/core";
 import { serveGuardedHttp } from "mcp-rbac/http";
+import { jwtIdentity, jwtVerifier } from "mcp-rbac/jwt";
 
-const verify = await jwtVerifier({
-  issuer: process.env.OIDC_ISSUER!, jwksUrl: process.env.OIDC_JWKS_URL!,
-  audience: process.env.MCP_AUDIENCE!,
-});
+const roleNames = ["staff", "owner"] as const;
 const readIdentity = jwtIdentity({
-  roles: ["staff", "owner"] as const,
+  roles: roleNames,
   rolesClaim: "https://venue.example/roles",
-  scopeClaims: { venue: "venue" },
+  scopeClaims: { venue: "https://venue.example/venue" },
+});
+function requiredEnv(key: string) {
+  const value = process.env[key];
+  if (!value?.trim()) throw new Error(`Missing ${key}`);
+  return value;
+}
+const issuer = requiredEnv("OIDC_ISSUER");
+const verify = await jwtVerifier({
+  issuer,
+  jwksUrl: requiredEnv("OIDC_JWKS_URL"),
+  audience: requiredEnv("MCP_AUDIENCE"),
 });
 const policy = readFileSync("mcp-rbac.yaml", "utf8");
+
 await serveGuardedHttp({
-  verify, acceptGrantTokens: false, authorizationServers: [process.env.OIDC_ISSUER!],
+  verify, acceptGrantTokens: false, authorizationServers: [issuer],
   async createServer() {
-    const server = makeVenueServer(); // your SDK server with its tools registered
+    const server = makeVenueServer(); // your SDK server with lookup and refund already registered
     return (await protectWithCore(server, {
       policy, identity: ctx => readIdentity(authInfoOf(ctx)),
-      resource: async ({ tool, args }) => {
-        if (tool !== "refund" && tool !== "checkin") return undefined;
-        const ticket = await tickets.findById(args.ticketId); // your authoritative data
+      resource: async ({ args }) => {
+        if (typeof args.ticket !== "string") throw new Error("missing ticket ID");
+        const ticket = await tickets.findById(args.ticket); // your database
         if (!ticket) throw new Error("unknown ticket");
         return { venue: ticket.venue };
       },
@@ -127,12 +172,33 @@ await serveGuardedHttp({
 });
 ```
 
-4. Inside a guarded TypeScript handler, `callerOf(ctx)` from `mcp-rbac/core` returns the verified identity, matched rule and resolved resource. Scope reads and writes in your database by the verified venue, including list queries. For a mutable record, check ownership in the write transaction. The handler runs with the server's database credentials. The stable guard applies the authority you map from the token. For separate limits on an agent acting for its user, issue a restricted client-specific token or intersect their grants in your identity resolver. The stdio proxy uses its configured user and role across calls.
-5. To require both the role and an OAuth permission, add `scopes: [refunds:write]` under `tools.refund`. The helper supplies an empty scope list for a token without scopes. Missing or unknown roles and missing configured venue claims deny access. If assignments live in your database, load them by verified issuer and subject in the identity callback. Changes to roles embedded in tokens take effect when the token is replaced or expires unless your verifier also checks revocation.
+**4. Use the verified caller in the handler.** `callerOf(ctx)` from `mcp-rbac/core` exposes the identity, matched rule and resolved resource. Since applications can supply different identity types, narrow the identity when reading your typed roles. Here `z` is Zod and `roleNames` is the same allowlist used by the mapper. A refund should check ownership in its write transaction and use a business idempotency key.
 
-Run `npx tsx docs/snippets/ts/jwt.ts` from the built repository for a complete HTTP example with locally signed tokens. It checks staff discovery and direct denial, owner inheritance, an allowed refund, approval at 100, the hard limit, another venue, missing scopes, malformed roles and a wrong audience. [Runnable server and client](docs/snippets/ts/jwt.ts) · [JWT example policy](docs/snippets/jwt.yaml)
+```ts
+const principal = z.object({ id: z.string(), roles: z.array(z.enum(roleNames)) });
+// Inside a registered tool handler:
+const caller = callerOf(ctx);
+const venue = caller?.resource?.venue;
+if (!venue) throw new Error("missing authorized venue");
+const { id, roles } = principal.parse(caller.identity); // e.g. "sam", ["owner"]
+const ticket = await tickets.findByIdAndVenue(args.ticket, venue);
+```
 
-Check the policy in CI:
+| Signed caller and direct tool call | Expected handler behavior |
+|---|---|
+| Dana, staff, requests a refund of 20 | Denied, even before listing tools. |
+| Sam, owner, looks up a ticket at his venue | Runs through the inherited staff grant. |
+| Sam, owner with `refunds:write`, refunds 20 at his venue | Runs. |
+| Same caller refunds 100 or 500 | Requires approval. The example returns an approval-required result and leaves the handler untouched. |
+| Same caller refunds 501, or requests a ticket at another venue | Denied. |
+| Sam has the owner role and the token is missing `refunds:write` | Refund denied. |
+| Token is signed for another API | HTTP authentication rejects it before dispatch. |
+
+For refunds that a human may approve, supply `approve` to `protectWithCore`. A host callback can check a separate reviewer's permissions. The built-in CLI queue lets its operator inspect and answer a pending call with `mcp-rbac pending` and `mcp-rbac approve <id>`. [Approval setup](docs/quickstart.md)
+
+### Test the policy in CI
+
+The following fixture uses the quickstart policy with `list_events` and `checkin`. From a built checkout, you can run the pair directly with `node dist/cli.js test docs/snippets/mcp-rbac.yaml docs/snippets/mcp-rbac.test.yaml`. For your own policy and fixtures, use these commands.
 
 ```bash
 mcp-rbac check mcp-rbac.yaml

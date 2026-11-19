@@ -72,7 +72,7 @@ const INPUT_METHODS = new Set(["tools/call", "prompts/get", "resources/read"]);
 const ERR = { headerMismatch: -32020, missingCap: -32021, unsupportedVersion: -32022, methodNotFound: -32601, invalidParams: -32602, internal: -32603 };
 
 function send(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) {
-  res.writeHead(status, { "content-type": "application/json", ...headers });
+  res.writeHead(status, { "content-type": "application/json", ...(status === 413 ? { connection: "close" } : {}), ...headers });
   res.end(JSON.stringify(body));
 }
 const rpcError = (id: unknown, code: number, message: string, data?: unknown) =>
@@ -81,7 +81,8 @@ const rpcError = (id: unknown, code: number, message: string, data?: unknown) =>
 async function readRaw(req: IncomingMessage, max: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let n = 0;
-  for await (const c of req) {
+  // Returning at the limit must leave the socket open long enough to deliver HTTP 413.
+  for await (const c of req.iterator({ destroyOnReturn: false })) {
     n += (c as Buffer).length;
     if (n > max) throw Object.assign(new Error("too large"), { status: 413 });
     chunks.push(c as Buffer);
